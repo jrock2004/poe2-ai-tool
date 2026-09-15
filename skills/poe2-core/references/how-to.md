@@ -18,8 +18,18 @@ when the player asks "how?". Game UI shifts per patch — keep these current (se
 2. Screenshot just that tab area (whole window is fine too).
 3. Drop the image in the chat. Repeat per tab; each tab is tracked separately.
 
-## Connect your account (OAuth) — Phase 2
-Placeholder until the OAuth flow exists. Will read your characters' gear/skills/passives officially.
+## Screenshot your character / gear
+1. Open your **Character** panel (default **C**) to show equipped gear; the inventory panel (**I**)
+   works too. Hover a piece to show its full tooltip if you want that item read precisely.
+2. Screenshot the panel (whole window is fine).
+3. Drop it in the chat. This is how the assistant reads your build for gear advice — there's no
+   auto-import (see below).
+
+## Connect your account (OAuth) — currently unavailable
+The official character API would read your gear/skills/passives automatically, but **GGG isn't issuing
+new API keys** right now ("unable to process new applications"), so there's no auto-connect. Use a
+character screenshot or just describe the build instead. If GGG reopens registration this becomes
+automatic with no change to how you use the skills.
 
 ## Find a build guide
 Paste a link from Mobalytics, Maxroll, or poe-vault, or the build's PoB code. If a guide won't load
