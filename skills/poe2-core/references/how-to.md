@@ -1,0 +1,26 @@
+# "How do I get that for you?" — player how-tos
+
+Short, current, click-by-click. Surface a one-line version as a hint on any ask; give the full steps
+when the player asks "how?". Game UI shifts per patch — keep these current (see plan §10).
+
+## Export a Path of Building (PoB) code
+1. Open Path of Building 2 with your build loaded.
+2. Import/Export tab → **Generate** (or Export) → **Copy** the code.
+3. Paste it here. (TODO: verify exact menu labels against current PoB2.)
+
+## Copy an item from in-game
+1. Hover the item so its tooltip shows.
+2. Press **Ctrl+C**. This copies the full item text.
+3. Paste it here.
+
+## Screenshot a currency / crafting tab
+1. Open your stash, click the **Currency** (or Crafting) tab.
+2. Screenshot just that tab area (whole window is fine too).
+3. Drop the image in the chat. Repeat per tab; each tab is tracked separately.
+
+## Connect your account (OAuth) — Phase 2
+Placeholder until the OAuth flow exists. Will read your characters' gear/skills/passives officially.
+
+## Find a build guide
+Paste a link from Mobalytics, Maxroll, or poe-vault, or the build's PoB code. If a guide won't load
+for me, its PoB code always works.
