@@ -47,6 +47,19 @@ hard, read-only, never auto-buy, back off on 429. Powers F6 trade filters and ra
 ### poe.ninja — fallback economy overview
 Public poe2 economy endpoints, no auth, ~5 min cache, descriptive User-Agent. Cross-check for prices.
 
+### Build guides — robots/license-aware fetch (`guides.py`)
+**Re-verified Sep 2026 — this overturns the plan's older Phase-0 spike:**
+- **Mobalytics** — now **Cloudflare-403s** server fetches even with a browser UA (was "clean static").
+  → route `browser` (assistant reads it in the player's own browser) or paste a PoB code.
+- **poe-vault** — static and readable → **fetch works**.
+- **Maxroll** — reachable, but its robots.txt (Ziff Davis) **explicitly prohibits automated/AI use** of
+  the content. We respect that and refuse → route `paste`.
+
+`fetch_guide` gates on robots.txt (Disallow *and* no-AI/scraping preamble) and a small prohibited-host
+list, fetches with an honest descriptive UA where permitted, extracts readable text (BeautifulSoup),
+and otherwise returns a `route` (`browser`/`paste`) instead of scraping around the block. Guide
+structuring into stages (plan §5.1) is the `poe2-build-review` skill's job, not the tool's.
+
 ### GGG Character API (OAuth, poe2 realm) — BLOCKED, deferred
 Official; would list characters and return gear/skills/passives. Endpoints exist (`GET /character/poe2`,
 `GET /character/poe2/{name}`, scope `account:characters`, public/PKCE client). **But OAuth client
@@ -65,13 +78,16 @@ Implemented (Phase 1):
 - `find_stat_filters(affix)` — resolve an affix line to /trade2 stat-filter ids (offline, cached).
 - `build_trade_filter(category, stats, max_price…)` — construct a /trade2 query (offline, no search).
 - `search_trade(query, league?, limit)` — live read-only /trade2 search + top listings + link.
+- `fetch_guide(url)` — robots/license-aware guide fetch; returns text, or a `route` (browser/paste)
+  when fetching isn't permitted or is bot-blocked. Powers `poe2-build-review`.
 
-Planned (later phases): `get_my_characters` (OAuth, blocked), `parse_pob_code`, `fetch_guide`.
+Planned (later phases): `get_my_characters` (OAuth, blocked), `parse_pob_code`.
 
 ## Config (env)
 - `POE2_LEAGUE` — default league (e.g. `Forbidden Rites`). **Set this**; temp leagues rotate and
   poe2scout marks several leagues current at once, so the "first current" fallback is unreliable.
-- `POE2_REALM` (default `poe2`), `POE2SCOUT_BASE`, `POE2_USER_AGENT`, `POE2_TRADE_USER_AGENT`.
+- `POE2_REALM` (default `poe2`), `POE2SCOUT_BASE`, `POE2_USER_AGENT`, `POE2_TRADE_USER_AGENT`,
+  `POE2_GUIDE_USER_AGENT`.
 
 ## Run
 `python -m venv .venv && . .venv/bin/activate && pip install -e . && POE2_LEAGUE="Forbidden Rites" poe2-mcp`

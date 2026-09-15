@@ -10,17 +10,20 @@ your MCP client.
 """
 from __future__ import annotations
 
+import asyncio
 import math
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from .guides import GuideFetcher
 from .poe2scout import Poe2ScoutClient, exalted_to_divine, value_holdings
 from .trade2 import StatFilter, Trade2Client, build_query, summarize_listing, human_search_url
 
 mcp = FastMCP("poe2-mcp")
 _scout = Poe2ScoutClient()
 _trade = Trade2Client()
+_guides = GuideFetcher()
 
 
 def _round(n: float, places: int) -> float | None:
@@ -273,6 +276,22 @@ async def search_trade(
             "No listings matched. Loosen the filters (drop a min, allow offline, raise the price cap)."
         ),
     }
+
+
+@mcp.tool()
+async def fetch_guide(url: str) -> dict[str, Any]:
+    """Fetch a Path of Exile 2 build guide's text, respecting robots.txt and content licenses.
+
+    Returns the readable page text when fetching is permitted and works. When it isn't, returns a
+    `route` telling how to get the guide another way instead of scraping around the block:
+      - route "paste": the site forbids automated/AI use (e.g. Maxroll/Ziff Davis) or robots blocks it
+        -- ask the player for the guide's PoB code or pasted text.
+      - route "browser": the site bot-blocked the server fetch (e.g. Mobalytics/Cloudflare) -- the
+        assistant can read it in the player's own browser, or the player pastes the PoB code.
+    `partial: true` means some content loads client-side and detail may be missing. Never bypasses a
+    block or a stated no-AI policy.
+    """
+    return await asyncio.to_thread(_guides.fetch, url)
 
 
 def main() -> None:
