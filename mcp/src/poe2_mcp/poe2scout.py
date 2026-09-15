@@ -38,6 +38,54 @@ def exalted_to_divine(exalted: float, divine_price: float) -> float:
     return exalted / divine_price
 
 
+def value_holdings(
+    items: list[dict[str, Any]],
+    holdings: list[dict[str, Any]],
+    divine_price: float,
+) -> dict[str, Any]:
+    """Value a list of holdings against a poe2scout /Items list. Pure -- no network.
+
+    items: raw scout /Items dicts (uniques + currencies, each with CurrentPrice in exalted;
+        Exalted Orb itself is 1). holdings: [{name, count}]. Matched by exact (case-insensitive)
+        Name or Text. Unmatched or unpriced names are reported, never guessed. Totals are exalted
+        (the base unit) and its divine equivalent.
+    """
+    index: dict[str, dict[str, Any]] = {}
+    for it in items:
+        for key in (it.get("Name"), it.get("Text")):
+            if key:
+                index.setdefault(key.strip().lower(), it)
+
+    lines: list[dict[str, Any]] = []
+    unmatched: list[str] = []
+    total_ex = 0.0
+    for h in holdings:
+        name = (h.get("name") or "").strip()
+        count = h.get("count") or 0
+        hit = index.get(name.lower())
+        price = hit.get("CurrentPrice") if hit else None
+        if hit is None or price is None:
+            unmatched.append(name)
+            continue
+        value_ex = count * price
+        total_ex += value_ex
+        lines.append(
+            {
+                "name": hit.get("Name") or hit.get("Text"),
+                "count": count,
+                "unitExalted": price,
+                "valueExalted": value_ex,
+                "valueDivine": exalted_to_divine(value_ex, divine_price),
+            }
+        )
+    return {
+        "lines": lines,
+        "unmatched": unmatched,
+        "totalExalted": total_ex,
+        "totalDivine": exalted_to_divine(total_ex, divine_price),
+    }
+
+
 @dataclass
 class _CacheEntry:
     expires: float

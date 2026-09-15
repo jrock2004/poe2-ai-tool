@@ -15,7 +15,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .poe2scout import Poe2ScoutClient, exalted_to_divine
+from .poe2scout import Poe2ScoutClient, exalted_to_divine, value_holdings
 from .trade2 import StatFilter, Trade2Client, build_query, summarize_listing, human_search_url
 
 mcp = FastMCP("poe2-mcp")
@@ -132,6 +132,45 @@ async def price_unique(name: str, league: str | None = None) -> dict[str, Any]:
             "No exact match; closest names above. poe2scout covers currencies + uniques, not rare gear."
             if near
             else "No match. poe2scout only prices currencies and uniques; rare items need the /trade2 adapter."
+        ),
+    }
+
+
+@mcp.tool()
+async def value_currency(
+    holdings: list[dict[str, Any]],
+    league: str | None = None,
+) -> dict[str, Any]:
+    """Value a Path of Exile 2 currency/item inventory at current poe2scout prices.
+
+    holdings: list of {name, count} -- e.g. [{"name": "Divine Orb", "count": 11}, ...]. Names should
+    be canonical (normalize shorthand via poe2-core's currency glossary first). Returns per-line and
+    total worth in exalted (the base unit) and divine, plus any names that didn't match a priced item.
+    Use it for net worth and "can I afford this?" -- deterministic arithmetic, not estimated.
+    """
+    resolved = await _scout.resolve_league(league)
+    divine_price = resolved.get("DivinePrice") or 0
+    items = await _scout.get_items(resolved["Value"])
+    valued = value_holdings(items, holdings, divine_price)
+    return {
+        "league": resolved["Value"],
+        "divinePriceInExalted": divine_price,
+        "lines": [
+            {
+                "name": ln["name"],
+                "count": ln["count"],
+                "unitExalted": _round(ln["unitExalted"], 3),
+                "valueExalted": _round(ln["valueExalted"], 2),
+                "valueDivine": _round(ln["valueDivine"], 3),
+            }
+            for ln in valued["lines"]
+        ],
+        "totalExalted": _round(valued["totalExalted"], 2),
+        "totalDivine": _round(valued["totalDivine"], 3),
+        "unmatched": valued["unmatched"],
+        "note": (
+            "Valued at current poe2scout prices (cached ~5 min). Unmatched names weren't found as a "
+            "priced item -- check spelling or normalize via the currency glossary."
         ),
     }
 

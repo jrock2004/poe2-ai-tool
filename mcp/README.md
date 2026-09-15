@@ -60,6 +60,8 @@ Implemented (Phase 1):
 - `get_leagues` — poe2scout leagues + current divine price.
 - `get_currency_prices(category, search, league?)` — currency prices in exalted + divine.
 - `price_unique(name, league?)` — unique/currency reference price, with close-name suggestions.
+- `value_currency(holdings, league?)` — value an inventory of {name, count} at current prices, in
+  exalted + divine, per line and total (net worth / affordability). Powers `poe2-currency-tracker`.
 - `find_stat_filters(affix)` — resolve an affix line to /trade2 stat-filter ids (offline, cached).
 - `build_trade_filter(category, stats, max_price…)` — construct a /trade2 query (offline, no search).
 - `search_trade(query, league?, limit)` — live read-only /trade2 search + top listings + link.
