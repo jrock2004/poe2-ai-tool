@@ -16,9 +16,10 @@ It composes what's already built: `poe2-character` (whose build, and its goal), 
 
 - Resolve the character via `poe2-character` (active one, or a named override). Use its **goal** and
   **archetype** — an upgrade is only an upgrade *relative to what the build is trying to do*.
-- Read the gear: a **character screenshot** (best today) or the player's description. There's no OAuth
-  auto-import (GGG isn't issuing keys) and raw PoB codes aren't decodable yet — so screenshot/description.
-  Read each equipped slot's key mods; if a slot is unreadable, say so rather than assuming it's empty.
+- Read the gear, best fidelity first: a **PoB code** via `parse_pob_code` (gives computed resistances,
+  life/ES, DPS + gear + gems — ideal for diagnosis), else a **character screenshot**, else the player's
+  description. There's no OAuth auto-import (GGG isn't issuing keys). If a slot is unreadable, say so
+  rather than assuming it's empty.
 
 ## 2. Diagnose the weak slots (survivability before damage)
 

@@ -80,8 +80,11 @@ Implemented (Phase 1):
 - `search_trade(query, league?, limit)` — live read-only /trade2 search + top listings + link.
 - `fetch_guide(url)` — robots/license-aware guide fetch; returns text, or a `route` (browser/paste)
   when fetching isn't permitted or is bot-blocked. Powers `poe2-build-review`.
+- `parse_pob_code(code)` — decode a Path of Building 2 export code (or pobb.in link) into character,
+  computed stats (resistances/life/ES/DPS), gems, and equipped items. Offline. Feeds gear-upgrade /
+  build-review without a screenshot.
 
-Planned (later phases): `get_my_characters` (OAuth, blocked), `parse_pob_code`.
+Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strategy` data.
 
 ## Config (env)
 - `POE2_LEAGUE` — default league (e.g. `Forbidden Rites`). **Set this**; temp leagues rotate and

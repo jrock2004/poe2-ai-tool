@@ -42,9 +42,10 @@ rather than inventing stage targets.
 
 ## 3. Read the character and pick the stage
 
-Resolve the character via `poe2-character` (active or named). Read it from a **screenshot or
-description** — OAuth is unavailable and PoB codes aren't decodable yet. **The character's level is the
-key**: it auto-selects the stage.
+Resolve the character via `poe2-character` (active or named). Read it best-fidelity first: a **PoB
+code** via `parse_pob_code` (clean level, stats, gems, gear), else a **screenshot or description**
+(OAuth is unavailable). **The character's level is the key**: it auto-selects the stage. A PoB code is
+especially handy here since both the guide and the character can be PoB-sourced and compared directly.
 
 The payoff feature: "you're level 28 → here are your 24–30 gem/gear targets, and here's exactly what
 changes when you hit 31." The player never has to figure out which tab of the guide applies. Also: if

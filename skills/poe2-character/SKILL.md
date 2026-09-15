@@ -60,17 +60,17 @@ it.
 
 Gear/skill reading feeds `poe2-gear-upgrade` and `poe2-build-review`. Order of preference:
 
+- **PoB code** — best fidelity. `parse_pob_code` (MCP) decodes a Path of Building 2 export code (or a
+  pobb.in link) into computed stats (resistances, life/ES, DPS), gems, and equipped items. Prefer this
+  when the player has a PoB open. Record `build_source: "pob"` and the parsed summary.
 - **Character screenshot** — the player screenshots their character/inventory panel; vision reads it.
-  Works today. Best default.
-- **Plain description** — "level 84 Deadeye, Ice Shot, resists capped, ~2.4k life" — works today, lower
-  fidelity; good enough to start.
-- **PoB code** — *not readable yet.* Decoding a Path of Building code needs the `parse_pob_code` MCP
-  tool, which isn't built. Record `build_source: "pob"` and the code, but tell the player you'll read it
-  via screenshot/description until PoB parsing lands.
+  Good when there's no PoB.
+- **Plain description** — "level 84 Deadeye, Ice Shot, resists capped, ~2.4k life" — lowest fidelity,
+  fine to start.
 
 **Note on OAuth:** the official character API would read gear automatically, but **GGG isn't issuing new
-API keys** right now, so there's no auto-import — screenshots/description are the path. If registration
-reopens, this upgrades transparently (see `docs/ggg-oauth-application.md`).
+API keys** right now, so there's no auto-import — PoB/screenshot/description are the path. If
+registration reopens, this upgrades transparently (see `docs/ggg-oauth-application.md`).
 
 ## Listing, updating, switching
 

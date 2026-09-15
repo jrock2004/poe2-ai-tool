@@ -59,8 +59,8 @@ fallback. A ready-to-send OAuth client request is parked in `docs/ggg-oauth-appl
 reopens registration, the official character read (`account:characters`, `poe2` realm, public/PKCE
 client) slots in transparently with no change to the skills.
 
-Note: a raw **PoB code** isn't usable yet either — decoding it needs a `parse_pob_code` tool (not
-built). Until then, PoB codes are recorded but read via screenshot/description.
+Reading a build has three inputs, best fidelity first: a **PoB code** (`parse_pob_code` decodes it into
+computed stats + gems + gear), a **character screenshot** (vision), or a **plain description**.
 
 ---
 
@@ -234,10 +234,10 @@ screenshots) with the `value_currency` tool, and `poe2-gear-upgrade` (F1). The o
 be done: OAuth character import (`get_my_characters`) — GGG isn't issuing clients (§3), so character
 reading is screenshot/description instead. It knows *you* — your roster, and your currency per league.
 
-**Phase 3 — Guides + comparison + trials. ◐ in progress.**
-`fetch_guide` ✅ built (robots/license-aware, §F3). Remaining: `poe2-build-review` (F2),
-`poe2-trials-advisor` (F4). A `parse_pob_code` tool is a prerequisite if we want to consume PoB codes
-directly rather than screenshots.
+**Phase 3 — Guides + comparison + trials. ✅ built.**
+`fetch_guide` (robots/license-aware, §F3), `poe2-build-review` (F2), `poe2-trials-advisor` (F4, with a
+freshness-stamped trials knowledge file), and `parse_pob_code` (decode a PoB export into stats/gems/
+gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
 
 **Phase 4 — Custom MCP consolidation + meta.**
 Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-strategy`.

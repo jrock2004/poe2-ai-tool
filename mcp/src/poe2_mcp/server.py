@@ -17,6 +17,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 
 from .guides import GuideFetcher
+from .pob import PobError, parse_pob_code as _parse_pob
 from .poe2scout import Poe2ScoutClient, exalted_to_divine, value_holdings
 from .trade2 import StatFilter, Trade2Client, build_query, summarize_listing, human_search_url
 
@@ -292,6 +293,25 @@ async def fetch_guide(url: str) -> dict[str, Any]:
     block or a stated no-AI policy.
     """
     return await asyncio.to_thread(_guides.fetch, url)
+
+
+@mcp.tool()
+async def parse_pob_code(code: str) -> dict[str, Any]:
+    """Decode a Path of Building 2 export code into a structured build summary.
+
+    Accepts a raw PoB code, a pasted pobb.in/<id> URL, or raw PoB XML. Returns the character
+    (level/class/ascendancy), computed stats (resistances, life, energy shield, DPS), skill groups
+    with their gems, and equipped items with readable mods -- so a pasted PoB code can feed
+    poe2-gear-upgrade / poe2-build-review without a character screenshot. Offline; no network.
+    """
+    try:
+        return _parse_pob(code)
+    except PobError as e:
+        return {
+            "valid": False,
+            "error": str(e),
+            "note": "Paste the code from Path of Building: Import/Export -> Generate -> Copy. A pobb.in link works too.",
+        }
 
 
 def main() -> None:
