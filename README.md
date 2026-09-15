@@ -102,10 +102,9 @@ poe2-ai-tools/
     └── poe2-currency-tracker/
 ```
 
-## Tech choice (assumption — flag if you disagree)
+## Tech choice
 
-The MCP server is planned in **TypeScript / Node** (first-class MCP SDK, and it lets us borrow from the
-existing `poe2scout-mcp`). Not written yet — easy to switch to Python before Phase 1 if you'd rather.
+The MCP server is written in **Python** (first-class MCP SDK; and PoB-code parsing and guide-HTML parsing, both upcoming, are materially easier in Python). Ported from an initial TypeScript sketch.
 
 ## Disclaimers
 

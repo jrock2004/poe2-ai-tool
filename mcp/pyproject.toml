@@ -1,0 +1,21 @@
+[project]
+name = "poe2-mcp"
+version = "0.0.1"
+description = "Thin MCP server providing live Path of Exile 2 data (poe2scout) to the poe2 assistant skills."
+requires-python = ">=3.10"
+dependencies = [
+    # Pinned <2: the server targets the 1.x FastMCP API (mcp.server.fastmcp).
+    # mcp 2.x renamed FastMCP -> MCPServer and changed the API, which breaks server.py.
+    "mcp>=1.2,<2",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+poe2-mcp = "poe2_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/poe2_mcp"]

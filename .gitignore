@@ -13,3 +13,10 @@ npm-debug.log*
 .DS_Store
 .idea/
 .vscode/
+
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+*.pyc
+.pytest_cache/

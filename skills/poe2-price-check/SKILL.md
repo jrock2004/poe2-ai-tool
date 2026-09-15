@@ -1,16 +1,83 @@
 ---
 name: poe2-price-check
-description: Price a Path of Exile 2 item or currency and say what it's realistically worth, with a confidence level. Use when the player pastes an item, asks "what's this worth", or asks about currency exchange rates.
+description: Price a Path of Exile 2 item or currency and say what it's realistically worth, with a confidence level. Use when the player pastes an item, asks "what's this worth", asks about currency exchange rates, or wants trade filters / a search link for an upgrade.
 ---
 # poe2-price-check  (Phase 1)
 
-Loads `poe2-core`. Given a pasted item, a currency, or a description, returns a fair price range and a
-list/snipe recommendation, with confidence.
+Load `poe2-core` first — it owns the confidence rubric, the beginner how-to reference, and the
+"never auto-trade" rule. This skill turns a currency name, a unique, or a pasted rare item into a
+realistic price and (for rares) a ready-to-use trade search, always with a grounded confidence band.
 
-**Inputs:** pasted item text (Ctrl+C in game), a currency name, or a plain description.
-**Data:** currencies/uniques → poe2scout; rare items → the `/trade2` adapter (see `mcp/README.md`).
-**Output:** price range, confidence band + reason, and (for rares) a ready trade filter (see F6).
-**Beginner note:** if they don't know how to copy an item, point to `poe2-core/references/how-to.md`.
+## Decide what you're pricing
 
-TODO (Phase 1): wire poe2scout currency/unique pricing; handle "no listings" by widening the search;
-implement the trade-filter output.
+1. **A currency** ("what's chaos going for?", "divine rate?") → poe2scout, `get_currency_prices`.
+2. **A unique item** (named item, orange text) → poe2scout, `price_unique`.
+3. **A rare item** (yellow item with random mods; the interesting case) → the `/trade2` adapter:
+   `find_stat_filters` → `build_trade_filter` → `search_trade`. poe2scout **cannot** price rares.
+
+If the player pasted raw item text (Ctrl+C in game), read the rarity line to tell unique from rare.
+If they don't know how to copy an item, give the one-liner from `poe2-core/references/how-to.md`
+("hover the item, press Ctrl+C, paste here").
+
+## Currencies and uniques (poe2scout)
+
+- Currency: `get_currency_prices(category, search)` — category is the apiId (`currency`, `essence`,
+  `runes`, `catalysts`, …), `search` narrows by name. Prices come back in both exalted and divine.
+- Unique: `price_unique(name)` — exact match returns the reference price; otherwise it returns
+  close-name suggestions. If there's no match, say so and offer the nearest names; don't invent a price.
+- League defaults to the configured one (`POE2_LEAGUE`); pass `league` only to override.
+
+## Rare items (the /trade2 flow)
+
+A rare's value is its *mods*, so price it by finding what similar items actually sell for:
+
+1. **Pick the mods that matter.** From the pasted item (or the player's description), choose the few
+   affixes that drive value — not every line. E.g. for boots: movement speed, life, a key resistance.
+2. **Resolve each to a filter id:** `find_stat_filters("+80 to maximum Life")` → candidate ids. Use
+   the top (explicit) match unless a pseudo/aggregate makes more sense; numbers are wildcards, so the
+   value never blocks the match.
+3. **Build the filter:** `build_trade_filter(category="armour.boots", stats=[{id, min}], max_price=…)`.
+   Set `min`s a little *below* the item's rolls to catch comparables, not just exact clones. Set
+   `max_price` from the player's currency budget when known (see `poe2-currency-tracker`).
+4. **Search:** `search_trade(query, limit=10)`. It returns a clickable trade link, how many listings
+   matched, and the cheapest few (mods, price, seller, and a whisper string the player copies).
+5. **Price from the sample.** Report a range (roughly the cheapest online listings, ignoring obvious
+   outliers), not a single number. Always give the player the `url` and note they trade themselves.
+
+### "No listings → widen the search" (required behavior)
+
+If `matched` is 0 or very small, do **not** report a shaky price. Loosen one thing at a time, say
+what you changed, and re-search:
+
+- Drop the least important mod, or lower a `min` (an 80-life filter with 0 hits → try 70, then 60).
+- Allow offline sellers (`build_trade_filter(..., online_only=False)`).
+- Raise or remove `max_price`.
+- Broaden the category if it was too specific.
+
+Narrate it plainly: *"Nothing matched at 80 life + 30% MS; I dropped movement speed to 25% and found
+6 listings."* Widening lowers confidence — reflect that in the band.
+
+## Trade filters as the deliverable (F6) and the iterate loop
+
+The player acts, never the tool. Output is a **link + the exact filters** (and per-listing whisper
+text to copy) — never an auto-purchase or whisper. After a search, invite the loop: the player pastes
+back what they saw or bought, and you critique and refine ("those are overpriced because the crit
+filter is too tight — drop it and the floor halves"). Keep the last search in active trade context so
+"search again, cheaper" continues without re-stating everything.
+
+## Confidence (per `poe2-core/references/confidence.md`)
+
+Derive the band from observable signals, never a made-up number:
+- **Sample size** — many comparable listings = High; 1–3 = Low; 0 = don't price, widen first.
+- **Price spread** — tight cluster = High; a 2–3× range = call it Medium/Low and give the range.
+- **Freshness** — poe2scout is cached ~5 min; trade results are live-ish. Note stale data.
+- **Input certainty** — real pasted item = higher; a vague description = lower, and say what would
+  sharpen it (the actual item text, the target league, the budget).
+
+End every answer with e.g. `Confidence: Medium — 5 listings, prices ranged ~2×; loosened MS to 25%.`
+
+## Guardrails
+
+- Never buy, list, or whisper. `search_trade` is read-only and rate-limited; if it returns a 429/blocked
+  note, back off and tell the player to retry shortly — don't hammer it.
+- Don't fabricate rare prices from poe2scout — it doesn't have them; use `/trade2` or say you can't.
