@@ -1,6 +1,6 @@
 # Path of Exile 2 Decision Assistant — Build Plan
 
-*Draft v8 — Phase 0 complete, repo scaffolded. Personal-use tool running inside Claude. OAuth-primary (§3); screenshots for currency only (§2); one `poe2-character` skill owns the roster (§4.1); guides modeled as staged progressions (§5.1); beginner-friendly by default (§7). Reuse-vs-build decided: reuse poe2scout for currency/uniques, build a thin /trade2 adapter for rare search (§9 Phase 0).*
+*Draft v9 — Phase 1 shipped and Phase 2/3 partly built; two v8 assumptions overturned by live checks and noted inline. Personal-use tool running inside Claude. **OAuth is currently unobtainable** — GGG isn't issuing new API clients — so character reading is screenshot/description-based (§3), not OAuth-primary as v8 assumed. Screenshots for currency (§2); one `poe2-character` skill owns the roster (§4.1); guides modeled as staged progressions (§5.1); beginner-friendly by default (§7). Reuse-vs-build: reuse poe2scout for currency/uniques, built a thin /trade2 adapter for rare search, and a robots/license-aware guide fetcher (§9). Build status is tracked in §9.*
 
 ---
 
@@ -37,21 +37,30 @@ This turns the one game-limited feature into a smooth paste-a-screenshot flow. E
 
 ---
 
-## 3. Auth: recommended hybrid
+## 3. Auth: OAuth is blocked — screenshot/description primary
 
-You're open to auth, so here's the honest cost/benefit per capability:
+**Reality check (verified against GGG's live docs):** OAuth is *not currently available*. GGG's
+developer docs say under *Registering your Application*: **"We are currently unable to process new
+applications."** There is no self-serve registration, and the forum record shows GGG discourages
+third-party tools and issues clients at its discretion. So the v8 plan's "OAuth primary" is off the
+table until registration reopens.
 
-| What you want | Best path | Auth needed |
+| What you want | Best path today | Auth |
 |---|---|---|
-| Read your gear/skills/passives (features 1, 2) | **Official character API, `poe2` realm** — it works | OAuth (one-time app approval) |
+| Read your gear/skills/passives (features 1, 2) | **Character screenshot / description** (vision) | None |
 | Price items, currency rates | poe2scout / poe.ninja | None |
 | Generate trade search filters (feature 6) | Unofficial `/trade2` query params | None (a POESESSID cookie extends it) |
 | Track your currency (feature 5) | Screenshot tabs → vision parse → memory | None |
-| Guides, trials knowledge (features 3, 4) | Web fetch + game knowledge | None |
+| Guides, trials knowledge (features 3, 4) | Fetch where permitted + game knowledge | None |
 
-**Recommendation (your call — OAuth primary):** OAuth is the primary data path, scoped to the **character read** (`account:characters`, `service:leagues`). The character endpoint lists *all* your characters, so this is also what gives us multi-character support (§4.1) for free — you pick which one is active, the assistant pulls its real gear/skills/passives. Screenshots are reserved strictly for what OAuth can't reach: **currency** (no stash API). PoB paste stays as a *fallback* for theorycrafting a build you haven't played yet.
+**What this means:** character reading is done from a **character-panel screenshot** or a plain
+description, the same way currency tracking uses screenshots. This is now the primary path, not a
+fallback. A ready-to-send OAuth client request is parked in `docs/ggg-oauth-application.md`; if GGG
+reopens registration, the official character read (`account:characters`, `poe2` realm, public/PKCE
+client) slots in transparently with no change to the skills.
 
-Rule of thumb baked into the design: **use OAuth wherever it works, screenshots only where it doesn't.** If GGG app approval is slow, the paste/screenshot fallbacks let everything function in the meantime, and character-read slots in cleanly when approval lands.
+Note: a raw **PoB code** isn't usable yet either — decoding it needs a `parse_pob_code` tool (not
+built). Until then, PoB codes are recorded but read via screenshot/description.
 
 ---
 
@@ -89,7 +98,7 @@ The **persistent state** layer is what makes features 5 and 6 work: your charact
 
 You play more than one build (Ice Shot Deadeye, minions, …), and so does everyone — so character isn't a single value, it's a **roster**. The state model:
 
-- **Account → characters[]** — each character has a name, class/ascendancy, build archetype, and (via OAuth) its live gear/skills/passives. You pick which one is *active* for a given question ("check upgrades for my Deadeye").
+- **Account → characters[]** — each character has a name, class/ascendancy, build archetype, goal, and its gear/skills read from a character screenshot or description (OAuth being unavailable, §3). You pick which one is *active* for a given question ("check upgrades for my Deadeye").
 - **Currency is league-scoped, not character-scoped** — in PoE2 your currency stash is shared across characters in a league, so the inventory attaches to the *league*, and all characters in that league draw on the same pool. (A subtle but important correctness detail — otherwise the tool would think your minion build is broke while your Deadeye is rich.)
 
 **First-run onboarding flow** (a real part of the design, not an afterthought): the first time you use the skill it interviews you — "Which character are we working on? What's the build's goal — bossing, mapping, league-start? Are you following a guide? OAuth-connect now or paste PoB?" — and saves that as a character profile. It also gauges **experience level** early (are terms like "PoB", "exalt", "resist cap" familiar, or should it explain as it goes?) and stores that, so verbosity is tuned to you from then on. Each new character triggers a short version of the same. After onboarding, day-to-day use is just "check my Deadeye's boots" and it already knows the context. The interview is short, asks one thing at a time, and writes each answer to state as it goes.
@@ -102,19 +111,32 @@ You play more than one build (Ice Shot Deadeye, minions, …), and so does every
 
 ## 5. Your seven features → how each is built
 
-**F1. "Look at my current PoB and tell me how to improve my gear."**
-Skill: `poe2-gear-upgrade`. Input = your character (via OAuth) or a pasted PoB code. It identifies your weakest stats vs. your build's needs (resistances capped? life/ES low? damage bottleneck?), then for each weak slot queries the market for realistic upgrades and ranks them by *value per currency*. Confidence: high when it has your real character + good market data; lower when guessing at your intent.
+**F1. "Look at my gear and tell me how to improve it."** *(built — screenshot path)*
+Skill: `poe2-gear-upgrade`. Input = your character read from a **screenshot or description** (OAuth
+being unavailable, PoB decoding not built). It identifies your weakest stats vs. your build's needs
+(resistances capped? life/ES low? damage bottleneck?), survivability first, then for each weak slot
+queries `/trade2` for realistic upgrades and ranks them by *value per currency*, bounded by your
+currency budget. Confidence: high with a clear gear read + good market data; lower when guessing intent.
 
 **F2. "Look at my skills, gear, and compare to a build guide."**
 Skill: `poe2-build-review`. Pulls your character, ingests the target guide (§F3), figures out *which stage of the guide you're at* (by your character level — see the guide model in §5.1), and produces a stage-aware diff: what you're missing *for where you are right now*, what's off-spec, and a priority-ordered fix list. Explicitly separates "you've *deviated* from the plan" from "you're just *behind on gearing* for your level."
 
-**F3. "Support guides from Maxroll, Mobalytics, poe-vault."**
-MCP tool: `fetch_guide`. **I tested your three guides — here's the real picture, not a guess:**
-- **Mobalytics (Ice Shot Deadeye):** ✅ fetches cleanly as static HTML. Full progression, gear, gems all readable. Has a "Download Build File" and a link to the endgame variant. Best case.
-- **poe-vault (Spirit-Walker):** ⚠️ partial — prose and act-by-act structure fetch fine, but the detailed **gem tables load dynamically** ("Fetching data…" in the static HTML). We'd get the shape but miss some specifics via plain fetch.
-- **Maxroll (Minion Army):** ❌ **blocked by robots.txt** — plain fetch is disallowed outright. This is the important finding.
+**F3. "Support guides from Maxroll, Mobalytics, poe-vault."** *(fetch tool built)*
+MCP tool: `fetch_guide`, which **gates before it fetches** (robots.txt, no-AI licenses, prohibited
+hosts) and only then fetches + cleans. **Re-verified Sep 2026 — this overturns the v8 spike:**
+- **Mobalytics:** ❌ now **Cloudflare-403s** server fetches even with a browser UA (was "clean static").
+  → browser-assisted read, or paste a PoB code.
+- **poe-vault:** ✅ static and readable now → plain fetch works.
+- **Maxroll:** ⚠️ reachable, but its robots.txt (Ziff Davis) **explicitly prohibits automated/AI use** of
+  the content. We **respect that and refuse** → paste the PoB code / content. (This is a *licensing*
+  block, stronger than the v8 "robots Disallow" reading.)
 
-So "support Maxroll/Mobalytics/poe-vault" isn't one solution, it's three tiers: **(a)** static fetch where it works (Mobalytics); **(b)** browser-assisted read for dynamic/blocked pages — loading the page in *your own browser session*, which is just you viewing a page you're allowed to view (the fallback for Maxroll + poe-vault's tables); **(c)** the always-reliable path — the guide's **exported PoB code** or you pasting the content. Order of preference: PoB code > static fetch > browser read > paste. See §5.1 for how a fetched guide is structured once we have it.
+So it's still a tiered approach, and `fetch_guide` encodes it by returning a **route** when it won't
+fetch: **(a)** static fetch where permitted (poe-vault); **(b)** `route: browser` — the assistant reads
+the page in *your own browser session*, which is just you viewing a page you're allowed to view
+(Mobalytics); **(c)** `route: paste` — the always-reliable path, the guide's **exported PoB code** or
+pasted content (Maxroll, and anything blocked). Order of preference: PoB code > static fetch > browser
+read > paste. See §5.1 for how a fetched guide is structured once we have it.
 
 **F4. "In Trial of Sekhemas / Trial of Chaos, what should I select?"**
 Skill: `poe2-trials-advisor`. Knowledge-driven: it knows the boon/affliction/reward pools and, given your build context (from state), recommends picks — e.g. "take the honour-resistance relic, your build is honour-fragile" or "avoid the -max-res affliction, you're already at a defensive floor." Needs a maintained knowledge file since trial contents shift by patch.
@@ -195,18 +217,27 @@ Two things deliberately *not* separate skills: **trade-filter generation** (live
 ## 9. Phased delivery
 
 **Phase 0 — Reuse-vs-build decision ✅ done (both spikes complete).**
-- *Guide-fetch spike (§F3):* Mobalytics clean, poe-vault partial, Maxroll robots-blocked.
+- *Guide-fetch spike (§F3), re-verified Sep 2026:* poe-vault static-fetchable; Mobalytics Cloudflare-403
+  (browser/paste); Maxroll reachable but license-prohibited for AI use (paste). `fetch_guide` gates and
+  routes accordingly.
 - *poe2scout coverage (read from source):* its API is a **price reference for currencies and unique items** (routes are all `/{realm}/Leagues/{league}/Currencies|Items|Uniques...` returning name/category/price/history). **There is no rare-item-by-affix search** — the `/Items` handler returns a flat list of currencies + uniques with a `CurrentPrice`, no stat filters.
 - **Verdict:** *reuse* poe2scout for currency rates, unique prices, price history, and net-worth/economy; *build our own thin `/trade2` adapter* for rare-gear search + trade-filter generation, which poe2scout structurally cannot do. This is the split the rest of the build assumes.
 
-**Phase 1 — First working loop.**
-`poe2-core` (confidence rubric + how-to reference + experience-level handling, §7) + `poe2-price-check` + `build_trade_filter`. You can price-check and get trade filters in Claude, with beginner-friendly asks from day one. This alone is daily-useful. Ship, use, find flaws.
+**Phase 1 — First working loop. ✅ shipped.**
+`poe2-core` (confidence rubric + how-to reference + currency glossary + experience-level handling, §7)
++ `poe2-price-check` + the `/trade2` adapter (`find_stat_filters` / `build_trade_filter` / `search_trade`).
+Price-check and trade filters work in Claude, beginner-friendly, live-validated. Daily-useful.
 
-**Phase 2 — Character reading (OAuth) + roster + gear upgrade.**
-Register the GGG app (character scope), add `get_my_character` (lists your characters), build the **`poe2-character` skill** — onboarding + roster + active-character state (§4.1) — then `poe2-gear-upgrade` (F1) and `poe2-currency-tracker` (F5, screenshots). Now it knows *you* — all of your characters, and your currency per league.
+**Phase 2 — Roster + currency + gear upgrade. ✅ built (minus OAuth, which is blocked).**
+`poe2-character` (onboarding + roster + active-character state, §4.1), `poe2-currency-tracker` (F5,
+screenshots) with the `value_currency` tool, and `poe2-gear-upgrade` (F1). The one v8 item that *can't*
+be done: OAuth character import (`get_my_characters`) — GGG isn't issuing clients (§3), so character
+reading is screenshot/description instead. It knows *you* — your roster, and your currency per league.
 
-**Phase 3 — Guides + comparison + trials.**
-`fetch_guide` (using Phase-0 findings), `poe2-build-review` (F2), `poe2-trials-advisor` (F4).
+**Phase 3 — Guides + comparison + trials. ◐ in progress.**
+`fetch_guide` ✅ built (robots/license-aware, §F3). Remaining: `poe2-build-review` (F2),
+`poe2-trials-advisor` (F4). A `parse_pob_code` tool is a prerequisite if we want to consume PoB codes
+directly rather than screenshots.
 
 **Phase 4 — Custom MCP consolidation + meta.**
 Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-strategy`.
@@ -216,12 +247,23 @@ Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-
 ## 10. Risks & open questions
 
 - **No stash API (F5)** — accepted; screenshot parsing into remembered state is the design. Vision misreads are caught by the confirm-before-save step. If GGG ever ships a stash API, currency tracking becomes automatic with no rework to the skill interface.
-- **Guide access is site-specific (F3) — partially tested already.** Mobalytics fetches clean; poe-vault's gem tables are dynamic; **Maxroll is robots.txt-blocked to plain fetch.** So there's no single "fetch a guide" solution — it's the tiered approach in §F3 (PoB code > static fetch > browser read > paste). Maxroll specifically will lean on browser-assisted reading or its exported PoB/planner. This is now a known constraint, not an open risk.
+- **OAuth character read is blocked (F1/F2).** GGG isn't issuing new API clients ("unable to process
+  new applications"), and discourages third-party tools. Character reading is screenshot/description
+  instead (§3). Not an open risk — a known constraint with a working path; upgrades transparently if
+  registration reopens (request parked in `docs/ggg-oauth-application.md`).
+- **Guide access is site-specific (F3) and shifts over time.** Re-verified Sep 2026: poe-vault fetches
+  static; **Mobalytics now Cloudflare-403s** plain fetches; **Maxroll's license (Ziff Davis) prohibits
+  automated/AI use**, so we refuse it. `fetch_guide` gates on robots + licenses and returns a route
+  (browser/paste) when it won't fetch. No single "fetch a guide" solution — it's the tiered approach in
+  §F3 (PoB code > static fetch > browser read > paste). Expect this to drift with site changes.
 - **`/trade2` is unofficial & rate-limited (F6)** — cache hard, never auto-purchase, treat it as read-only filter generation. Your account safety comes first.
 - **Confidence calibration (F7)** — grounded in signals, not model vibes (§6). Worth getting right early since every answer depends on it.
 - **Patch churn** — trials contents, currencies, meta, *and the game UI in the how-to steps* shift per patch. `poe2-core` (knowledge + how-to reference) and the trials knowledge need scheduled refreshes. Plan for maintenance.
 
-**Resolved:** test set = Ice Shot Deadeye + minion gear; OAuth is primary (character read), screenshots for currency only; multi-character roster + onboarding are core (§4.1); three real test guides provided and the fetch spike is done (§F3). Guides are modeled as staged progressions with variant links (§5.1).
+**Resolved:** test set = Ice Shot Deadeye + minion gear; character reading is screenshot/description
+(OAuth blocked, §3), screenshots also for currency; multi-character roster + onboarding are core (§4.1);
+guide fetch is robots/license-aware and re-verified (§F3). Guides are modeled as staged progressions
+with variant links (§5.1).
 
 **No open questions blocking Phase 0** — remaining work is the poe2scout MCP reuse-vs-build evaluation.
 
@@ -229,4 +271,4 @@ Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-
 
 ## 11. Recommendation
 
-**Skills first, against a reused MCP, value in days.** Sequence by usefulness — price-check + trade-filter loop (F6) first because you'll use it every session, then OAuth-powered character-aware gear analysis across your roster (F1/F2), then guides and trials (F3/F4). OAuth is the primary data path (scoped to character reading); screenshots cover only what OAuth can't (currency). Multi-character onboarding is built in from Phase 2, not retrofitted. Confidence gets engineered as a grounded signal from day one, not bolted on as a vibe. And the whole thing is beginner-friendly by default (§7) — plain language, "how do I get that?" always answered, verbosity tuned to the player — because a tool that assumes you already know the jargon isn't much help to the people who need it most.
+**Skills first, against a reused MCP, value in days.** Sequence by usefulness — price-check + trade-filter loop (F6) first because you'll use it every session, then character-aware gear analysis across your roster (F1/F2), then guides and trials (F3/F4). Character data comes from screenshots/description (OAuth blocked, §3); screenshots also cover currency. Multi-character onboarding is built in from Phase 2, not retrofitted. Confidence gets engineered as a grounded signal from day one, not bolted on as a vibe. And the whole thing is beginner-friendly by default (§7) — plain language, "how do I get that?" always answered, verbosity tuned to the player — because a tool that assumes you already know the jargon isn't much help to the people who need it most.
