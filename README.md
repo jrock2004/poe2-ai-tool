@@ -76,10 +76,40 @@ Design notes that shape all of them:
 ## Build phases
 
 - [x] **Phase 0** — Reuse-vs-build decision + guide-fetch spike. *(done; see the table above)*
-- [ ] **Phase 1** — `poe2-core` + `poe2-price-check` + trade-filter generation.
-- [ ] **Phase 2** — GGG OAuth character read + `poe2-character` (roster/onboarding) + `poe2-gear-upgrade` + `poe2-currency-tracker`.
-- [ ] **Phase 3** — Guide ingestion + `poe2-build-review` + `poe2-trials-advisor`.
+- [x] **Phase 1** — `poe2-core` + `poe2-price-check` + `/trade2` trade-filter generation.
+- [x] **Phase 2** — `poe2-character` + `poe2-gear-upgrade` + `poe2-currency-tracker`. *(OAuth character read is blocked — GGG isn't issuing API clients — so builds are read from PoB codes / screenshots; see `docs/plan.md` §3.)*
+- [x] **Phase 3** — `fetch_guide` + `parse_pob_code` + `poe2-build-review` + `poe2-trials-advisor`.
 - [ ] **Phase 4** — Custom MCP consolidation + `poe2-meta-strategy`.
+
+## Setup (per machine)
+
+Two local files wire the tools and skills into the Claude Code app. They hold machine-specific paths,
+so they're **git-ignored** — recreate them once per machine (about a minute, no CLI beyond install):
+
+1. **Install the MCP server** (creates the `poe2-mcp` script):
+   ```bash
+   cd mcp && python -m venv .venv && . .venv/bin/activate && pip install -e .
+   ```
+2. **Register the server** — create `.mcp.json` at the repo root. The Code app auto-detects it and
+   prompts to enable the server (no CLI). Use the **absolute path** to the installed script:
+   ```json
+   {
+     "mcpServers": {
+       "poe2": {
+         "command": "/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/bin/poe2-mcp",
+         "env": { "POE2_LEAGUE": "Forbidden Rites" }
+       }
+     }
+   }
+   ```
+3. **Make the skills discoverable** — link them into the project's skills dir:
+   ```bash
+   mkdir -p .claude/skills && for d in skills/*/; do ln -sfn "../../$d" ".claude/skills/$(basename "$d")"; done
+   ```
+
+Reload the project, approve the `poe2` server when prompted, and the seven skills load automatically.
+Update `POE2_LEAGUE` when the temp league rotates. (Skills are symlinks to the one copy under `skills/`,
+so you still edit each skill in a single place; add a link only when you add a new skill.)
 
 ## Repo layout
 
