@@ -2,13 +2,84 @@
 name: poe2-build-review
 description: Compare the player's Path of Exile 2 character to a build guide and produce a stage-aware, prioritized fix list. Use when the player wants to know how their skills/gear stack up against a guide they're following.
 ---
-# poe2-build-review  (Phase 3)
+# poe2-build-review
 
-Loads `poe2-core`. Pulls the character, ingests a guide (see `mcp` fetch_guide tiers), figures out
-which guide stage matches the character's level, and produces a diff: what's missing for *this* stage,
-what's off-spec, priority-ordered. Separates "deviated from the plan" from "just behind on gearing".
+Load `poe2-core` first. This skill answers "how do I stack up against the guide I'm following?" — it
+reads the guide, reads the character, figures out **which stage of the guide the character is actually
+at** (by level), and produces a diff that separates *"you've deviated from the plan"* from *"you're
+just behind on gearing for your level."* Those two are very different advice and must not be conflated.
 
-**Guide model:** ordered level/act stages + variant links (leveling → endgame) + Trial milestone hooks.
-**Data:** guide via PoB code > static fetch > browser read > paste. Maxroll is robots-blocked to fetch.
+It composes: `fetch_guide` (get the guide), `poe2-character` (whose character + its level), and hands
+off to `poe2-gear-upgrade` / `poe2-price-check` to actually acquire what's missing.
 
-TODO (Phase 3): guide parser into the staged model; level-based stage selection; diff engine.
+## 1. Get the guide
+
+Take a guide URL, a PoB code, or pasted content. If a URL, call `fetch_guide(url)` and handle its
+result honestly — it won't scrape around a block:
+
+- **`fetched: true`** → use the text. If **`partial: true`**, some detail (gem/gear tables) loaded
+  client-side and may be missing — say so, and offer to fill gaps from a pasted PoB code.
+- **`route: "browser"`** (e.g. Mobalytics/Cloudflare) → the page can't be server-fetched; offer to read
+  it in the player's own browser, or ask for the PoB code.
+- **`route: "paste"`** (e.g. Maxroll — its license prohibits automated use) → ask the player to paste
+  the guide's PoB code or its text. Don't try to fetch it another way.
+
+Best fidelity always comes from the guide's **exported PoB code** — prefer it when offered.
+
+## 2. Structure the guide into stages (the §5.1 model)
+
+A guide is **not** one blob — it's an ordered progression. Structure what you got into:
+
+- **Ordered stages**, each keyed by a level range and/or act (guides use brackets like 1–14, 15–23, …
+  or Act 1→2→3), each carrying its own **gems/links, gear targets, and passive-tree state**.
+- **Variant links** — a leveling guide usually points to its endgame version. Track both and that
+  they're the same build at different phases.
+- **Milestone hooks** — stage transitions often coincide with Trials (e.g. minion play comes online
+  after the Act 3 Trial of Chaos). These tie into `poe2-trials-advisor` when it exists.
+
+If the guide only gave you partial structure, review against what you *do* have and flag the gaps
+rather than inventing stage targets.
+
+## 3. Read the character and pick the stage
+
+Resolve the character via `poe2-character` (active or named). Read it from a **screenshot or
+description** — OAuth is unavailable and PoB codes aren't decodable yet. **The character's level is the
+key**: it auto-selects the stage.
+
+The payoff feature: "you're level 28 → here are your 24–30 gem/gear targets, and here's exactly what
+changes when you hit 31." The player never has to figure out which tab of the guide applies. Also: if
+they're near the end of the leveling guide, point them to the **endgame variant** and what to switch.
+
+## 4. Produce the stage-aware diff
+
+Compare the character to *its current stage's* targets and split findings into two clearly-labeled
+buckets:
+
+- **Deviated from the plan** — genuinely off-spec: a different main skill or support gem than the guide,
+  a wrong/ineffective item choice, a passive path that doesn't match. This is a *correctness* issue.
+- **Behind on gearing for your level** — right plan, just not there yet: a slot the guide wants upgraded
+  that you haven't, resistances not yet capped, a gem you haven't leveled. This is a *progress* issue,
+  not a mistake — say so, so the player doesn't panic-reroll.
+
+Then a **priority-ordered fix list**, survivability first (uncapped resists, low life/ES) before damage
+or convenience, consistent with `poe2-gear-upgrade`. One clear "do this next," not a wall.
+
+## 5. Hand off acquisition
+
+For each fix that needs an item, hand off to `poe2-gear-upgrade` / `poe2-price-check` to turn it into a
+real, budget-bounded `/trade2` search (using the player's currency as the ceiling). For gems/tree, say
+where/how to get them. The player acts — never auto-buy or auto-whisper.
+
+## Confidence (per `poe2-core/references/confidence.md`)
+
+- **High** — clear character read + a fully-fetched or PoB-sourced guide, stage unambiguous.
+- **Medium** — partial guide (dynamic/paste gaps) or some character detail inferred.
+- **Low** — guide only loosely known, or level/gear guessed. Name what would raise it (the guide's PoB
+  code, a clearer character screenshot).
+
+## Guardrails
+
+- **Never conflate "deviated" with "behind."** Behind-on-gearing is normal progress, not a mistake.
+- **Respect the guide-fetch routes.** If `fetch_guide` says paste/browser, ask — don't scrape around it.
+- Survivability before damage in the fix list; one priority at a time.
+- Never buy, list, or whisper. Output is a diff + advice + trade links the player acts on.
