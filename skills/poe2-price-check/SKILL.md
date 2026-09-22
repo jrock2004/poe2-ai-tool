@@ -40,9 +40,12 @@ A rare's value is its *mods*, so price it by finding what similar items actually
    Set `min`s a little *below* the item's rolls to catch comparables, not just exact clones. Set
    `max_price` from the player's currency budget when known (see `poe2-currency-tracker`).
 4. **Search:** `search_trade(query, limit=10)`. It returns a clickable trade link, how many listings
-   matched, and the cheapest few (mods, price, seller, and a whisper string the player copies).
-5. **Price from the sample.** Report a range (roughly the cheapest online listings, ignoring obvious
-   outliers), not a single number. Always give the player the `url` and note they trade themselves.
+   matched, the cheapest few (mods, price, seller, and a whisper string the player copies), and
+   `priceStats` — those listings converted to exalted (min / median / max, spread).
+5. **Price from `priceStats`, not by eyeballing listings.** Lead with `medianExalted` and give the
+   range `minExalted`–`medianExalted` (convert to divine for big numbers). If the median is more than
+   2× the min, the floor is probably a price-fixer — say so and price from the median. Always give
+   the player the `url` and note they trade themselves.
 
 ### "No listings → widen the search" (required behavior)
 
@@ -67,12 +70,17 @@ filter is too tight — drop it and the floor halves"). Keep the last search in 
 
 ## Confidence (per `poe2-core/references/confidence.md`)
 
-Derive the band from observable signals, never a made-up number:
-- **Sample size** — many comparable listings = High; 1–3 = Low; 0 = don't price, widen first.
-- **Price spread** — tight cluster = High; a 2–3× range = call it Medium/Low and give the range.
-- **Freshness** — poe2scout is cached ~5 min; trade results are live-ish. Note stale data.
+Score the market signals from the tool fields, using the thresholds in the rubric's **Market
+signals** table — the band is capped by the weakest one:
+- **Rares** — `priceStats.converted` (sample size), `priceStats.spreadRatio` (spread),
+  `priceStats.unconvertedCurrencies` (coverage), `ageSeconds` (freshness). `matched` is only depth.
+- **Currency** — `quantityListed` (depth) and `ageSeconds`.
+- **Uniques** — `price_unique` has no listing volume, so it tops out at **Medium**.
 - **Input certainty** — real pasted item = higher; a vague description = lower, and say what would
   sharpen it (the actual item text, the target league, the budget).
+- **Widening** — each loosening step moves you further from the player's actual item; say what was
+  loosened, and drop a band if the comparables no longer really match it.
+- **Reusing an earlier price** — check its `fetchedAt`; re-query if it's stale rather than restating it.
 
 End every answer with e.g. `Confidence: Medium — 5 listings, prices ranged ~2×; loosened MS to 25%.`
 
