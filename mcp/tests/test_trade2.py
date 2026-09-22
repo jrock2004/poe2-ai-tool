@@ -222,3 +222,28 @@ def test_fetch_batches_and_reports_the_oldest_batch_time(monkeypatch):
     assert isinstance(got, Fetched)
     assert [e["id"] for e in got.body] == [f"h{i}" for i in range(12)]
     assert got.fetched_at == 100.0
+
+
+def test_stat_index_rebuilds_after_the_stats_cache_expires():
+    texts = iter(["# to maximum Life", "# to maximum Mana"])
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        entry = {"id": "explicit.stat_1", "text": next(texts), "type": "explicit"}
+        return httpx.Response(200, json={"result": [{"label": "Explicit", "entries": [entry]}]})
+
+    async def run():
+        client = Trade2Client(min_gap_s=0, stats_ttl_s=0.2, transport=httpx.MockTransport(handler))
+        first = await client.stat_index()
+        within_ttl = await client.stat_index()
+        await asyncio.sleep(0.3)
+        after_ttl = await client.stat_index()
+        await client.aclose()
+        return first, within_ttl, after_ttl
+
+    first, within_ttl, after_ttl = asyncio.run(run())
+    assert first[0]["text"] == "# to maximum Life"
+    assert within_ttl == first
+    assert after_ttl[0]["text"] == "# to maximum Mana"
+    assert calls == ["/api/trade2/data/stats", "/api/trade2/data/stats"]

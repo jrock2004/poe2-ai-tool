@@ -99,7 +99,10 @@ class Trade2Client:
             timeout=30.0,
             transport=transport,
         )
+        # The flattened stat index, and the /data/stats response it was built from -- rebuilt whenever
+        # that response is refreshed (stats_ttl_s), so a long-running server never serves a stale list.
         self._stats_index: list[dict[str, str]] | None = None
+        self._stats_source: Fetched[Any] | None = None
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -149,25 +152,27 @@ class Trade2Client:
             raise Trade2Error(f"trade2 {path} -> HTTP {resp.status_code} {resp.reason_phrase}: {resp.text[:200]}")
         fetched = Fetched(body=resp.json(), fetched_at=time.time())
         if cache_key:
-            self._cache[cache_key] = CacheEntry(time.monotonic() + (ttl or self._ttl_s), fetched)
+            lifetime = ttl if ttl is not None else self._ttl_s
+            self._cache[cache_key] = CacheEntry(time.monotonic() + lifetime, fetched)
         return fetched
 
-    async def _stats(self) -> list[dict[str, Any]]:
-        fetched = await self._live("GET", "/api/trade2/data/stats", cache_key="data/stats",
-                                   ttl=self._stats_ttl_s)
-        return fetched.body.get("result", [])
+    async def _stats(self) -> Fetched[Any]:
+        return await self._live("GET", "/api/trade2/data/stats", cache_key="data/stats",
+                                ttl=self._stats_ttl_s)
 
     async def stat_index(self) -> list[dict[str, str]]:
         """Flattened, normalized {id, text, type, norm} list of every stat filter, cached."""
-        if self._stats_index is not None:
+        source = await self._stats()
+        if self._stats_index is not None and source is self._stats_source:
             return self._stats_index
         idx: list[dict[str, str]] = []
-        for group in await self._stats():
+        for group in source.body.get("result", []):
             for e in group.get("entries", []):
                 text = e.get("text", "")
                 idx.append({"id": e.get("id", ""), "text": text, "type": e.get("type", ""),
                             "norm": _normalize_affix(text)})
         self._stats_index = idx
+        self._stats_source = source
         return idx
 
     async def find_stats(self, affix: str, limit: int = 6) -> list[dict[str, str]]:
