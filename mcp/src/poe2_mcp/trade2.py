@@ -30,6 +30,8 @@ from urllib.parse import quote
 
 import httpx
 
+from ._cache import CacheEntry, Fetched
+
 TRADE_BASE = os.environ.get("POE2_TRADE_BASE", "https://www.pathofexile.com")
 REALM = os.environ.get("POE2_REALM", "poe2")
 # GGG blocks generic/library User-Agents. A browser-like UA plus a contact is the etiquette here.
@@ -44,12 +46,6 @@ FETCH_BATCH = 10
 def human_search_url(league: str, query_id: str) -> str:
     """The clickable trade-site URL for a POSTed search id (what the player opens in a browser)."""
     return f"{TRADE_BASE}/trade2/search/{REALM}/{quote(league, safe='')}/{query_id}"
-
-
-@dataclass
-class _CacheEntry:
-    expires: float
-    body: Any
 
 
 @dataclass
@@ -79,8 +75,14 @@ class Trade2Error(RuntimeError):
 
 
 class Trade2Client:
-    def __init__(self, min_gap_s: float = 1.0, ttl_s: float = 300.0, stats_ttl_s: float = 21600.0):
-        self._cache: dict[str, _CacheEntry] = {}
+    def __init__(
+        self,
+        min_gap_s: float = 1.0,
+        ttl_s: float = 300.0,
+        stats_ttl_s: float = 21600.0,
+        transport: httpx.AsyncBaseTransport | None = None,  # tests pass an httpx.MockTransport
+    ):
+        self._cache: dict[str, CacheEntry] = {}
         self._min_gap_s = min_gap_s
         self._ttl_s = ttl_s
         self._stats_ttl_s = stats_ttl_s  # stat metadata rarely changes; cache 6h
@@ -95,6 +97,7 @@ class Trade2Client:
                 "Origin": TRADE_BASE,
             },
             timeout=30.0,
+            transport=transport,
         )
         self._stats_index: list[dict[str, str]] | None = None
 
@@ -121,11 +124,11 @@ class Trade2Client:
                 return
 
     async def _live(self, method: str, path: str, *, json_body: Any = None, cache_key: str | None = None,
-                    ttl: float | None = None) -> Any:
+                    ttl: float | None = None) -> Fetched[Any]:
         if cache_key:
             hit = self._cache.get(cache_key)
             if hit and hit.expires > time.monotonic():
-                return hit.body
+                return hit.fetched
         async with self._live_lock:
             await self._respect_before()
             resp = await self._client.request(method, path, json=json_body)
@@ -144,15 +147,15 @@ class Trade2Client:
             )
         if resp.status_code >= 400:
             raise Trade2Error(f"trade2 {path} -> HTTP {resp.status_code} {resp.reason_phrase}: {resp.text[:200]}")
-        body = resp.json()
+        fetched = Fetched(body=resp.json(), fetched_at=time.time())
         if cache_key:
-            self._cache[cache_key] = _CacheEntry(time.monotonic() + (ttl or self._ttl_s), body)
-        return body
+            self._cache[cache_key] = CacheEntry(time.monotonic() + (ttl or self._ttl_s), fetched)
+        return fetched
 
     async def _stats(self) -> list[dict[str, Any]]:
-        body = await self._live("GET", "/api/trade2/data/stats", cache_key="data/stats",
-                                ttl=self._stats_ttl_s)
-        return body.get("result", [])
+        fetched = await self._live("GET", "/api/trade2/data/stats", cache_key="data/stats",
+                                   ttl=self._stats_ttl_s)
+        return fetched.body.get("result", [])
 
     async def stat_index(self) -> list[dict[str, str]]:
         """Flattened, normalized {id, text, type, norm} list of every stat filter, cached."""
@@ -187,20 +190,23 @@ class Trade2Client:
         subs.sort(key=_stat_rank)
         return _dedup_stats(subs)[:limit]
 
-    async def search(self, league: str, query: dict[str, Any]) -> dict[str, Any]:
+    async def search(self, league: str, query: dict[str, Any]) -> Fetched[dict[str, Any]]:
         path = f"/api/trade2/search/{REALM}/{quote(league, safe='')}"
         key = f"search:{league}:{_stable(query)}"
         return await self._live("POST", path, json_body=query, cache_key=key)
 
-    async def fetch(self, query_id: str, hashes: list[str]) -> list[dict[str, Any]]:
+    async def fetch(self, query_id: str, hashes: list[str]) -> Fetched[list[dict[str, Any]]]:
+        """Fetch listings in batches of FETCH_BATCH; stamped with the OLDEST batch's fetch time."""
         out: list[dict[str, Any]] = []
+        times: list[float] = []
         for i in range(0, len(hashes), FETCH_BATCH):
             batch = hashes[i : i + FETCH_BATCH]
             path = f"/api/trade2/fetch/{','.join(batch)}?query={query_id}"
             key = f"fetch:{query_id}:{i}"
-            body = await self._live("GET", path, cache_key=key)
-            out.extend(body.get("result") or [])
-        return out
+            got = await self._live("GET", path, cache_key=key)
+            out.extend(got.body.get("result") or [])
+            times.append(got.fetched_at)
+        return Fetched(body=out, fetched_at=min(times) if times else time.time())
 
 
 # Default ranking when resolving an affix to a filter id: the literal reading of a pasted mod is an
@@ -306,6 +312,58 @@ def _mod_texts(mods: Any) -> list[str]:
             if text:
                 out.append(text)
     return out
+
+
+def to_exalted(amount: float, currency: str, rates: dict[str, float]) -> float | None:
+    """Convert a listing price to exalted using `rates` (from poe2scout.rates_from_items).
+
+    Returns None when the currency isn't in `rates` -- an unknown currency is never guessed.
+    """
+    rate = rates.get(currency)
+    return None if rate is None else amount * rate
+
+
+def listing_price_stats(listings: list[dict[str, Any]], rates: dict[str, float]) -> dict[str, Any]:
+    """Grounded price signals over summarized listings (from summarize_listing). Pure -- no network.
+
+    Returns {count, converted, unconvertedCurrencies, minExalted, medianExalted, maxExalted,
+    spreadRatio}. `count` is every listing passed in; `converted` is how many had a price in a known
+    currency. Listings with no price are excluded silently; listings in an unknown currency are
+    excluded and their currency ids reported (unique, first-seen order). min/median/max are None when
+    nothing converted. spreadRatio = max/min, None with fewer than 2 converted prices or min <= 0.
+
+    Callers pass the cheapest-N page of a price-ascending search, so these describe the cheap end of
+    the market, not the whole of it.
+    """
+    prices: list[float] = []
+    unconverted: list[str] = []
+    for ls in listings:
+        price = ls.get("price")
+        if not price or price.get("amount") is None:
+            continue
+        currency = price.get("currency") or ""
+        value = to_exalted(price["amount"], currency, rates)
+        if value is None:
+            if currency not in unconverted:
+                unconverted.append(currency)
+            continue
+        prices.append(value)
+
+    prices.sort()
+    n = len(prices)
+    median = None
+    if n:
+        mid = n // 2
+        median = prices[mid] if n % 2 else (prices[mid - 1] + prices[mid]) / 2
+    return {
+        "count": len(listings),
+        "converted": n,
+        "unconvertedCurrencies": unconverted,
+        "minExalted": prices[0] if n else None,
+        "medianExalted": median,
+        "maxExalted": prices[-1] if n else None,
+        "spreadRatio": prices[-1] / prices[0] if n >= 2 and prices[0] > 0 else None,
+    }
 
 
 def summarize_listing(entry: dict[str, Any]) -> dict[str, Any]:

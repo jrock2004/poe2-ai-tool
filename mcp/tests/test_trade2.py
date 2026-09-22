@@ -1,13 +1,24 @@
-"""Unit tests for the pure (no-network) parts of the trade2 adapter."""
+"""Unit tests for the trade2 adapter: pure helpers, plus the client over an offline mock transport."""
+import asyncio
+import time
+import types
+
+import httpx
+
+from poe2_mcp import trade2
+from poe2_mcp._cache import Fetched
 from poe2_mcp.trade2 import (
     StatFilter,
+    Trade2Client,
     human_search_url,
     _mod_texts,
     _normalize_affix,
     _parse_buckets,
     _stat_rank,
     build_query,
+    listing_price_stats,
     summarize_listing,
+    to_exalted,
 )
 
 
@@ -95,3 +106,119 @@ def test_summarize_listing_flattens():
 def test_human_search_url_encodes_league():
     url = human_search_url("Forbidden Rites", "abc123")
     assert url == "https://www.pathofexile.com/trade2/search/poe2/Forbidden%20Rites/abc123"
+
+
+RATES = {"exalted": 1, "divine": 500, "chaos": 60}
+
+
+def _priced(amount, currency):
+    """A listing shaped like summarize_listing output, reduced to what price stats read."""
+    return {"price": {"amount": amount, "currency": currency, "type": "~price"}}
+
+
+def test_to_exalted_converts_known_and_refuses_unknown():
+    assert to_exalted(2, "divine", RATES) == 1000
+    assert to_exalted(250, "exalted", RATES) == 250
+    assert to_exalted(5, "mirror-shard", RATES) is None
+
+
+def test_price_stats_mixed_currencies():
+    stats = listing_price_stats(
+        [_priced(1, "divine"), _priced(250, "exalted"), _priced(2, "chaos")], RATES
+    )
+    assert stats["count"] == 3
+    assert stats["converted"] == 3
+    assert stats["unconvertedCurrencies"] == []
+    assert stats["minExalted"] == 120
+    assert stats["medianExalted"] == 250
+    assert stats["maxExalted"] == 500
+    assert stats["spreadRatio"] == 500 / 120
+
+
+def test_price_stats_reports_unknown_currency_instead_of_dropping_it():
+    stats = listing_price_stats(
+        [_priced(100, "exalted"), _priced(5, "mirror-shard"), _priced(1, "mirror-shard")], RATES
+    )
+    assert stats["count"] == 3
+    assert stats["converted"] == 1
+    assert stats["unconvertedCurrencies"] == ["mirror-shard"]
+
+
+def test_price_stats_median_of_even_count_averages_middle_pair():
+    stats = listing_price_stats([_priced(n, "exalted") for n in (400, 100, 300, 200)], RATES)
+    assert stats["medianExalted"] == 250
+
+
+def test_price_stats_empty_and_single_have_no_spread():
+    empty = listing_price_stats([], RATES)
+    assert empty["count"] == 0 and empty["converted"] == 0
+    assert empty["minExalted"] is None and empty["medianExalted"] is None
+    assert empty["maxExalted"] is None and empty["spreadRatio"] is None
+
+    single = listing_price_stats([_priced(1, "divine")], RATES)
+    assert single["minExalted"] == single["medianExalted"] == single["maxExalted"] == 500
+    assert single["spreadRatio"] is None
+
+
+def test_price_stats_spread_is_none_when_min_is_zero():
+    stats = listing_price_stats([_priced(0, "exalted"), _priced(50, "exalted")], RATES)
+    assert stats["spreadRatio"] is None
+
+
+def test_price_stats_excludes_unpriced_listings_silently():
+    stats = listing_price_stats([{"price": None}, _priced(100, "exalted")], RATES)
+    assert stats["count"] == 2
+    assert stats["converted"] == 1
+    assert stats["unconvertedCurrencies"] == []
+
+
+def _offline_trade(handler) -> Trade2Client:
+    """A Trade2Client whose HTTP goes to an in-memory transport; no throttling gap."""
+    return Trade2Client(min_gap_s=0, transport=httpx.MockTransport(handler))
+
+
+def test_search_returns_fetched_and_cache_hit_keeps_fetched_at():
+    posts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        posts.append(request.url.raw_path.decode())
+        return httpx.Response(200, json={"id": "q1", "result": ["h1"], "total": 1})
+
+    async def run():
+        client = _offline_trade(handler)
+        query = build_query(category="armour.boots")
+        first = await client.search("Forbidden Rites", query)
+        second = await client.search("Forbidden Rites", query)
+        await client.aclose()
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert isinstance(first, Fetched)
+    assert first.body["id"] == "q1"
+    assert second.fetched_at == first.fetched_at
+    assert posts == ["/api/trade2/search/poe2/Forbidden%20Rites"]
+
+
+def test_fetch_batches_and_reports_the_oldest_batch_time(monkeypatch):
+    clock = iter([100.0, 200.0])
+    # Swap only trade2's `time` binding: patching time.time globally also hits httpx (cookie handling).
+    fake_time = types.SimpleNamespace(time=lambda: next(clock), monotonic=time.monotonic)
+    monkeypatch.setattr(trade2, "time", fake_time)
+    batches: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hashes = request.url.path.rsplit("/", 1)[-1].split(",")
+        batches.append(len(hashes))
+        return httpx.Response(200, json={"result": [{"id": h} for h in hashes]})
+
+    async def run():
+        client = _offline_trade(handler)
+        got = await client.fetch("q1", [f"h{i}" for i in range(12)])
+        await client.aclose()
+        return got
+
+    got = asyncio.run(run())
+    assert batches == [10, 2]
+    assert isinstance(got, Fetched)
+    assert [e["id"] for e in got.body] == [f"h{i}" for i in range(12)]
+    assert got.fetched_at == 100.0

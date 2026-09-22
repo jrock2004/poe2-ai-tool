@@ -11,11 +11,12 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from dataclasses import dataclass
 from typing import Any
 from urllib.parse import quote, urlencode
 
 import httpx
+
+from ._cache import CacheEntry, Fetched
 
 BASE = os.environ.get("POE2SCOUT_BASE", "https://api.poe2scout.com")
 REALM = os.environ.get("POE2_REALM", "poe2")
@@ -36,6 +37,20 @@ def exalted_to_divine(exalted: float, divine_price: float) -> float:
     if not divine_price or divine_price <= 0:
         return float("nan")
     return exalted / divine_price
+
+
+def rates_from_items(items: list[dict[str, Any]]) -> dict[str, float]:
+    """Map currency ApiId -> exalted per unit from a poe2scout /Items list. Pure -- no network.
+
+    ApiIds match the currency ids /trade2 listings are priced in ('divine', 'exalted', 'chaos', ...),
+    so this is the conversion table for trade prices. Uniques (ApiId null) and unpriced rows are
+    skipped, never guessed.
+    """
+    return {
+        it["ApiId"]: it["CurrentPrice"]
+        for it in items
+        if it.get("ApiId") and it.get("CurrentPrice") is not None
+    }
 
 
 def value_holdings(
@@ -86,15 +101,9 @@ def value_holdings(
     }
 
 
-@dataclass
-class _CacheEntry:
-    expires: float
-    body: Any
-
-
 class Poe2ScoutClient:
     def __init__(self, min_gap_s: float = 0.5, ttl_s: float = 300.0) -> None:
-        self._cache: dict[str, _CacheEntry] = {}
+        self._cache: dict[str, CacheEntry] = {}
         self._last_request = 0.0
         self._min_gap_s = min_gap_s  # ~2 req/s
         self._ttl_s = ttl_s          # 5 min, matches upstream cache
@@ -107,11 +116,11 @@ class Poe2ScoutClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def _get(self, path: str) -> Any:
+    async def _get(self, path: str) -> Fetched[Any]:
         hit = self._cache.get(path)
         now = time.monotonic()
         if hit and hit.expires > now:
-            return hit.body
+            return hit.fetched
 
         gap = self._last_request + self._min_gap_s - now
         if gap > 0:
@@ -121,25 +130,26 @@ class Poe2ScoutClient:
         resp = await self._client.get(path)
         if resp.status_code != 200:
             raise RuntimeError(f"poe2scout {path} -> HTTP {resp.status_code} {resp.reason_phrase}")
-        body = resp.json()
-        self._cache[path] = _CacheEntry(expires=time.monotonic() + self._ttl_s, body=body)
-        return body
+        fetched = Fetched(body=resp.json(), fetched_at=time.time())
+        self._cache[path] = CacheEntry(expires=time.monotonic() + self._ttl_s, fetched=fetched)
+        return fetched
 
-    async def get_leagues(self) -> list[dict[str, Any]]:
+    async def get_leagues(self) -> Fetched[list[dict[str, Any]]]:
         """GET /{realm}/Leagues -> list of leagues.
 
         Each has: Value, ShortName, IsCurrent, DivinePrice (exalted per divine), and currency texts.
         """
         return await self._get(f"/{REALM}/Leagues")
 
-    async def resolve_league(self, league: str | None = None) -> dict[str, Any]:
-        """Return a league dict.
+    async def resolve_league(self, league: str | None = None) -> Fetched[dict[str, Any]]:
+        """Return a league dict, stamped with when the league list was fetched.
 
         Precedence: explicit ``league`` arg -> configured ``POE2_LEAGUE`` -> first IsCurrent -> first.
         The IsCurrent fallback is last-resort only: poe2scout marks SC/HC/event leagues current at
         once, so relying on array order is unsafe -- prefer setting POE2_LEAGUE.
         """
-        leagues = await self.get_leagues()
+        fetched = await self.get_leagues()
+        leagues = fetched.body
         if not leagues:
             raise RuntimeError("poe2scout returned no leagues")
 
@@ -148,15 +158,13 @@ class Poe2ScoutClient:
             needle = wanted.lower()
             for lg in leagues:
                 if lg.get("Value", "").lower() == needle or lg.get("ShortName", "").lower() == needle:
-                    return lg
+                    return Fetched(body=lg, fetched_at=fetched.fetched_at)
             available = ", ".join(lg.get("Value", "?") for lg in leagues)
             source = "league argument" if league else "POE2_LEAGUE"
             raise RuntimeError(f'League "{wanted}" ({source}) not found. Available: {available}')
 
-        for lg in leagues:
-            if lg.get("IsCurrent"):
-                return lg
-        return leagues[0]
+        current = next((lg for lg in leagues if lg.get("IsCurrent")), leagues[0])
+        return Fetched(body=current, fetched_at=fetched.fetched_at)
 
     async def get_currencies_by_category(
         self,
@@ -165,7 +173,7 @@ class Poe2ScoutClient:
         search: str | None = None,
         page: int = 1,
         per_page: int = 25,
-    ) -> dict[str, Any]:
+    ) -> Fetched[dict[str, Any]]:
         params: dict[str, str] = {"category": category, "page": str(page), "perPage": str(per_page)}
         if search:
             params["search"] = search
@@ -174,6 +182,6 @@ class Poe2ScoutClient:
             f"/{REALM}/Leagues/{league}/Currencies/ByCategory?{urlencode(params)}"
         )
 
-    async def get_items(self, league_value: str) -> list[dict[str, Any]]:
+    async def get_items(self, league_value: str) -> Fetched[list[dict[str, Any]]]:
         """GET /{realm}/Leagues/{league}/Items -> flat list of uniques + currencies with CurrentPrice."""
         return await self._get(f"/{REALM}/Leagues/{quote(league_value, safe='')}/Items")

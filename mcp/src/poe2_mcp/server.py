@@ -16,10 +16,18 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from ._cache import freshness
 from .guides import GuideFetcher
 from .pob import PobError, parse_pob_code as _parse_pob
-from .poe2scout import Poe2ScoutClient, exalted_to_divine, value_holdings
-from .trade2 import StatFilter, Trade2Client, build_query, summarize_listing, human_search_url
+from .poe2scout import Poe2ScoutClient, exalted_to_divine, rates_from_items, value_holdings
+from .trade2 import (
+    StatFilter,
+    Trade2Client,
+    build_query,
+    human_search_url,
+    listing_price_stats,
+    summarize_listing,
+)
 
 mcp = FastMCP("poe2-mcp")
 _scout = Poe2ScoutClient()
@@ -40,7 +48,7 @@ async def get_leagues() -> list[dict[str, Any]]:
     Includes which league is current and the current divine price (in exalted). Use this to
     discover the league name the other tools accept.
     """
-    leagues = await _scout.get_leagues()
+    leagues = (await _scout.get_leagues()).body
     return [
         {
             "league": lg.get("Value"),
@@ -66,11 +74,13 @@ async def get_currency_prices(
     league: league value; defaults to the current league.
     Prices are returned in both exalted and divine. Currency/uniques only -- no rare-affix search.
     """
-    resolved = await _scout.resolve_league(league)
+    resolved_f = await _scout.resolve_league(league)
+    resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
-    resp = await _scout.get_currencies_by_category(
+    resp_f = await _scout.get_currencies_by_category(
         resolved["Value"], category, search=search, per_page=per_page
     )
+    resp = resp_f.body
     items = []
     for c in resp.get("Items", []):
         price_ex = c.get("CurrentPrice")
@@ -91,6 +101,7 @@ async def get_currency_prices(
         "total": resp.get("Total"),
         "page": resp.get("CurrentPage"),
         "pages": resp.get("Pages"),
+        **freshness(resolved_f, resp_f),
         "items": items,
         "note": "poe2scout reference prices (cached ~5 min). Currency/uniques only; no rare-affix search here.",
     }
@@ -103,9 +114,12 @@ async def price_unique(name: str, league: str | None = None) -> dict[str, Any]:
     Matches against poe2scout's priced item list. Returns price in exalted and divine, plus
     close-name suggestions when there's no exact match.
     """
-    resolved = await _scout.resolve_league(league)
+    resolved_f = await _scout.resolve_league(league)
+    resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
-    items = await _scout.get_items(resolved["Value"])
+    items_f = await _scout.get_items(resolved["Value"])
+    items = items_f.body
+    fresh = freshness(resolved_f, items_f)
     needle = name.strip().lower()
 
     def label(i: dict[str, Any]) -> str:
@@ -120,6 +134,7 @@ async def price_unique(name: str, league: str | None = None) -> dict[str, Any]:
                 "category": i.get("CategoryApiId"),
                 "priceExalted": i.get("CurrentPrice"),
                 "priceDivine": _round(exalted_to_divine(i.get("CurrentPrice", 0), divine_price), 4),
+                **fresh,
                 "confidenceHint": "Exact name match against poe2scout reference price.",
             }
 
@@ -132,6 +147,7 @@ async def price_unique(name: str, league: str | None = None) -> dict[str, Any]:
         "league": resolved["Value"],
         "match": None,
         "suggestions": near,
+        **fresh,
         "note": (
             "No exact match; closest names above. poe2scout covers currencies + uniques, not rare gear."
             if near
@@ -152,10 +168,11 @@ async def value_currency(
     total worth in exalted (the base unit) and divine, plus any names that didn't match a priced item.
     Use it for net worth and "can I afford this?" -- deterministic arithmetic, not estimated.
     """
-    resolved = await _scout.resolve_league(league)
+    resolved_f = await _scout.resolve_league(league)
+    resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
-    items = await _scout.get_items(resolved["Value"])
-    valued = value_holdings(items, holdings, divine_price)
+    items_f = await _scout.get_items(resolved["Value"])
+    valued = value_holdings(items_f.body, holdings, divine_price)
     return {
         "league": resolved["Value"],
         "divinePriceInExalted": divine_price,
@@ -172,6 +189,7 @@ async def value_currency(
         "totalExalted": _round(valued["totalExalted"], 2),
         "totalDivine": _round(valued["totalDivine"], 3),
         "unmatched": valued["unmatched"],
+        **freshness(resolved_f, items_f),
         "note": (
             "Valued at current poe2scout prices (cached ~5 min). Unmatched names weren't found as a "
             "priced item -- check spelling or normalize via the currency glossary."
@@ -251,26 +269,50 @@ async def search_trade(
 
     Pass a 'query' from build_trade_filter. Returns a clickable trade-site link plus up to `limit`
     cheapest matching listings (name, mods, price, seller, and the whisper text for you to copy).
+    `priceStats` gives min/median/max in exalted and the max/min spread over the listings shown --
+    the cheap end of the market, since results are price-ascending -- for grounding confidence.
     Rate-limited and cached; it never buys, lists, or whispers on your behalf -- you act.
     """
-    resolved = await _scout.resolve_league(league)
-    league_id = resolved["Value"]
+    league_f = await _scout.resolve_league(league)
+    league_id = league_f.body["Value"]
     limit = max(1, min(limit, 20))
 
-    result = await _trade.search(league_id, query)
+    search_f = await _trade.search(league_id, query)
+    sources = [league_f, search_f]
+    result = search_f.body
     query_id = result.get("id")
     hashes = result.get("result") or []
-    total = len(hashes)
+    # `result` holds at most 100 hashes; `total` is the real match count (trade2 caps it at 10000).
+    total = result.get("total", len(hashes))
     listings: list[dict[str, Any]] = []
     if query_id and hashes:
-        entries = await _trade.fetch(query_id, hashes[:limit])
-        listings = [summarize_listing(e) for e in entries]
+        entries_f = await _trade.fetch(query_id, hashes[:limit])
+        sources.append(entries_f)
+        listings = [summarize_listing(e) for e in entries_f.body]
+
+    rates: dict[str, float] = {}
+    if listings:
+        items_f = await _scout.get_items(league_id)
+        sources.append(items_f)
+        rates = rates_from_items(items_f.body)
+    stats = listing_price_stats(listings, rates)
 
     return {
         "league": league_id,
         "url": human_search_url(league_id, query_id) if query_id else None,
         "matched": total,
         "shown": len(listings),
+        **freshness(*sources),
+        "priceStats": {
+            "basis": f"cheapest {stats['count']} listed",
+            "count": stats["count"],
+            "converted": stats["converted"],
+            "unconvertedCurrencies": stats["unconvertedCurrencies"],
+            "minExalted": _round(stats["minExalted"], 2),
+            "medianExalted": _round(stats["medianExalted"], 2),
+            "maxExalted": _round(stats["maxExalted"], 2),
+            "spreadRatio": _round(stats["spreadRatio"], 2),
+        },
         "listings": listings,
         "note": (
             "Read-only trade search (cached). Open 'url' to browse/whisper yourself; the tool never "
