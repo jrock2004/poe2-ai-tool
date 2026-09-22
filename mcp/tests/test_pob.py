@@ -97,3 +97,29 @@ def test_parse_items_skips_empty_slots_and_cleans_mods():
 def test_parse_code_end_to_end():
     r = parse_pob_code(_encode(SAMPLE_XML))
     assert r["character"]["className"] == "Ranger"
+
+
+def _skill_sets_xml(active_attr: str) -> str:
+    return f"""<PathOfBuilding2>
+  <Build level="40" className="Ranger"/>
+  <Skills {active_attr}>
+    <SkillSet id="1" title="Leveling">
+      <Skill label="Old"><Gem nameSpec="Lightning Arrow" level="10"/></Skill>
+    </SkillSet>
+    <SkillSet id="2" title="Endgame">
+      <Skill label="Main"><Gem nameSpec="Ice Shot" level="20"/></Skill>
+    </SkillSet>
+  </Skills>
+</PathOfBuilding2>"""
+
+
+def _gem_names(parsed: dict) -> list[str]:
+    return [g["name"] for s in parsed["skills"] for g in s["gems"]]
+
+
+def test_parse_skills_uses_only_the_active_skill_set():
+    assert _gem_names(parse_pob_xml(_skill_sets_xml('activeSkillSet="2"'))) == ["Ice Shot"]
+
+
+def test_parse_skills_falls_back_to_the_first_skill_set():
+    assert _gem_names(parse_pob_xml(_skill_sets_xml(""))) == ["Lightning Arrow"]

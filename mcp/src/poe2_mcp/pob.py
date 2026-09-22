@@ -101,9 +101,11 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
 
     resistances = {friendly: stats[key] for key, friendly in _RESIST_KEYS.items() if key in stats}
 
-    # Skill groups -> gems
+    # Skill groups -> gems, from the active SkillSet only (a build can carry leveling + endgame sets)
     skills: list[dict[str, Any]] = []
-    for skill in root.findall(".//Skill"):
+    skills_el = root.find("Skills")
+    skill_parent = _active_skillset(skills_el) if skills_el is not None else None
+    for skill in (skill_parent.findall("Skill") if skill_parent is not None else []):
         gems = [
             {
                 "name": g.get("nameSpec") or g.get("skillId"),
@@ -144,6 +146,18 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
         "skills": skills,
         "items": items,
     }
+
+
+def _active_skillset(skills_el: ET.Element) -> ET.Element:
+    """The active <SkillSet>, else the first; older exports with no SkillSets hold <Skill> directly."""
+    sets = skills_el.findall("SkillSet")
+    if not sets:
+        return skills_el
+    active_id = skills_el.get("activeSkillSet")
+    for s in sets:
+        if active_id is not None and s.get("id") == active_id:
+            return s
+    return sets[0]
 
 
 def _active_itemset(items_el: ET.Element) -> ET.Element | None:
