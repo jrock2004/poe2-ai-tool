@@ -58,7 +58,8 @@ For each priority slot:
 2. **Build the filter** with the slot's category and a realistic `min` — set it a bit *below* an
    ideal roll so you get real comparables, and combine the 1–2 mods that actually matter for that slot
    (e.g. boots: movement speed + the missing resist). Set `max_price` from the player's budget.
-3. **Search** with `search_trade` and read the cheapest matches.
+3. **Search** with `search_trade` and read the cheapest matches. Its `priceStats.medianExalted` is the
+   slot's realistic cost — use it (not the single cheapest listing) for ranking and affordability.
 
 **Slot → trade category** (verified):
 
@@ -98,9 +99,11 @@ you'd need to free ~20 Spirit"), and reject outright any option that makes gear/
 - Pull the player's currency worth from `poe2-currency-tracker` / `value_currency` and use it as the
   price ceiling, so recommendations are things they can **actually buy now**, not aspirational.
 - Rank by **biggest problem fixed per currency**: a cheap item that caps a resist beats an expensive
-  one that adds marginal damage. Present the cheapest listing that genuinely fixes the slot, then a
-  step-up option if they want to spend more.
-- Mark each as **affordable now** vs **save up** against their currency. Give the trade `url` for each —
+  one that adds marginal damage. The "currency" side is each slot's `priceStats.medianExalted`, so
+  slots compare in one unit. Present the cheapest listing that genuinely fixes the slot (unless it's a
+  lone outlier — see the rubric), then a step-up option if they want to spend more.
+- Mark each as **affordable now** vs **save up** by comparing `medianExalted` to `value_currency`'s
+  `totalExalted` — both are exalted, so no conversion. Give the trade `url` for each —
   the player buys it themselves (never auto-buy/whisper).
 
 ## 5. Iterate
@@ -117,6 +120,11 @@ reporting a shaky result.
 - **Medium** — some gear or intent inferred, or a thin listing sample.
 - **Low** — build/goal guessed, or a slot unreadable. Say what would raise it (a clearer character
   screenshot, confirming the build's goal, a currency-tab screenshot for the budget).
+
+"Healthy" / "thin" sample means the rubric's **Market signals** thresholds on each slot's
+`priceStats` (sample, spread, coverage) and `ageSeconds` — the band is capped by the weakest. When
+slots score differently, give the overall band from the recommended (top-ranked) slot and flag any
+other slot that's Low.
 
 ## Guardrails
 

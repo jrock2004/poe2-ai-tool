@@ -52,10 +52,12 @@ tab replaces just that bucket instead of double-counting.
 
 - **Net worth / "how much do I have?"** → call `value_currency(holdings, league)` with the summed
   totals. It returns worth in exalted (base unit) and divine, per line and total. Report the total and
-  the biggest contributors; state confidence (data freshness + how confident the parsed counts were).
-- **"Can I afford X?"** → compare X's price (from `poe2-price-check`) against the total. Answer in the
-  same unit the item is quoted in. If the inventory is stale or was Low-confidence, say so and offer a
-  re-screenshot.
+  the biggest contributors; state confidence from `ageSeconds` (per the rubric's **Market signals**
+  table) and how confident the parsed counts were. If `unmatched` is non-empty, those lines weren't
+  priced, so the total is **understated** — name them and say so rather than presenting a full total.
+- **"Can I afford X?"** → compare X's price (from `poe2-price-check`; for a rare, its
+  `priceStats.medianExalted`) against `totalExalted` — both are exalted. Answer in the same unit the
+  item is quoted in. If the inventory is stale or was Low-confidence, say so and offer a re-screenshot.
 - **Budget ceilings for trade filters** → hand the affordable amount to `build_trade_filter`'s
   `max_price` so searches only surface things the player can actually buy (F6).
 
