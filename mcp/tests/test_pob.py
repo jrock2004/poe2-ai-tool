@@ -56,9 +56,16 @@ def test_decode_accepts_raw_xml_passthrough():
     assert decode_pob_code(SAMPLE_XML).startswith("<?xml")
 
 
-def test_decode_extracts_code_from_pobbin_url():
-    code = _encode(SAMPLE_XML)
-    assert decode_pob_code(f"https://pobb.in/{code}").startswith("<?xml")
+def test_decode_rejects_a_pobbin_share_link_and_says_so():
+    # pobb.in links carry a short id, not the code; resolving one would need a network fetch.
+    with pytest.raises(PobError, match="pobb.in"):
+        decode_pob_code("https://pobb.in/AbC123xyZ")
+
+
+def test_decode_rejects_other_links_as_links():
+    # PoB codes are URL-safe base64, which never contains '/', so a '/' means a pasted link.
+    with pytest.raises(PobError, match="link"):
+        decode_pob_code("https://example.com/builds/abc123")
 
 
 def test_decode_rejects_garbage():

@@ -38,9 +38,18 @@ def decode_pob_code(code: str) -> str:
     code = (code or "").strip()
     if code.startswith("<"):  # already raw XML
         return code
-    # accept a pobb.in/<id> or full-URL paste by taking the last path segment if it looks like a code
-    if "/" in code and " " not in code:
-        code = code.rstrip("/").split("/")[-1]
+    # PoB codes are URL-safe base64, which never contains '/', so a '/' means a pasted link. Share
+    # links (pobb.in) carry a short id, not the code -- resolving one would need a network fetch.
+    if "pobb.in" in code.lower():
+        raise PobError(
+            "That's a pobb.in share link, not the build code -- open it and copy the code from the "
+            "page, or export from Path of Building (Import/Export -> Generate)."
+        )
+    if "/" in code:
+        raise PobError(
+            "That looks like a link, not a Path of Building code -- paste the code itself "
+            "(Path of Building: Import/Export -> Generate -> Copy)."
+        )
     try:
         raw = base64.urlsafe_b64decode(code + "=" * ((-len(code)) % 4))
         return zlib.decompress(raw).decode("utf-8")

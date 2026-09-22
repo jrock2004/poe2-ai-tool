@@ -343,10 +343,11 @@ async def fetch_guide(url: str) -> dict[str, Any]:
 async def parse_pob_code(code: str) -> dict[str, Any]:
     """Decode a Path of Building 2 export code into a structured build summary.
 
-    Accepts a raw PoB code, a pasted pobb.in/<id> URL, or raw PoB XML. Returns the character
-    (level/class/ascendancy), computed stats (resistances, life, energy shield, DPS), skill groups
-    with their gems, and equipped items with readable mods -- so a pasted PoB code can feed
-    poe2-gear-upgrade / poe2-build-review without a character screenshot. Offline; no network.
+    Accepts a raw PoB code or raw PoB XML -- not a share link (pobb.in links hold an id, not the
+    code). Returns the character (level/class/ascendancy), computed stats (resistances, life, energy
+    shield, DPS), the active skill set's gems, and equipped items with implicit and explicit mods --
+    so a pasted PoB code can feed poe2-gear-upgrade / poe2-build-review without a character
+    screenshot. Offline; no network.
     """
     try:
         return _parse_pob(code)
@@ -354,7 +355,7 @@ async def parse_pob_code(code: str) -> dict[str, Any]:
         return {
             "valid": False,
             "error": str(e),
-            "note": "Paste the code from Path of Building: Import/Export -> Generate -> Copy. A pobb.in link works too.",
+            "note": "Paste the code from Path of Building: Import/Export -> Generate -> Copy.",
         }
 
 
