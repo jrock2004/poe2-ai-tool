@@ -75,7 +75,8 @@ Implemented (Phase 1):
 - `price_unique(name, league?)` — unique/currency reference price, with close-name suggestions.
 - `value_currency(holdings, league?)` — value an inventory of {name, count} at current prices, in
   exalted + divine, per line and total (net worth / affordability). Powers `poe2-currency-tracker`.
-- `find_stat_filters(affix)` — resolve an affix line to /trade2 stat-filter ids (offline, cached).
+- `find_stat_filters(affix)` — resolve an affix line to /trade2 stat-filter ids (no search; reads
+  GGG's stat reference, fetched once and cached 6h).
 - `build_trade_filter(category, stats, max_price…)` — construct a /trade2 query (offline, no search).
 - `search_trade(query, league?, limit)` — live read-only /trade2 search + top listings + link.
 - `fetch_guide(url)` — robots/license-aware guide fetch; returns text, or a `route` (browser/paste)
@@ -93,5 +94,5 @@ Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strateg
   `POE2_GUIDE_USER_AGENT`.
 
 ## Run
-`python -m venv .venv && . .venv/bin/activate && pip install -e . && POE2_LEAGUE="Forbidden Rites" poe2-mcp`
-— then register it in your MCP client. Tests: `pip install pytest && pytest -q`. (Windows: `.venv\Scripts\activate`.)
+`python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev && POE2_LEAGUE="Forbidden Rites" poe2-mcp`
+— then register it in your MCP client. Tests: `pytest -q` from `mcp/`. (Windows: `.venv\Scripts\activate`.)

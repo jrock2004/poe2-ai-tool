@@ -186,7 +186,9 @@ async def find_stat_filters(affix: str, limit: int = 6) -> dict[str, Any]:
     Feed it what an item mod reads like -- e.g. '+80 to maximum Life', '30% increased Cold Damage',
     'Movement Speed' -- and it returns candidate filter ids (best match first) to use in
     build_trade_filter / search_trade. Numbers are treated as wildcards, so the value never blocks
-    the match. Offline reference lookup (cached); makes no trade search.
+    the match. Runs no trade search and returns no listings -- it only reads GGG's stat-filter
+    reference, which it fetches once and caches for 6h, so the first call after a cold start is
+    a live (rate-limited) request and later ones are free.
     """
     matches = await _trade.find_stats(affix, limit=limit)
     return {

@@ -7,8 +7,10 @@ undocumented, and IP-rate-limited, so this client is deliberately conservative:
 * **Rate-limit aware.** GGG returns its policy in `X-Rate-Limit-*` headers; we parse them, self-throttle
   before we hit a bucket ceiling, and honor `Retry-After` / active timeouts on 429.
 * **Cached hard.** Identical searches/fetches inside the TTL never re-hit the network.
-* **Offline-first.** Query construction (`build_query`) and stat lookup are pure/cached; only
-  `search` and `fetch` make live calls, and callers gate those.
+* **Offline-first where it can be.** Query construction (`build_query`) is genuinely pure -- it
+  never touches the network. Stat lookup is *cached, not offline*: `find_stats`/`stat_index` fetch
+  `/data/stats` once on a cold cache (6h TTL, `stats_ttl_s`) before they can resolve anything.
+  `search` and `fetch` make live calls on every cache miss, and callers gate those.
 
 Shapes were confirmed against the live API (Forbidden Rites, poe2 realm):
   POST /api/trade2/search/poe2/{league}  {query...} -> {id, complexity, result:[hash,...]}

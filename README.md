@@ -88,7 +88,7 @@ so they're **git-ignored** — recreate them once per machine (about a minute, n
 
 1. **Install the MCP server** (creates the `poe2-mcp` script):
    ```bash
-   cd mcp && python -m venv .venv && . .venv/bin/activate && pip install -e .
+   cd mcp && python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev
    ```
 2. **Register the server** — create `.mcp.json` at the repo root. The Code app auto-detects it and
    prompts to enable the server (no CLI). Use the **absolute path** to the installed script:
