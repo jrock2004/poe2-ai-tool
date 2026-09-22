@@ -247,3 +247,28 @@ def test_stat_index_rebuilds_after_the_stats_cache_expires():
     assert within_ttl == first
     assert after_ttl[0]["text"] == "# to maximum Mana"
     assert calls == ["/api/trade2/data/stats", "/api/trade2/data/stats"]
+
+
+def test_fetch_cache_is_keyed_by_the_hashes_not_just_the_batch_offset():
+    batches: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        hashes = request.url.path.rsplit("/", 1)[-1].split(",")
+        batches.append(len(hashes))
+        return httpx.Response(200, json={"result": [{"id": h} for h in hashes]})
+
+    hashes = [f"h{i}" for i in range(10)]
+
+    async def run():
+        client = _offline_trade(handler)
+        five = await client.fetch("q1", hashes[:5])       # search_trade(limit=5)
+        ten = await client.fetch("q1", hashes)            # then limit=10 on the same query
+        ten_again = await client.fetch("q1", hashes)      # identical call: cache hit
+        await client.aclose()
+        return five, ten, ten_again
+
+    five, ten, ten_again = asyncio.run(run())
+    assert len(five.body) == 5
+    assert [e["id"] for e in ten.body] == hashes
+    assert ten_again.fetched_at == ten.fetched_at
+    assert batches == [5, 10]

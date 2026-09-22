@@ -207,7 +207,8 @@ class Trade2Client:
         for i in range(0, len(hashes), FETCH_BATCH):
             batch = hashes[i : i + FETCH_BATCH]
             path = f"/api/trade2/fetch/{','.join(batch)}?query={query_id}"
-            key = f"fetch:{query_id}:{i}"
+            # Keyed by the exact hashes, so a larger `limit` on the same query isn't served a smaller batch.
+            key = f"fetch:{query_id}:{','.join(batch)}"
             got = await self._live("GET", path, cache_key=key)
             out.extend(got.body.get("result") or [])
             times.append(got.fetched_at)
