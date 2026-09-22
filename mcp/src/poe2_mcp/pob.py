@@ -55,8 +55,12 @@ def _num(v: str | None) -> float | None:
         return None
 
 
-def _clean_item_mods(text: str) -> tuple[str, str, str, list[str]]:
-    """Parse a PoB <Item> text block -> (rarity, name, base, readable mod lines)."""
+def _clean_item_mods(text: str) -> tuple[str, str, str, list[str], list[str]]:
+    """Parse a PoB <Item> text block -> (rarity, name, base, implicit mods, explicit mods).
+
+    PoB writes `Implicits: N` and then the N implicit lines; everything after them is explicit. With
+    no `Implicits:` line, every mod is treated as explicit.
+    """
     lines = [ln.rstrip() for ln in (text or "").strip().splitlines()]
     rarity = name = base = ""
     if lines and lines[0].startswith("Rarity:"):
@@ -67,15 +71,27 @@ def _clean_item_mods(text: str) -> tuple[str, str, str, list[str]]:
     if rarity in ("RARE", "UNIQUE") and len(lines) > 2:
         base = lines[2].strip()
         skip.add(2)
-    mods: list[str] = []
+    implicits: list[str] = []
+    explicits: list[str] = []
+    implicits_left = 0
     for i, ln in enumerate(lines):
         if i in skip:
             continue
         s = _TAG_RE.sub("", ln).strip()
+        if s.startswith("Implicits:"):
+            try:
+                implicits_left = int(s.split(":", 1)[1])
+            except ValueError:
+                implicits_left = 0
+            continue
         if not s or s.startswith(_ITEM_META_PREFIXES):
             continue
-        mods.append(s)
-    return rarity, name, base, mods
+        if implicits_left > 0:
+            implicits.append(s)
+            implicits_left -= 1
+        else:
+            explicits.append(s)
+    return rarity, name, base, implicits, explicits
 
 
 def parse_pob_xml(xml: str) -> dict[str, Any]:
@@ -128,10 +144,10 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
             item_id = slot.get("itemId", "0")
             if item_id == "0" or item_id not in by_id:
                 continue
-            rarity, name, base, mods = _clean_item_mods(by_id[item_id])
+            rarity, name, base, implicits, explicits = _clean_item_mods(by_id[item_id])
             items.append(
                 {"slot": slot.get("name"), "rarity": rarity or None, "name": name or None,
-                 "base": base or None, "mods": mods}
+                 "base": base or None, "implicitMods": implicits, "explicitMods": explicits}
             )
 
     return {

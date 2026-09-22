@@ -90,8 +90,9 @@ def test_parse_items_skips_empty_slots_and_cleans_mods():
     boots = slots["Boots"]
     assert boots["name"] == "Doom Stride"
     assert boots["base"] == "Stealth Boots"
-    assert "+80 to maximum Life" in boots["mods"]
-    assert "Item Level: 82" not in boots["mods"]  # meta line dropped
+    assert "+80 to maximum Life" in boots["explicitMods"]
+    assert "Item Level: 82" not in boots["explicitMods"]  # meta line dropped
+    assert boots["implicitMods"] == []  # no Implicits: line -> everything is explicit
 
 
 def test_parse_code_end_to_end():
@@ -123,3 +124,36 @@ def test_parse_skills_uses_only_the_active_skill_set():
 
 def test_parse_skills_falls_back_to_the_first_skill_set():
     assert _gem_names(parse_pob_xml(_skill_sets_xml(""))) == ["Lightning Arrow"]
+
+
+def _one_item_xml(item_text: str) -> str:
+    return f"""<PathOfBuilding2>
+  <Items activeItemSet="1">
+    <Item id="1">{item_text}</Item>
+    <ItemSet id="1"><Slot name="Ring 1" itemId="1"/></ItemSet>
+  </Items>
+</PathOfBuilding2>"""
+
+
+def test_parse_items_splits_implicits_from_explicits():
+    ring = parse_pob_xml(_one_item_xml("""Rarity: RARE
+Grim Clasp
+Ruby Ring
+Item Level: 80
+Implicits: 1
++12% to Fire Resistance
++60 to maximum Life
+{crafted}+20% to Cold Resistance"""))["items"][0]
+    assert ring["implicitMods"] == ["+12% to Fire Resistance"]
+    assert ring["explicitMods"] == ["+60 to maximum Life", "+20% to Cold Resistance"]
+    assert "mods" not in ring
+
+
+def test_parse_items_with_zero_implicits():
+    ring = parse_pob_xml(_one_item_xml("""Rarity: RARE
+Grim Clasp
+Ruby Ring
+Implicits: 0
++60 to maximum Life"""))["items"][0]
+    assert ring["implicitMods"] == []
+    assert ring["explicitMods"] == ["+60 to maximum Life"]
