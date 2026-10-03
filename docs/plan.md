@@ -262,13 +262,20 @@ gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
   load); fetch cache keyed by hashes (a larger `limit` was served a smaller cached batch); `ttl=0`
   honored. Offline tests (httpx `MockTransport`, injected via `transport=`) cover caching,
   `resolve_league` fallback order, and rate-limit backoff.
+- *Passive tree:* `parse_pob_code` returns the active tree spec — node ids, weapon-set subsets,
+  socketed jewels — and, from a committed snapshot of PoB2's tree data (`poe2_mcp/treedata.py`
+  parses `tree.lua` → `data/tree_<version>.json`), named keystones/notables, the ascendancy choices
+  taken, and passive/ascendancy point counts that mirror PoB's own count (class/ascendancy starts,
+  choice options, and free nodes cost nothing). A tree version with no snapshot gets ids only.
+  `poe2-build-review` compares trees into its deviated/behind buckets; regenerating the snapshot is
+  on the per-patch list in `poe2-core`.
 
 **Remaining work, in rough priority order:**
-1. **Passive tree from PoB** — build-review compares tree state against guide stages (§5.1), but
-   `parse_pob_code` doesn't read `<Tree>` (or tree-socketed jewels) yet. Needs design.
+1. **Verify tree point counts against a real PoB2 export** — the counting logic is tested on fixtures
+   and the real snapshot, but not yet against what PoB itself shows for an actual build.
 2. **Currency trend** — poe2scout's `PriceLogs` (7 daily points) as a volatility signal for currency.
 3. **League rotation** — `POE2_LEAGUE` is pinned per machine; a new league fails loudly ("not found")
-   until it's updated. Fine, but worth a reminder in the onboarding flow.
+   until it's updated. Now on the per-patch list in `poe2-core`; an onboarding reminder would help.
 4. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
    pieces (poe2scout) held up.
 
@@ -296,7 +303,7 @@ gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
 guide fetch is robots/license-aware and re-verified (§F3). Guides are modeled as staged progressions
 with variant links (§5.1).
 
-**Open:** how to model the passive tree for build-review (§9, remaining work #1).
+**Resolved since v10:** the passive tree is modeled as ids + a per-version named snapshot (§9).
 
 ---
 
