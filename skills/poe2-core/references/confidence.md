@@ -35,6 +35,7 @@ These thresholds are starting defaults; tune them here, not in individual skills
 | Sample size (rares) | `search_trade` → `priceStats.converted` | ≥ 8 | 4–7 | 1–3 (0 → don't price; widen) |
 | Price spread (rares) | `priceStats.spreadRatio` | ≤ 1.5 | 1.5–3 | > 3 |
 | Currency depth | `get_currency_prices` → `quantityListed` | ≥ 1,000 | 50–999 | < 50 |
+| Currency volatility | `trend.changePctVsDivine` (7-day) | within ±10% | ±10–30% | beyond ±30% |
 | Freshness | `ageSeconds` (every market tool) | ≤ 300 | 300–3,600 | > 3,600 → re-query first |
 | Conversion coverage | `priceStats.unconvertedCurrencies` | empty | some, < 25% of `count` | ≥ 25% of `count` |
 
@@ -56,3 +57,9 @@ How to read them:
   unrecognized currency were left out") rather than letting them silently shrink the sample.
 - **Unique prices have no sample size.** `price_unique` is a poe2scout reference price with no
   listing volume, so it tops out at **Medium** ("reference price; listing volume unknown").
+- **Judge currency volatility in divine, not exalted.** Prices are quoted in exalted, so when exalted
+  weakens every `trend.changePct` rises together. Score on `changePctVsDivine` — the item's own move —
+  and treat the raw `changePct` as context ("up 54% in exalted, ~20% of that is real; exalted itself
+  is weakening"). A fast mover's price is a snapshot: say which way it's heading. If
+  `changePctVsDivine` is None (divine's history unavailable), skip this signal rather than scoring
+  the raw number.

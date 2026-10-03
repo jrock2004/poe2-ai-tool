@@ -74,7 +74,7 @@ Score the market signals from the tool fields, using the thresholds in the rubri
 signals** table — the band is capped by the weakest one:
 - **Rares** — `priceStats.converted` (sample size), `priceStats.spreadRatio` (spread),
   `priceStats.unconvertedCurrencies` (coverage), `ageSeconds` (freshness). `matched` is only depth.
-- **Currency** — `quantityListed` (depth) and `ageSeconds`.
+- **Currency** — `quantityListed` (depth), `trend.changePctVsDivine` (volatility), and `ageSeconds`.
 - **Uniques** — `price_unique` has no listing volume, so it tops out at **Medium**.
 - **Input certainty** — real pasted item = higher; a vague description = lower, and say what would
   sharpen it (the actual item text, the target league, the budget).
