@@ -60,6 +60,8 @@ tab replaces just that bucket instead of double-counting.
   item is quoted in. If the inventory is stale or was Low-confidence, say so and offer a re-screenshot.
 - **Budget ceilings for trade filters** → hand the affordable amount to `build_trade_filter`'s
   `max_price` so searches only surface things the player can actually buy (F6).
+- **"Should I sell or hold X?" / "what's moving?"** → that's `poe2-meta-strategy`: it reads this
+  inventory against the week's divine-relative market moves.
 
 ## Manual adjustments & drift
 

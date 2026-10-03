@@ -1,0 +1,61 @@
+---
+name: poe2-meta-strategy
+description: Read the Path of Exile 2 market's direction — what's rising or falling this week across fragments, essences, breach, delirium, ritual, expedition, abyss and runes — and turn it into sell/hold advice for the player's own currency. Use when the player asks "what's moving", "what's worth more lately", "should I sell or hold my X", or "what's the market doing".
+---
+# poe2-meta-strategy
+
+Load `poe2-core` first. This skill answers "where is the market heading?" from data, not vibes: the
+`market_movers` tool gives each category's biggest 7-day risers and fallers, measured **in divine**
+so exalted's own drift doesn't fake a trend. It pairs with `poe2-currency-tracker` to turn that
+into "sell this, hold that" for what the player actually owns.
+
+What it is **not**: a profit-per-hour calculator. Nothing available reports drop rates or run
+times, so never claim "X divine/hour". A mover is a price signal, not a farming yield.
+
+## "What's moving?"
+
+1. Call `market_movers()` — the default categories are the farming set. Pass `categories` when the
+   player names one ("what's happening with omens?" → `["ritual"]`; plain currency → `["currency"]`).
+2. **Lead with the context:** `divineChangePct` says how far divine itself moved in exalted this
+   week. If it's large (say beyond ±10%), tell the player prices *quoted in exalted* all look
+   inflated or deflated — the moves below already strip that out.
+3. **Report per category, briefly:** the top couple of risers and fallers with `changePctVsDivine`
+   and current price. Group the story where the data shows one ("refined catalysts are up 35–50%
+   while basic ones fell 30–44%") rather than listing rows.
+4. **Disregard cheap movers.** An item worth under ~2 exalted (`priceExalted`) can double on a
+   fraction of an exalted — the percentage is noise. Leave it out, or mention it only as noise.
+5. If a category comes back `unknownCategory`, say the name wasn't recognized and offer the valid
+   ones (they're listed in the tool's description).
+
+`thin` counts items skipped for being listed fewer than 50 times — too thin to trust a move. If a
+player asks about one of those, say the market is too thin to call, and offer `get_currency_prices`
+for its current price.
+
+## "Should I sell or hold?"
+
+Needs the player's inventory from `poe2-currency-tracker` (league-scoped). If there's none, ask for
+a currency-tab screenshot (one-line how-to from `poe2-core`).
+
+1. For the categories their holdings fall in, call `market_movers(categories=[...])`; for a specific
+   item that isn't a top mover, `get_currency_prices(category, search=name)` gives its own `trend`.
+2. **Falling in divine terms** → lean *sell* (or spend it on their next upgrade) before it drops
+   further. **Rising** → *hold* is reasonable; say it may reverse. **Flat (within ±10%)** → no
+   market reason either way; let their needs decide.
+3. Weigh size: put the advice where the value is (`count × priceExalted`), not on a 2-exalted stack.
+4. **Never trade for them.** Output is advice plus, if they want, `poe2-price-check` for a listing
+   price. They list and sell themselves.
+
+## Confidence (per `poe2-core/references/confidence.md`)
+
+Score each call on the rubric's **Market signals**: **Currency volatility** on `changePctVsDivine`,
+**Currency depth** on `quantityListed`, and **Freshness** on `ageSeconds` (oldest input wins).
+A big mover is, by definition, volatile — so "this is moving fast" can be High-confidence as a
+*direction* while any specific *price* for it is Low. Say which one you're scoring. If
+`divineChangePct` is null, there's no inflation-free move: don't fall back to raw exalted changes.
+
+## Guardrails
+
+- Divine-relative moves only; never present a raw exalted change as a trend.
+- No profit-per-hour claims — no yield data exists.
+- Skip thin and cheap movers rather than amplifying noise.
+- Read-only: never buy, list, or whisper.

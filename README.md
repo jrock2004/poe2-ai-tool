@@ -27,7 +27,8 @@ You (in Claude)
    ├── Skills  ── the judgment + confidence
    │     poe2-core, poe2-price-check, poe2-character,
    │     poe2-gear-upgrade, poe2-build-review,
-   │     poe2-trials-advisor, poe2-currency-tracker
+   │     poe2-trials-advisor, poe2-currency-tracker,
+   │     poe2-meta-strategy
    │
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter (build) + poe.ninja fallback
@@ -62,6 +63,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
+| `poe2-meta-strategy` | What's rising/falling this week (in divine terms), and sell/hold advice for your currency. |
 
 Design notes that shape all of them:
 
