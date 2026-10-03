@@ -266,19 +266,19 @@ gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
   socketed jewels — and, from a committed snapshot of PoB2's tree data (`poe2_mcp/treedata.py`
   parses `tree.lua` → `data/tree_<version>.json`), named keystones/notables, the ascendancy choices
   taken, and passive/ascendancy point counts that mirror PoB's own count (class/ascendancy starts,
-  choice options, and free nodes cost nothing). A tree version with no snapshot gets ids only.
+  choice options, and free nodes cost nothing; weapon-set nodes are netted out like PoB's
+  `normalPassives`). Verified against a real level-90 Deadeye export: 113 passive / 8 ascendancy,
+  matching PoB. A tree version with no snapshot gets ids only.
   `poe2-build-review` compares trees into its deviated/behind buckets; regenerating the snapshot is
   on the per-patch list in `poe2-core`.
+- *League rotation:* onboarding checks the player's league against `get_leagues`, and `poe2-core`
+  tells every skill how to handle the "League … (POE2_LEAGUE) not found" error after a rotation.
 - *Currency trend:* `get_currency_prices` carries each item's ~7-day `trend` from poe2scout's
   `PriceLogs`, including `changePctVsDivine` — the move measured in divine, since exalted-quoted
   changes inflate together when exalted weakens. The rubric scores volatility on that number.
 
 **Remaining work, in rough priority order:**
-1. **Verify tree point counts against a real PoB2 export** — the counting logic is tested on fixtures
-   and the real snapshot, but not yet against what PoB itself shows for an actual build.
-2. **League rotation** — `POE2_LEAGUE` is pinned per machine; a new league fails loudly ("not found")
-   until it's updated. Now on the per-patch list in `poe2-core`; an onboarding reminder would help.
-3. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
+1. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
    pieces (poe2scout) held up.
 
 ---
