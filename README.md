@@ -5,8 +5,8 @@ decisions that actually matter while playing: what to trade, whether a drop is a
 character stacks up against a build guide, what to pick in the Trials, and what's worth doing this
 patch — with a stated confidence level on every answer.
 
-> **Status:** early build. See [`docs/plan.md`](docs/plan.md) for the full design and
-> [Build phases](#build-phases) below for what's done vs. pending.
+> **Status:** all planned phases built; now in use-and-refine. See [`docs/plan.md`](docs/plan.md)
+> for the full design and [Build phases](#build-phases) below for what was built when.
 
 ---
 
@@ -31,7 +31,7 @@ You (in Claude)
    │     poe2-meta-strategy
    │
    ├── MCP server ── the data plumbing
-   │     poe2scout (reuse) + GGG /trade2 adapter (build) + poe.ninja fallback
+   │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
    │
    └── Persistent state (Claude memory)
          your characters, currency inventory, active trade context
@@ -43,11 +43,12 @@ Findings from the Phase 0 spike (read from source, not guessed):
 
 | Source | Use it for | Notes |
 |---|---|---|
-| **poe2scout** (`api.poe2scout.com`) | currency rates, unique-item prices, price history, net worth | **Reuse.** Its API is a price *reference* for currencies + uniques. **No rare-item-by-affix search** — the `/Items` route returns a flat priced list, no stat filters. |
+| **poe2scout** (`api.poe2scout.com`) | currency rates, unique-item prices, 7-day price history, net worth, market movers | **Reuse.** Its API is a price *reference* for currencies + uniques. **No rare-item-by-affix search** — the `/Items` route returns a flat priced list, no stat filters. |
 | **GGG `/trade2`** (unofficial) | rare-gear search, trade-filter generation | **Build a thin adapter.** This is the only source that can search rares by mods. Unofficial + rate-limited → cache hard, read-only, never auto-buy. |
-| **poe.ninja** (poe2 economy) | economy overview, cross-check | No auth; respect ~5 min cache + descriptive User-Agent. |
-| **GGG Character API** (OAuth, `poe2` realm) | your characters' gear/skills/passives | Official. Powers gear analysis without pasting PoB. |
-| **Build guides** (Mobalytics/Maxroll/poe-vault) | build targets, leveling/endgame plans | Tiered: PoB code > static fetch > browser-assisted read > paste. Maxroll is robots-blocked to plain fetch. |
+| **Path of Building** (export codes) | your character's and a guide's gear, gems, passive tree | **Build a parser.** Decodes a pasted PoB2 code offline; passive-tree names come from a committed snapshot of PoB2's tree data. |
+| **Build guides** (Mobalytics/Maxroll/poe-vault) | build targets, leveling/endgame plans | Tiered: PoB code > static fetch > browser-assisted read > paste. poe-vault fetches; Mobalytics bot-blocks server fetches (browser/paste); Maxroll's license forbids automated/AI use, so it's refused (paste). |
+| ~~GGG Character API~~ (OAuth) | your characters' gear/skills/passives | **Blocked** — GGG isn't issuing new API clients. Builds are read from PoB codes or screenshots instead. |
+| ~~poe.ninja~~ | economy cross-check, build popularity | **Not integrated.** poe2scout covers prices; a meta-builds view would need a check of its undocumented API and terms first. |
 
 **No PoE2 stash API exists** (confirmed mid-2026), so currency tracking is done by reading
 **screenshots** of your currency/crafting tabs into a remembered inventory.
@@ -63,7 +64,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
-| `poe2-meta-strategy` | What's rising/falling this week (in divine terms), and sell/hold advice for your currency. |
+| `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
 
 Design notes that shape all of them:
 
@@ -81,7 +82,8 @@ Design notes that shape all of them:
 - [x] **Phase 1** — `poe2-core` + `poe2-price-check` + `/trade2` trade-filter generation.
 - [x] **Phase 2** — `poe2-character` + `poe2-gear-upgrade` + `poe2-currency-tracker`. *(OAuth character read is blocked — GGG isn't issuing API clients — so builds are read from PoB codes / screenshots; see `docs/plan.md` §3.)*
 - [x] **Phase 3** — `fetch_guide` + `parse_pob_code` + `poe2-build-review` + `poe2-trials-advisor`.
-- [ ] **Phase 4** — Custom MCP consolidation + `poe2-meta-strategy`.
+- [x] **Hardening** — grounded confidence signals (price stats, freshness, 7-day trends), passive-tree parsing, client cache/rate-limit fixes + offline tests.
+- [x] **Phase 4** — `market_movers` + `poe2-meta-strategy`.
 
 ## Setup (per machine)
 
