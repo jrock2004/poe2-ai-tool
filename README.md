@@ -101,51 +101,36 @@ this folder. Two local files wire them up. They hold machine-specific paths, so 
     Microsoft Store" alias. Check with `py --version`.
   - **macOS:** `brew install python`. Check with `python3 --version`.
 
-### Windows (PowerShell, from the repo root)
+### Run the setup script (from the repo root)
 
-1. **Install the MCP server** (no venv activation needed, so PowerShell's script policy doesn't
-   matter; pip is upgraded first because `--group` needs pip 25.1+):
-   ```powershell
-   cd mcp; py -m venv .venv; .venv\Scripts\python -m pip install --upgrade pip; .venv\Scripts\python -m pip install -e . --group dev; cd ..
-   ```
-2. **Register the server** — create `.mcp.json` at the repo root. Use the absolute path to
-   `poe2-mcp.exe`; in JSON, either double every backslash or use forward slashes:
-   ```json
-   {
-     "mcpServers": {
-       "poe2": {
-         "command": "C:/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/Scripts/poe2-mcp.exe",
-         "env": { "POE2_LEAGUE": "Forbidden Rites" }
-       }
-     }
-   }
-   ```
-3. **Make the skills discoverable** — link them with **directory junctions** (no admin or Developer
-   Mode needed). Don't use `ln -s` from Git Bash: by default it silently *copies* the folders, so
-   edits under `skills/` would never reach Claude.
-   ```powershell
-   New-Item -ItemType Directory -Force .claude\skills | Out-Null; Get-ChildItem skills -Directory | ForEach-Object { $link = ".claude\skills\$($_.Name)"; if (-not (Test-Path $link)) { New-Item -ItemType Junction -Path $link -Target $_.FullName | Out-Null } }
-   ```
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
+```
+**macOS / Linux:**
+```bash
+scripts/setup.sh
+```
 
-### macOS / Linux (from the repo root)
+Add a league to override the default — `-League "Name"` on Windows, or as the first argument on
+macOS/Linux. The script is safe to re-run. It:
 
-1. **Install the MCP server:**
-   ```bash
-   cd mcp && python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -e . --group dev && cd ..
-   ```
-2. **Register the server** — `.mcp.json` as above, with
-   `"command": "/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/bin/poe2-mcp"`.
-3. **Make the skills discoverable:**
-   ```bash
-   mkdir -p .claude/skills && for d in skills/*/; do ln -sfn "../../$d" ".claude/skills/$(basename "$d")"; done
-   ```
+1. installs the MCP server into `mcp/.venv` (editable, with the dev group — so pulled code changes
+   apply without reinstalling);
+2. writes `.mcp.json` with the absolute path to `poe2-mcp` — **only if it doesn't exist**, so your
+   edits (like `POE2_LEAGUE`) are never overwritten;
+3. links every skill into `.claude/skills` — directory junctions on Windows (no admin needed),
+   symlinks elsewhere — so each skill still lives in one place under `skills/`;
+4. checks the server imports.
+
+It doesn't install Python; it checks for 3.10+ and tells you how if it's missing.
+`-ExecutionPolicy Bypass` applies to that one run only and changes no system setting.
 
 ### Then
 
 Open the folder in Claude Code, approve the `poe2` server when prompted, and the eight skills load
-automatically. Re-run step 3 whenever a new skill folder is added (existing links keep working —
-they point at the one copy under `skills/`). After pulling code changes, restart the session so the
-MCP server reloads (the editable install means no reinstall). Update `POE2_LEAGUE` when the temp
+automatically. Re-run the script whenever a new skill folder is added. After pulling code changes,
+restart the session so the MCP server reloads. Update `POE2_LEAGUE` in `.mcp.json` when the temp
 league rotates.
 
 ## Repo layout
@@ -158,6 +143,7 @@ poe2-ai-tools/
 ├── mcp/                   # the MCP server (data plumbing)
 │   ├── README.md          # endpoints, source decisions, run notes
 │   └── src/
+├── scripts/               # per-machine setup: setup.ps1 (Windows), setup.sh (macOS/Linux)
 └── skills/                # one folder per skill, each with a SKILL.md
     ├── poe2-core/
     │   └── references/    # confidence rubric, currency glossary, how-to
@@ -166,7 +152,8 @@ poe2-ai-tools/
     ├── poe2-gear-upgrade/
     ├── poe2-build-review/
     ├── poe2-trials-advisor/
-    └── poe2-currency-tracker/
+    ├── poe2-currency-tracker/
+    └── poe2-meta-strategy/
 ```
 
 ## Tech choice
