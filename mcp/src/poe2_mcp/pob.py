@@ -237,7 +237,7 @@ def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any
     snapshot = load_snapshot(tree_version)
     if snapshot is None:
         return {
-            "treeDataVersion": None, "keystones": None, "notables": None,
+            "treeDataVersion": None, "keystones": None, "notables": None, "ascendancyChoices": None,
             "passiveCount": None, "ascendancyCount": None,
             "note": (
                 f'No passive-tree names for tree version "{tree_version}" -- node ids only. '
@@ -247,15 +247,13 @@ def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any
 
     named = snapshot["nodes"]
     uncounted = set(snapshot.get("uncounted") or [])
-    keystones: list[dict[str, Any]] = []
-    notables: list[dict[str, Any]] = []
+    lists: dict[str, list[dict[str, Any]]] = {"keystone": [], "notable": [], "choice": []}
     passive = ascendancy = 0
     for node_id in nodes:
         info = named.get(str(node_id))
-        if info and info["kind"] in ("keystone", "notable"):
-            entry = {"nodeId": node_id, "name": info["name"], "ascendancy": info["ascendancy"],
-                     "stats": info["stats"]}
-            (keystones if info["kind"] == "keystone" else notables).append(entry)
+        if info and info["kind"] in lists:
+            lists[info["kind"]].append({"nodeId": node_id, "name": info["name"],
+                                        "ascendancy": info["ascendancy"], "stats": info["stats"]})
         if node_id in uncounted:
             continue
         if info and info["ascendancy"]:
@@ -264,8 +262,9 @@ def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any
             passive += 1
     return {
         "treeDataVersion": snapshot.get("treeVersion"),
-        "keystones": keystones,
-        "notables": notables,
+        "keystones": lists["keystone"],
+        "notables": lists["notable"],
+        "ascendancyChoices": lists["choice"],  # the option picked under a choice-parent notable
         "passiveCount": passive,
         "ascendancyCount": ascendancy,
         "note": None,

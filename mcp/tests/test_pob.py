@@ -287,3 +287,29 @@ def test_tree_without_a_snapshot_keeps_ids_and_says_why(monkeypatch):
     for field in ("treeDataVersion", "keystones", "notables", "passiveCount", "ascendancyCount"):
         assert tree[field] is None
     assert "0_5" in tree["note"]
+
+
+CHOICE_SNAPSHOT = {
+    **FAKE_SNAPSHOT,
+    "uncounted": [*FAKE_SNAPSHOT["uncounted"], 600],
+    "nodes": {
+        **FAKE_SNAPSHOT["nodes"],
+        "600": {"name": "Point Blank", "kind": "choice", "ascendancy": "Deadeye",
+                "stats": ["Projectiles deal more damage at close range"]},
+    },
+}
+
+
+def test_tree_lists_the_ascendancy_choice_taken_without_counting_it(monkeypatch):
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: CHOICE_SNAPSHOT)
+    xml = NAMED_TREE_XML.replace('nodes="100,200,300,400,500"', 'nodes="100,200,300,400,500,600"')
+    tree = parse_pob_xml(xml)["tree"]
+    assert tree["ascendancyChoices"] == [{"nodeId": 600, "name": "Point Blank", "ascendancy": "Deadeye",
+                                          "stats": ["Projectiles deal more damage at close range"]}]
+    assert 600 not in [n["nodeId"] for n in tree["notables"]]
+    assert tree["ascendancyCount"] == 1  # the choice is free; its parent notable costs the point
+
+
+def test_tree_without_a_snapshot_has_no_choices(monkeypatch):
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: None)
+    assert parse_pob_xml(NAMED_TREE_XML)["tree"]["ascendancyChoices"] is None
