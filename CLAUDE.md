@@ -44,13 +44,22 @@ What this means for Claude: leave the work in the tree, unstaged, and stop. Do n
 change *instead of* leaving it reviewable — the diff is the artifact, the summary is a pointer
 to it. Say what to look for and where; don't restate the diff in prose.
 
+When a slice is ready, hand over the commit as **separate blocks** — `git add <files>` in one,
+`git commit -m '...'` in another — with a **single-quoted** message.
+
 ## Project
 
 Personal Path of Exile 2 decision assistant. Two parts:
 
 - `mcp/` — Python MCP server (official `mcp` SDK, pinned `<2`; `httpx`; `beautifulsoup4`).
   Data plumbing only.
-- `skills/` — one folder per skill. The judgment lives here, not in the server.
+  - `_cache.py` — every network result is a `Fetched(body, fetched_at)`; tools report freshness
+    (`fetchedAt`/`ageSeconds`, oldest input wins) from it.
+  - `treedata.py` + `data/tree_<version>.json` — the passive-tree name snapshot. The JSON is
+    **generated, never hand-edited**: regenerate it with `python -m poe2_mcp.treedata` (see
+    `CONTRIBUTING.md`).
+- `skills/` — one folder per skill (eight). The judgment lives here, not in the server.
+- `scripts/` — per-machine setup: `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
 
 Design rules that hold across both:
 
@@ -61,11 +70,34 @@ Design rules that hold across both:
   cache (`trade2._stats` fetches `/data/stats`, cached 6h); "offline" in this repo usually means
   "cached," not "never calls out."
 - **Every answer carries a grounded confidence level** (see `skills/poe2-core/references/confidence.md`).
+  Tools return the signals as fields (`priceStats`, `ageSeconds`, `quantityListed`, `trend`);
+  skills score from those fields. The thresholds live **only** in `confidence.md` — skills point
+  to it, never restate numbers.
+- **Judge market moves in divine, not exalted.** Prices are quoted in exalted, so when exalted
+  drifts every raw change moves together. Trends and movers use `changePctVsDivine`.
+- **Source rules and the per-patch refresh** (tree snapshot, trials/farming knowledge, how-tos,
+  league) live in `CONTRIBUTING.md` — follow them; don't duplicate them here.
+
+## Platforms
+
+John plays on **Windows**; development also happens on macOS.
+
+- Keep `scripts/setup.ps1` and `scripts/setup.sh` doing the same thing — change both together.
+- Code must run on **Python 3.10** (`requires-python >=3.10`) — e.g. `Traversable.joinpath` takes
+  one argument there.
+- Write files with an explicit `encoding="utf-8", newline="\n"`; don't rely on shell redirects
+  (Windows PowerShell's `>` writes UTF-16).
 
 ## Tests
 
 ```bash
-cd mcp && pytest -q
+cd mcp && .venv/bin/python -m pytest -q        # Windows: .venv\Scripts\python -m pytest -q
 ```
 
+`pytest` is only installed in the venv, so a bare `pytest` won't be found.
+
 Tests are pure — no network, no live API. If a change needs a fixture, add it under `mcp/tests/`.
+
+**Then check against real data when it's cheap** — one live call, or a real PoB export. Fixtures
+only test what we thought to model; live checks caught what they couldn't (trade2 capping results
+at 100, PoB netting weapon-set points out of the passive count, exalted inflation faking trends).
