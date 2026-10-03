@@ -222,17 +222,21 @@ def _parse_tree(root: ET.Element, items_by_id: dict[str | None, str]) -> dict[st
         "allocatedCount": len(nodes),
         "weaponSetNodes": weapon_sets,
         "jewels": jewels,
-        **_name_and_count(nodes, tree_version),
+        **_name_and_count(nodes, tree_version, weapon_sets),
     }
 
 
-def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any]:
+def _name_and_count(
+    nodes: list[int], tree_version: str | None, weapon_sets: dict[str, list[int]]
+) -> dict[str, Any]:
     """Names (keystones/notables) and PoB-style point counts from the committed tree snapshot.
 
     Counts mirror PoB's CountAllocNodes: the snapshot's `uncounted` nodes (class/ascendancy starts,
     choice options, free-allocate) cost nothing; a node is an ascendancy point if the snapshot gives
     it an ascendancy, else a passive point (the snapshot names every ascendancy node, so an unnamed
-    node is an ordinary small one). With no snapshot for this version, everything here is None.
+    node is an ordinary small one). Weapon-set nodes are in `nodes` too, but PoE2 funds them from
+    weapon-set points: like PoB's `normalPassives`, passiveCount nets out the smaller of the two
+    sets' counted nodes. With no snapshot for this version, everything here is None.
     """
     snapshot = load_snapshot(tree_version)
     if snapshot is None:
@@ -247,6 +251,8 @@ def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any
 
     named = snapshot["nodes"]
     uncounted = set(snapshot.get("uncounted") or [])
+    set_of = {node_id: ws for ws, ids in weapon_sets.items() for node_id in ids}
+    weapon_set_used = {"1": 0, "2": 0}
     lists: dict[str, list[dict[str, Any]]] = {"keystone": [], "notable": [], "choice": []}
     passive = ascendancy = 0
     for node_id in nodes:
@@ -260,12 +266,14 @@ def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any
             ascendancy += 1
         else:
             passive += 1
+        if set_of.get(node_id) in weapon_set_used:  # PoB tallies these for any counted node
+            weapon_set_used[set_of[node_id]] += 1
     return {
         "treeDataVersion": snapshot.get("treeVersion"),
         "keystones": lists["keystone"],
         "notables": lists["notable"],
         "ascendancyChoices": lists["choice"],  # the option picked under a choice-parent notable
-        "passiveCount": passive,
+        "passiveCount": passive - min(weapon_set_used.values()),
         "ascendancyCount": ascendancy,
         "note": None,
     }

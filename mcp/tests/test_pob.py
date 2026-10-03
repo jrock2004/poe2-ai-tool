@@ -313,3 +313,33 @@ def test_tree_lists_the_ascendancy_choice_taken_without_counting_it(monkeypatch)
 def test_tree_without_a_snapshot_has_no_choices(monkeypatch):
     monkeypatch.setattr(pob, "load_snapshot", lambda version: None)
     assert parse_pob_xml(NAMED_TREE_XML)["tree"]["ascendancyChoices"] is None
+
+
+# PoE2 weapon-set passives: nodes allocated to weapon set 1 / 2 are in `nodes`, but PoB counts real
+# spent points as used - min(weaponSet1, weaponSet2) (Build.lua `normalPassives`). A real level 90
+# export: 136 counted non-ascendancy nodes, weapon sets 23 / 24 -> 113 points (89 levels + 24 quests).
+WEAPON_SET_SNAPSHOT = {"treeVersion": "0_5", "uncounted": [1], "nodes": {}}
+
+
+def _weapon_set_tree(monkeypatch, ws1: str, ws2: str) -> dict:
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: WEAPON_SET_SNAPSHOT)
+    xml = f"""<PathOfBuilding2>
+  <Tree activeSpec="1">
+    <Spec treeVersion="0_5" nodes="1,10,11,12,20,21,30,31,32">
+      <WeaponSet1 nodes="{ws1}"/>
+      <WeaponSet2 nodes="{ws2}"/>
+    </Spec>
+  </Tree>
+</PathOfBuilding2>"""
+    return parse_pob_xml(xml)["tree"]
+
+
+def test_passive_count_nets_out_the_smaller_weapon_set(monkeypatch):
+    tree = _weapon_set_tree(monkeypatch, ws1="20,21", ws2="30,31,32")
+    assert tree["passiveCount"] == 8 - 2  # 8 counted nodes (1 is a free start), minus min(2, 3)
+
+
+def test_passive_count_ignores_uncounted_nodes_in_a_weapon_set(monkeypatch):
+    # Node 1 is free, so it doesn't count toward weapon set 1: min(1, 3) = 1, not min(2, 3) = 2.
+    tree = _weapon_set_tree(monkeypatch, ws1="1,20", ws2="30,31,32")
+    assert tree["passiveCount"] == 8 - 1
