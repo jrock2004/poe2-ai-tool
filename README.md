@@ -158,9 +158,17 @@ poe2-ai-tools/
 
 ## Tech choice
 
-The MCP server is written in **Python** (first-class MCP SDK; and PoB-code parsing and guide-HTML parsing, both upcoming, are materially easier in Python). Ported from an initial TypeScript sketch.
+The MCP server is written in **Python** (first-class MCP SDK; PoB-code parsing and guide-HTML parsing are materially easier in Python). Ported from an initial TypeScript sketch.
 
-## Disclaimers
+## License & notices
 
-Not affiliated with Grinding Gear Games. Uses third-party community data (poe2scout, poe.ninja) under
-their terms, and the unofficial trade endpoint read-only and rate-limited. No automated trading.
+This project's code is MIT-licensed — see [`LICENSE`](LICENSE).
+
+**Third-party data.** `mcp/src/poe2_mcp/data/tree_*.json` is derived from the passive-tree data in
+[Path of Building Community (PoE2)](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)
+(`src/TreeData/<version>/tree.lua`), used under its MIT License: Copyright (c) 2016 David Gowor. The
+underlying game data belongs to Grinding Gear Games.
+
+**Not affiliated with Grinding Gear Games.** Path of Exile is a trademark of Grinding Gear Games;
+this project is not endorsed by or affiliated with GGG. It reads community price data (poe2scout)
+under its terms and the unofficial trade endpoint read-only and rate-limited. No automated trading.
