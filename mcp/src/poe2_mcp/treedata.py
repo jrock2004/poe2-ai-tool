@@ -6,7 +6,7 @@ Lua table literal, so this module holds a small parser for exactly that subset a
 into a compact JSON snapshot -- notables, keystones, and every ascendancy node; ordinary small nodes
 are counted by the parser, not named. Regenerate per patch:
 
-    python -m poe2_mcp.treedata path/to/tree.lua 0_5 "<source note>" > src/poe2_mcp/data/tree_0_5.json
+    python -m poe2_mcp.treedata path/to/tree.lua 0_5 "<source note>" src/poe2_mcp/data/tree_0_5.json
 
 Build-time only: nothing here touches the network, and runtime reads only the committed JSON.
 """
@@ -203,24 +203,34 @@ def load_snapshot(version: str | None) -> dict[str, Any] | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def main(argv: list[str]) -> None:
-    """CLI: treedata <tree.lua> <treeVersion> <source note> -> snapshot JSON on stdout."""
-    if len(argv) != 3:
-        sys.exit("usage: python -m poe2_mcp.treedata <tree.lua> <treeVersion> <source note>")
-    path, version, source = argv
-    with open(path, encoding="utf-8") as f:
-        tree = parse_lua_table(f.read())
-    snapshot = {"treeVersion": version, "source": source, "nodes": extract_named_nodes(tree)}
-    uncounted = extract_uncounted(tree)
-    # One node per line keeps a per-patch regeneration reviewable as a diff.
-    lines = [f"  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in snapshot["nodes"].items()]
-    sys.stdout.write(
+def render_snapshot(tree: dict[str, Any], version: str, source: str) -> str:
+    """The snapshot JSON text for a parsed tree.lua: treeVersion, source, uncounted, then one named
+    node per line (so a per-patch regeneration reads as a small diff). Pure; ends with a newline.
+    """
+    lines = [f"  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}"
+             for k, v in extract_named_nodes(tree).items()]
+    return (
         "{\n"
         f'"treeVersion": {json.dumps(version)},\n'
         f'"source": {json.dumps(source)},\n'
-        f'"uncounted": {json.dumps(uncounted)},\n'
+        f'"uncounted": {json.dumps(extract_uncounted(tree))},\n'
         '"nodes": {\n' + ",\n".join(lines) + "\n}\n}\n"
     )
+
+
+def main(argv: list[str]) -> None:
+    """CLI: treedata <tree.lua> <treeVersion> <source note> <out.json> -- writes the snapshot file.
+
+    Writes the file itself (UTF-8, no BOM, LF) instead of printing for a shell redirect: Windows
+    PowerShell 5.1's `>` would write UTF-16, and text mode on Windows would turn LF into CRLF.
+    """
+    if len(argv) != 4:
+        sys.exit("usage: python -m poe2_mcp.treedata <tree.lua> <treeVersion> <source note> <out.json>")
+    path, version, source, out = argv
+    with open(path, encoding="utf-8") as f:
+        tree = parse_lua_table(f.read())
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(render_snapshot(tree, version, source))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,16 @@
 """Unit tests for the tree.lua parser and named-node extraction (pure, no network)."""
 import pytest
 
-from poe2_mcp.treedata import extract_named_nodes, extract_uncounted, load_snapshot, parse_lua_table
+import json
+
+from poe2_mcp.treedata import (
+    extract_named_nodes,
+    extract_uncounted,
+    load_snapshot,
+    main,
+    parse_lua_table,
+    render_snapshot,
+)
 
 # Shaped like real PoB2 src/TreeData/0_5/tree.lua: tab-indented, `[id]=` node keys, `[1]=` lists,
 # escaped quotes/newlines in strings, `["string"]` keys, negative/decimal numbers, booleans.
@@ -169,3 +178,42 @@ def test_load_snapshot_is_cached():
 @pytest.mark.parametrize("version", ["9_99", None, "", "0_5_ruthless", "../data/tree_0_5", "0_5/../0_5"])
 def test_load_snapshot_returns_none_for_unknown_or_unsafe_versions(version):
     assert load_snapshot(version) is None
+
+
+def test_render_snapshot_is_valid_json_with_one_node_per_line():
+    text = render_snapshot(parse_lua_table(STARTS_LUA), "0_5", "fixture")
+    snapshot = json.loads(text)
+    assert snapshot["treeVersion"] == "0_5" and snapshot["source"] == "fixture"
+    assert snapshot["uncounted"] == [5, 31, 32, 33]
+    assert set(snapshot["nodes"]) == {"31", "32", "40"}
+    node_lines = [ln for ln in text.splitlines() if ln.startswith('  "')]
+    assert len(node_lines) == 3
+    assert text.endswith("\n")
+
+
+# Regenerating on Windows must not depend on the shell: PowerShell 5.1's `>` writes UTF-16, and
+# Python's text mode on Windows turns "\n" into "\r\n". main writes the file itself.
+UNICODE_LUA = r'''return {
+	nodes={
+		[7]={
+			isKeystone=true,
+			name="Blåmänn's Oath"
+		}
+	}
+}'''
+
+
+def test_main_writes_utf8_without_bom_and_with_lf_endings(tmp_path):
+    lua = tmp_path / "tree.lua"
+    lua.write_text(UNICODE_LUA, encoding="utf-8")
+    out = tmp_path / "tree_0_5.json"
+    main([str(lua), "0_5", "fixture", str(out)])
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")  # no BOM
+    assert b"\r\n" not in raw
+    assert json.loads(raw.decode("utf-8"))["nodes"]["7"]["name"] == "Blåmänn's Oath"
+
+
+def test_main_requires_an_output_path(tmp_path):
+    with pytest.raises(SystemExit):
+        main([str(tmp_path / "tree.lua"), "0_5", "fixture"])

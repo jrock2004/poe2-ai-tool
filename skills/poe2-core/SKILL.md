@@ -52,7 +52,8 @@ Game data drifts each patch. When a patch lands, refresh:
   `mcp/src/poe2_mcp/data/tree_<version>.json`. A PoB built on a newer tree version gets ids only
   (`tree.note` says so) until a matching snapshot exists. Get PoB2's
   `src/TreeData/<version>/tree.lua`, then from `mcp/`:
-  `python -m poe2_mcp.treedata <tree.lua> <version> "<source note>" > src/poe2_mcp/data/tree_<version>.json`
+  `python -m poe2_mcp.treedata <tree.lua> <version> "<source note>" src/poe2_mcp/data/tree_<version>.json`
+  (it writes the file itself — don't redirect with `>`, which on Windows PowerShell writes UTF-16).
   Keep the old snapshot — characters on the old tree still use it.
 - **Trials knowledge** — `poe2-trials-advisor/references/trials-knowledge.md` (re-stamp the date).
 - **Farming knowledge** — `poe2-meta-strategy/references/farming-knowledge.md`: re-check how each
