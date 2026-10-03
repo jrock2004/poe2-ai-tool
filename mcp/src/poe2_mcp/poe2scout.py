@@ -102,7 +102,12 @@ def value_holdings(
 
 
 class Poe2ScoutClient:
-    def __init__(self, min_gap_s: float = 0.5, ttl_s: float = 300.0) -> None:
+    def __init__(
+        self,
+        min_gap_s: float = 0.5,
+        ttl_s: float = 300.0,
+        transport: httpx.AsyncBaseTransport | None = None,  # tests pass an httpx.MockTransport
+    ) -> None:
         self._cache: dict[str, CacheEntry] = {}
         self._last_request = 0.0
         self._min_gap_s = min_gap_s  # ~2 req/s
@@ -111,6 +116,7 @@ class Poe2ScoutClient:
             base_url=BASE,
             headers={"User-Agent": USER_AGENT, "Accept": "application/json"},
             timeout=30.0,
+            transport=transport,
         )
 
     async def aclose(self) -> None:

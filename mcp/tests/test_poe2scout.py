@@ -2,7 +2,9 @@ import asyncio
 import math
 
 import httpx
+import pytest
 
+from poe2_mcp import poe2scout
 from poe2_mcp._cache import Fetched
 from poe2_mcp.poe2scout import Poe2ScoutClient, exalted_to_divine, rates_from_items
 
@@ -31,24 +33,21 @@ def test_rates_from_items_maps_currency_apiids_and_skips_uniques_and_unpriced():
 LEAGUES = [{"Value": "Forbidden Rites", "ShortName": "FR", "IsCurrent": True, "DivinePrice": 500}]
 
 
-async def _offline_client(calls: list[str]) -> Poe2ScoutClient:
-    """A client whose HTTP goes to an in-memory transport serving LEAGUES; records each request path."""
+def _offline_client(calls: list[str], leagues: list[dict] = LEAGUES) -> Poe2ScoutClient:
+    """A client whose HTTP goes to an in-memory transport serving `leagues`; records each request path."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request.url.path)
-        return httpx.Response(200, json=LEAGUES)
+        return httpx.Response(200, json=leagues)
 
-    client = Poe2ScoutClient(min_gap_s=0)
-    await client._client.aclose()
-    client._client = httpx.AsyncClient(base_url="https://scout.test", transport=httpx.MockTransport(handler))
-    return client
+    return Poe2ScoutClient(min_gap_s=0, transport=httpx.MockTransport(handler))
 
 
 def test_cache_hit_returns_original_fetched_at_without_refetching():
     calls: list[str] = []
 
     async def run():
-        client = await _offline_client(calls)
+        client = _offline_client(calls)
         first = await client.get_leagues()
         second = await client.get_leagues()
         await client.aclose()
@@ -65,7 +64,7 @@ def test_resolve_league_carries_the_leagues_fetch_time():
     calls: list[str] = []
 
     async def run():
-        client = await _offline_client(calls)
+        client = _offline_client(calls)
         leagues = await client.get_leagues()
         league = await client.resolve_league("Forbidden Rites")
         await client.aclose()
@@ -75,3 +74,59 @@ def test_resolve_league_carries_the_leagues_fetch_time():
     assert isinstance(league, Fetched)
     assert league.body["Value"] == "Forbidden Rites"
     assert league.fetched_at == leagues.fetched_at
+
+
+# SC + HC + an old league, as poe2scout really returns them: several marked current at once, and the
+# first entry is not current -- so "first league" and "first current league" give different answers.
+MULTI = [
+    {"Value": "Standard", "ShortName": "Std", "IsCurrent": False},
+    {"Value": "Forbidden Rites", "ShortName": "FR", "IsCurrent": True},
+    {"Value": "HC Forbidden Rites", "ShortName": "HCFR", "IsCurrent": True},
+]
+
+
+def _resolve(monkeypatch, leagues: list[dict], league: str | None, configured: str | None) -> str:
+    """resolve_league(league) with POE2_LEAGUE set to `configured`; returns the chosen league's Value."""
+    monkeypatch.setattr(poe2scout, "DEFAULT_LEAGUE", configured)
+
+    async def run():
+        client = _offline_client([], leagues)
+        try:
+            return (await client.resolve_league(league)).body["Value"]
+        finally:
+            await client.aclose()
+
+    return asyncio.run(run())
+
+
+def test_resolve_league_explicit_argument_beats_configured(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, "Standard", configured="Forbidden Rites") == "Standard"
+
+
+def test_resolve_league_uses_configured_when_no_argument(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, None, configured="HC Forbidden Rites") == "HC Forbidden Rites"
+
+
+def test_resolve_league_matches_short_name_case_insensitively(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, "hcfr", configured=None) == "HC Forbidden Rites"
+
+
+def test_resolve_league_falls_back_to_first_current_not_first_listed(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, None, configured=None) == "Forbidden Rites"
+
+
+def test_resolve_league_falls_back_to_first_listed_when_none_current(monkeypatch):
+    none_current = [dict(lg, IsCurrent=False) for lg in MULTI]
+    assert _resolve(monkeypatch, none_current, None, configured=None) == "Standard"
+
+
+def test_resolve_league_unknown_names_its_source_and_the_options(monkeypatch):
+    with pytest.raises(RuntimeError, match=r"POE2_LEAGUE.*Standard, Forbidden Rites, HC Forbidden Rites"):
+        _resolve(monkeypatch, MULTI, None, configured="Dawn of the Hunt")
+    with pytest.raises(RuntimeError, match="league argument"):
+        _resolve(monkeypatch, MULTI, "Dawn of the Hunt", configured=None)
+
+
+def test_resolve_league_with_no_leagues_raises(monkeypatch):
+    with pytest.raises(RuntimeError, match="no leagues"):
+        _resolve(monkeypatch, [], None, configured=None)
