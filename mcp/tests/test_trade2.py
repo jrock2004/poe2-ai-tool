@@ -4,12 +4,14 @@ import time
 import types
 
 import httpx
+import pytest
 
 from poe2_mcp import trade2
 from poe2_mcp._cache import Fetched
 from poe2_mcp.trade2 import (
     StatFilter,
     Trade2Client,
+    Trade2Error,
     human_search_url,
     _mod_texts,
     _normalize_affix,
@@ -272,3 +274,59 @@ def test_fetch_cache_is_keyed_by_the_hashes_not_just_the_batch_offset():
     assert [e["id"] for e in ten.body] == hashes
     assert ten_again.fetched_at == ten.fetched_at
     assert batches == [5, 10]
+
+
+# GGG's rate-limit headers: the policy is "max:period:timeout" per bucket, and the state is
+# "current:period:active_timeout" per bucket, in the same order.
+POLICY = "5:10:60,15:60:300"
+
+
+def _search_with_headers(monkeypatch, headers: dict[str, str], status: int = 200) -> list[float]:
+    """Run one search against a response carrying `headers`; return the sleeps the client asked for.
+
+    Swaps only trade2's `asyncio` binding, so the recorded sleeps are the client's and nothing waits.
+    """
+    sleeps: list[float] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(trade2, "asyncio", types.SimpleNamespace(sleep=fake_sleep, Lock=asyncio.Lock))
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(status, headers=headers, json={"id": "q1", "result": [], "total": 0})
+
+    async def run():
+        client = _offline_trade(handler)
+        try:
+            await client.search("Forbidden Rites", build_query())
+        finally:
+            await client.aclose()
+
+    asyncio.run(run())
+    return sleeps
+
+
+def test_rate_limit_under_the_ceiling_does_not_wait(monkeypatch):
+    headers = {"X-Rate-Limit-Ip": POLICY, "X-Rate-Limit-Ip-State": "1:10:0,1:60:0"}
+    assert _search_with_headers(monkeypatch, headers) == []
+
+
+def test_rate_limit_at_the_ceiling_waits_out_that_window(monkeypatch):
+    headers = {"X-Rate-Limit-Ip": POLICY, "X-Rate-Limit-Ip-State": "5:10:0,5:60:0"}
+    assert _search_with_headers(monkeypatch, headers) == [10]
+
+
+def test_rate_limit_active_timeout_waits_the_timeout(monkeypatch):
+    headers = {"X-Rate-Limit-Ip": POLICY, "X-Rate-Limit-Ip-State": "6:10:45,1:60:0"}
+    assert _search_with_headers(monkeypatch, headers) == [45]
+
+
+def test_rate_limit_wait_is_capped_at_a_minute(monkeypatch):
+    headers = {"X-Rate-Limit-Ip": "5:10:60,15:600:300", "X-Rate-Limit-Ip-State": "1:10:0,15:600:0"}
+    assert _search_with_headers(monkeypatch, headers) == [60]
+
+
+def test_429_raises_with_the_retry_after(monkeypatch):
+    with pytest.raises(Trade2Error, match="retry after 30s"):
+        _search_with_headers(monkeypatch, {"Retry-After": "30"}, status=429)
