@@ -17,6 +17,8 @@ import zlib
 import xml.etree.ElementTree as ET
 from typing import Any
 
+from .treedata import load_snapshot
+
 # PoB annotation lines in item text that aren't readable stat mods -- dropped from the mod list.
 _ITEM_META_PREFIXES = (
     "Rarity:", "Item Level:", "Quality:", "Sockets:", "LevelReq:", "Implicits:", "Crafted:",
@@ -213,12 +215,60 @@ def _parse_tree(root: ET.Element, items_by_id: dict[str | None, str]) -> dict[st
             continue
         jewels.append({"nodeId": int(node_id), **_item_summary(items_by_id[item_id])})
 
+    tree_version = spec.get("treeVersion")
     return {
-        "treeVersion": spec.get("treeVersion"),
+        "treeVersion": tree_version,
         "nodes": nodes,
         "allocatedCount": len(nodes),
         "weaponSetNodes": weapon_sets,
         "jewels": jewels,
+        **_name_and_count(nodes, tree_version),
+    }
+
+
+def _name_and_count(nodes: list[int], tree_version: str | None) -> dict[str, Any]:
+    """Names (keystones/notables) and PoB-style point counts from the committed tree snapshot.
+
+    Counts mirror PoB's CountAllocNodes: the snapshot's `uncounted` nodes (class/ascendancy starts,
+    choice options, free-allocate) cost nothing; a node is an ascendancy point if the snapshot gives
+    it an ascendancy, else a passive point (the snapshot names every ascendancy node, so an unnamed
+    node is an ordinary small one). With no snapshot for this version, everything here is None.
+    """
+    snapshot = load_snapshot(tree_version)
+    if snapshot is None:
+        return {
+            "treeDataVersion": None, "keystones": None, "notables": None,
+            "passiveCount": None, "ascendancyCount": None,
+            "note": (
+                f'No passive-tree names for tree version "{tree_version}" -- node ids only. '
+                "Names and point counts need a matching tree snapshot."
+            ),
+        }
+
+    named = snapshot["nodes"]
+    uncounted = set(snapshot.get("uncounted") or [])
+    keystones: list[dict[str, Any]] = []
+    notables: list[dict[str, Any]] = []
+    passive = ascendancy = 0
+    for node_id in nodes:
+        info = named.get(str(node_id))
+        if info and info["kind"] in ("keystone", "notable"):
+            entry = {"nodeId": node_id, "name": info["name"], "ascendancy": info["ascendancy"],
+                     "stats": info["stats"]}
+            (keystones if info["kind"] == "keystone" else notables).append(entry)
+        if node_id in uncounted:
+            continue
+        if info and info["ascendancy"]:
+            ascendancy += 1
+        else:
+            passive += 1
+    return {
+        "treeDataVersion": snapshot.get("treeVersion"),
+        "keystones": keystones,
+        "notables": notables,
+        "passiveCount": passive,
+        "ascendancyCount": ascendancy,
+        "note": None,
     }
 
 

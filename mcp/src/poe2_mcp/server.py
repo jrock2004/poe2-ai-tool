@@ -345,9 +345,12 @@ async def parse_pob_code(code: str) -> dict[str, Any]:
 
     Accepts a raw PoB code or raw PoB XML -- not a share link (pobb.in links hold an id, not the
     code). Returns the character (level/class/ascendancy), computed stats (resistances, life, energy
-    shield, DPS), the active skill set's gems, and equipped items with implicit and explicit mods --
-    so a pasted PoB code can feed poe2-gear-upgrade / poe2-build-review without a character
-    screenshot. Offline; no network.
+    shield, DPS), the active skill set's gems, equipped items with implicit and explicit mods, and
+    the active passive tree: allocated node ids, socketed jewels, named keystones/notables, and
+    passive/ascendancy point counts (names and counts come from a bundled tree snapshot; if the
+    build's tree version has none, `tree.note` says so and only ids are returned) -- so a pasted PoB
+    code can feed poe2-gear-upgrade / poe2-build-review without a character screenshot. Offline; no
+    network.
     """
     try:
         return _parse_pob(code)

@@ -4,6 +4,7 @@ import zlib
 
 import pytest
 
+from poe2_mcp import pob
 from poe2_mcp.pob import PobError, decode_pob_code, parse_pob_code, parse_pob_xml
 
 SAMPLE_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -230,3 +231,59 @@ def test_tree_with_no_allocated_nodes():
 
 def test_tree_is_none_without_a_tree_element():
     assert parse_pob_xml(SAMPLE_XML)["tree"] is None
+
+
+# --- Passive tree (slice B3b: names + point counts from the snapshot) -----------------------------
+FAKE_SNAPSHOT = {
+    "treeVersion": "0_5",
+    "uncounted": [1, 300],
+    "nodes": {
+        "100": {"name": "Heavy Buffer", "kind": "notable", "ascendancy": None, "stats": ["+20 to Strength"]},
+        "300": {"name": "Deadeye", "kind": "small", "ascendancy": "Deadeye", "stats": []},
+        "400": {"name": "Gathering Winds", "kind": "notable", "ascendancy": "Deadeye",
+                "stats": ["Gain Tailwind on Skill use"]},
+        "500": {"name": "Zealot's Oath", "kind": "keystone", "ascendancy": None,
+                "stats": ["Energy Shield does not Recharge"]},
+    },
+}
+NAMED_TREE_XML = TREE_XML.replace('nodes="100,200,300,400"', 'nodes="100,200,300,400,500"')
+
+
+def _parse_with_snapshot(monkeypatch, snapshot):
+    """parse_pob_xml(NAMED_TREE_XML) with load_snapshot stubbed; returns (tree, versions asked for)."""
+    asked: list = []
+
+    def fake_load_snapshot(version):
+        asked.append(version)
+        return snapshot
+
+    monkeypatch.setattr(pob, "load_snapshot", fake_load_snapshot)
+    return parse_pob_xml(NAMED_TREE_XML)["tree"], asked
+
+
+def test_tree_names_keystones_and_notables_from_the_spec_version(monkeypatch):
+    tree, asked = _parse_with_snapshot(monkeypatch, FAKE_SNAPSHOT)
+    assert asked == ["0_5"]
+    assert tree["treeDataVersion"] == "0_5"
+    assert tree["note"] is None
+    assert tree["keystones"] == [{"nodeId": 500, "name": "Zealot's Oath", "ascendancy": None,
+                                  "stats": ["Energy Shield does not Recharge"]}]
+    assert [(n["nodeId"], n["name"], n["ascendancy"]) for n in tree["notables"]] == [
+        (100, "Heavy Buffer", None),
+        (400, "Gathering Winds", "Deadeye"),
+    ]
+
+
+def test_tree_counts_points_like_pob(monkeypatch):
+    tree, _ = _parse_with_snapshot(monkeypatch, FAKE_SNAPSHOT)
+    assert tree["passiveCount"] == 3     # 100, 200 (unnamed small/socket), 500; 300 is uncounted
+    assert tree["ascendancyCount"] == 1  # 400; the ascendancy start (300) is free
+    assert tree["allocatedCount"] == 5   # raw count is unchanged
+
+
+def test_tree_without_a_snapshot_keeps_ids_and_says_why(monkeypatch):
+    tree, _ = _parse_with_snapshot(monkeypatch, None)
+    assert tree["nodes"] == [100, 200, 300, 400, 500]
+    for field in ("treeDataVersion", "keystones", "notables", "passiveCount", "ascendancyCount"):
+        assert tree[field] is None
+    assert "0_5" in tree["note"]
