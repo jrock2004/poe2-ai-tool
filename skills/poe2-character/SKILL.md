@@ -43,7 +43,10 @@ end). Keep it short:
    Fine if they only know some of it.
 3. **What's the goal right now?** Bossing, mapping, league-start, just leveling?
 4. **Following a guide?** If yes, take the link or PoB reference (optional).
-5. **Which league?** (so currency and trade prices resolve correctly).
+5. **Which league?** (so currency and trade prices resolve correctly). Check the answer against
+   `get_leagues` and store the exact league name it lists. If their league isn't marked `current`, or
+   a newer league is, say so: temp leagues end and fold into Standard, and the tools default to the
+   league pinned in `POE2_LEAGUE` — see "League rotation" in `poe2-core`.
 6. **How should I read your gear when we need it?** See "Reading a build" below.
 
 Set this first character **active**. Then confirm the profile back in one line.

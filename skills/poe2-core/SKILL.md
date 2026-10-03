@@ -29,6 +29,11 @@ explain things to newcomers consistently.
 3. **Never auto-trade.** Skills generate searches, prices, and advice. They never buy, sell, or
    whisper. Trade output is a filter set or a link the player uses themselves.
 4. **Cite freshness.** When using market data, note how old it is; stale data lowers confidence.
+5. **League rotation.** The tools default to the league pinned in `POE2_LEAGUE` (`.mcp.json`). When a
+   new league starts, tool calls fail with `League "…" (POE2_LEAGUE) not found. Available: …`. Don't
+   retry blindly: tell the player a league rotation happened, pass `league=` explicitly (from the
+   available list, or the character's stored league) to keep going, and tell them to update
+   `POE2_LEAGUE` in `.mcp.json` and restart the server so the default follows.
 
 ## Player & character state (shared model)
 
