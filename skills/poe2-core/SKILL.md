@@ -16,7 +16,7 @@ explain things to newcomers consistently.
 - **`references/currency-glossary.md`** — currency names, common shorthand, and how prices are quoted
   (in exalted vs. divine). Used to normalize what the player types.
 - **`references/how-to.md`** — step-by-step "how do I get that for you?" instructions (export a PoB
-  code, copy an item in game, screenshot a currency tab, connect OAuth, find a build guide).
+  code, copy an item in game, screenshot a currency tab, find a build guide).
 
 ## Rules every skill inherits
 
@@ -38,5 +38,19 @@ Skills read and write a small persistent state (in Claude memory):
   `active` flag. Currency is **league-scoped**, shared across all characters in a league.
 - **currency inventory** — per league, populated from screenshots (see `poe2-currency-tracker`).
 - **active trade context** — the last search + results, for the iterative trade-filter loop.
+
+## Per-patch maintenance
+
+Game data drifts each patch. When a patch lands, refresh:
+
+- **Passive-tree snapshot** — `parse_pob_code` names nodes and counts points from
+  `mcp/src/poe2_mcp/data/tree_<version>.json`. A PoB built on a newer tree version gets ids only
+  (`tree.note` says so) until a matching snapshot exists. Get PoB2's
+  `src/TreeData/<version>/tree.lua`, then from `mcp/`:
+  `python -m poe2_mcp.treedata <tree.lua> <version> "<source note>" > src/poe2_mcp/data/tree_<version>.json`
+  Keep the old snapshot — characters on the old tree still use it.
+- **Trials knowledge** — `poe2-trials-advisor/references/trials-knowledge.md` (re-stamp the date).
+- **How-to steps** — `references/how-to.md`, where the game or PoB UI changed.
+- **League** — `POE2_LEAGUE` in `.mcp.json` when a new league starts.
 
 See `docs/plan.md` in the repo root for the full design.

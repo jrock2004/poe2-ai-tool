@@ -65,6 +65,32 @@ buckets:
 Then a **priority-ordered fix list**, survivability first (uncapped resists, low life/ES) before damage
 or convenience, consistent with `poe2-gear-upgrade`. One clear "do this next," not a wall.
 
+### The passive tree
+
+`parse_pob_code` returns a `tree` block. When both the character and the guide stage come from PoB
+codes, compare the two blocks — this is the most precise part of the review:
+
+- **Keystones** (`tree.keystones`) the guide has and the character lacks, or vice versa → **Deviated**.
+  Keystones change how the build works; flag them first.
+- **Ascendancy choices** (`tree.ascendancyChoices`) that differ — e.g. *Point Blank* where the guide
+  takes *Far Shot* → **Deviated**. Name both options.
+- **Fewer ascendancy points** (`ascendancyCount`) than the guide's stage → **Behind**: usually a Trial
+  not done yet. Hand off to `poe2-trials-advisor`.
+- **Notables** (`tree.notables`): if the character has spent about as many points (`passiveCount`) as
+  the guide but holds different notables → **Deviated**. If they've simply spent fewer points →
+  **Behind**; list the guide's next few notables in order, not the whole gap.
+- **Socketed jewels** (`tree.jewels`) — compare like gear.
+
+Don't work out "unspent points" from the character's level: available points also depend on quest
+rewards, which nothing here reads. Compare `passiveCount` against the guide's PoB for the same stage.
+
+When the guide is **prose only** (no PoB), match the notables and keystones it names against
+`tree.notables` / `tree.keystones` by name. That's weaker — say the comparison is name-based.
+
+If `tree.note` is set (no snapshot for that tree version), you only have node ids: compare the id
+sets for how much overlaps, but don't claim which notables are missing. If the character and the
+guide have different `treeVersion`s, node ids may not line up across patches — say so.
+
 ## 5. Hand off acquisition
 
 For each fix that needs an item, hand off to `poe2-gear-upgrade` / `poe2-price-check` to turn it into a
@@ -77,6 +103,9 @@ where/how to get them. The player acts — never auto-buy or auto-whisper.
 - **Medium** — partial guide (dynamic/paste gaps) or some character detail inferred.
 - **Low** — guide only loosely known, or level/gear guessed. Name what would raise it (the guide's PoB
   code, a clearer character screenshot).
+
+For the tree specifically: both sides from PoB with names available supports High; name-matching a
+prose guide, or ids only (`tree.note` set), is Medium at best; mismatched `treeVersion`s is Low.
 
 ## Guardrails
 
