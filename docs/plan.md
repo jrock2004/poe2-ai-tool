@@ -269,14 +269,16 @@ gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
   choice options, and free nodes cost nothing). A tree version with no snapshot gets ids only.
   `poe2-build-review` compares trees into its deviated/behind buckets; regenerating the snapshot is
   on the per-patch list in `poe2-core`.
+- *Currency trend:* `get_currency_prices` carries each item's ~7-day `trend` from poe2scout's
+  `PriceLogs`, including `changePctVsDivine` — the move measured in divine, since exalted-quoted
+  changes inflate together when exalted weakens. The rubric scores volatility on that number.
 
 **Remaining work, in rough priority order:**
 1. **Verify tree point counts against a real PoB2 export** — the counting logic is tested on fixtures
    and the real snapshot, but not yet against what PoB itself shows for an actual build.
-2. **Currency trend** — poe2scout's `PriceLogs` (7 daily points) as a volatility signal for currency.
-3. **League rotation** — `POE2_LEAGUE` is pinned per machine; a new league fails loudly ("not found")
+2. **League rotation** — `POE2_LEAGUE` is pinned per machine; a new league fails loudly ("not found")
    until it's updated. Now on the per-patch list in `poe2-core`; an onboarding reminder would help.
-4. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
+3. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
    pieces (poe2scout) held up.
 
 ---
