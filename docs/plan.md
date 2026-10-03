@@ -1,6 +1,6 @@
 # Path of Exile 2 Decision Assistant — Build Plan
 
-*Draft v9 — Phase 1 shipped and Phase 2/3 partly built; two v8 assumptions overturned by live checks and noted inline. Personal-use tool running inside Claude. **OAuth is currently unobtainable** — GGG isn't issuing new API clients — so character reading is screenshot/description-based (§3), not OAuth-primary as v8 assumed. Screenshots for currency (§2); one `poe2-character` skill owns the roster (§4.1); guides modeled as staged progressions (§5.1); beginner-friendly by default (§7). Reuse-vs-build: reuse poe2scout for currency/uniques, built a thin /trade2 adapter for rare search, and a robots/license-aware guide fetcher (§9). Build status is tracked in §9.*
+*Draft v10 (Oct 2026) — Phases 1–3 built, plus a hardening pass: confidence is now grounded in fields the tools return (§6), PoB parsing fixed (§9), and the client caches/rate limits are tested. Two v8 assumptions were overturned by live checks and are noted inline. Personal-use tool running inside Claude. **OAuth is currently unobtainable** — GGG isn't issuing new API clients — so character reading is screenshot/description-based (§3), not OAuth-primary as v8 assumed. Screenshots for currency (§2); one `poe2-character` skill owns the roster (§4.1); guides modeled as staged progressions (§5.1); beginner-friendly by default (§7). Reuse-vs-build: reuse poe2scout for currency/uniques, built a thin /trade2 adapter for rare search, and a robots/license-aware guide fetcher (§9). Build status is tracked in §9.*
 
 ---
 
@@ -74,16 +74,19 @@ computed stats + gems + gear), a **character screenshot** (vision), or a **plain
         ┌───────▼─────────┐        ┌───────────────────────────┐
         │  SKILLS          │  call  │  MCP SERVER               │
         │  (judgment +     │───────▶│  (data plumbing)          │
-        │   confidence)    │        │   get_currency_rates      │
-        │                  │        │   price_item              │
-        │ • price-check    │        │   build_trade_filter      │
-        │ • gear-upgrade   │        │   get_my_character (OAuth) │
-        │ • build-review   │        │   parse_pob_code          │
-        │ • trials-advisor │        │   fetch_guide             │
-        │ • meta-strategy  │        └───────────┬───────────────┘
+        │   confidence)    │        │   get_leagues             │
+        │                  │        │   get_currency_prices     │
+        │ • price-check    │        │   price_unique            │
+        │ • gear-upgrade   │        │   value_currency          │
+        │ • build-review   │        │   find_stat_filters       │
+        │ • trials-advisor │        │   build_trade_filter      │
+        │ • character      │        │   search_trade            │
+        │ • currency-track │        │   fetch_guide             │
+        │ (meta-strategy:  │        │   parse_pob_code          │
+        │   not built)     │        └───────────┬───────────────┘
         └───────┬──────────┘                    │
-                │                     poe2scout / poe.ninja /
-        ┌───────▼──────────┐          trade2 / GGG character API
+                │                     poe2scout / trade2 /
+        ┌───────▼──────────┐          guide sites (robots-aware)
         │  PERSISTENT STATE │         (all cached + rate-limited)
         │  (Claude memory)  │
         │ • characters[]    │  ← multiple, per §4.1
@@ -101,7 +104,7 @@ You play more than one build (Ice Shot Deadeye, minions, …), and so does every
 - **Account → characters[]** — each character has a name, class/ascendancy, build archetype, goal, and its gear/skills read from a character screenshot or description (OAuth being unavailable, §3). You pick which one is *active* for a given question ("check upgrades for my Deadeye").
 - **Currency is league-scoped, not character-scoped** — in PoE2 your currency stash is shared across characters in a league, so the inventory attaches to the *league*, and all characters in that league draw on the same pool. (A subtle but important correctness detail — otherwise the tool would think your minion build is broke while your Deadeye is rich.)
 
-**First-run onboarding flow** (a real part of the design, not an afterthought): the first time you use the skill it interviews you — "Which character are we working on? What's the build's goal — bossing, mapping, league-start? Are you following a guide? OAuth-connect now or paste PoB?" — and saves that as a character profile. It also gauges **experience level** early (are terms like "PoB", "exalt", "resist cap" familiar, or should it explain as it goes?) and stores that, so verbosity is tuned to you from then on. Each new character triggers a short version of the same. After onboarding, day-to-day use is just "check my Deadeye's boots" and it already knows the context. The interview is short, asks one thing at a time, and writes each answer to state as it goes.
+**First-run onboarding flow** (a real part of the design, not an afterthought): the first time you use the skill it interviews you — "Which character are we working on? What's the build's goal — bossing, mapping, league-start? Are you following a guide? Paste a PoB code or a character screenshot?" — and saves that as a character profile. It also gauges **experience level** early (are terms like "PoB", "exalt", "resist cap" familiar, or should it explain as it goes?) and stores that, so verbosity is tuned to you from then on. Each new character triggers a short version of the same. After onboarding, day-to-day use is just "check my Deadeye's boots" and it already knows the context. The interview is short, asks one thing at a time, and writes each answer to state as it goes.
 
 **Skill granularity decision (create vs. switch):** the roster lifecycle is **one skill, `poe2-character`**, not several. It owns onboarding a new character, listing the roster, updating a build, and setting the active character. Rationale: those all touch the same data model, and the substantive content (the onboarding interview) justifies exactly one skill.
 
@@ -111,9 +114,9 @@ You play more than one build (Ice Shot Deadeye, minions, …), and so does every
 
 ## 5. Your seven features → how each is built
 
-**F1. "Look at my gear and tell me how to improve it."** *(built — screenshot path)*
-Skill: `poe2-gear-upgrade`. Input = your character read from a **screenshot or description** (OAuth
-being unavailable, PoB decoding not built). It identifies your weakest stats vs. your build's needs
+**F1. "Look at my gear and tell me how to improve it."** *(built — PoB code or screenshot)*
+Skill: `poe2-gear-upgrade`. Input = your character from a **PoB code** (`parse_pob_code`), a
+**screenshot**, or a description (OAuth being unavailable). It identifies your weakest stats vs. your build's needs
 (resistances capped? life/ES low? damage bottleneck?), survivability first, then for each weak slot
 queries `/trade2` for realistic upgrades and ranks them by *value per currency*, bounded by your
 currency budget. Confidence: high with a clear gear read + good market data; lower when guessing intent.
@@ -158,7 +161,7 @@ Your two structural notes are dead-on and change the data model — a guide isn'
 - **Variant links** — a leveling guide points to its endgame version (Mobalytics's leveling page links straight to `ice-shot-deadeye`). The tool tracks both and knows they're the same build at different phases, so it can say "you're near the end of the leveling guide — here's the endgame variant to switch to."
 - **Milestone hooks** — stage transitions often coincide with Trials (poe-vault swaps to full minion play after the Act 3 Trial of Chaos). These hooks tie the guide model to the trials-advisor (F4) and to detecting your progression stage.
 
-**The payoff (an emergent feature worth calling out):** because OAuth gives us your character's **level**, the tool can auto-select the right stage for you — "you're level 28, so here's your 24–30 gear/gem targets, and here's exactly what changes when you hit 31." You never have to figure out which tab of the guide applies; it meets you where your character actually is. This falls out for free once we combine the staged guide model with the character data, and it's a much better experience than handing someone a wall of tabs.
+**The payoff (an emergent feature worth calling out):** because the character read (PoB code, screenshot, or description) gives us your **level**, the tool can auto-select the right stage for you — "you're level 28, so here's your 24–30 gear/gem targets, and here's exactly what changes when you hit 31." You never have to figure out which tab of the guide applies; it meets you where your character actually is. This falls out for free once we combine the staged guide model with the character data, and it's a much better experience than handing someone a wall of tabs.
 
 ---
 
@@ -168,13 +171,22 @@ You asked for a confidence rating on every answer. The trap: an LLM saying "I'm 
 
 So we ground confidence in **observable signals**, not the model's feelings. Each skill computes a confidence band from concrete inputs:
 
-- **Data freshness** — how old is the price data? (poe.ninja caches ~5 min; stale = lower.)
+- **Data freshness** — how old is the price data? (poe2scout caches ~5 min; stale = lower.)
 - **Sample size** — how many comparable listings did we find? 40 listings = high; 2 = low; 0 = we're extrapolating, flag it loudly.
 - **Input certainty** — do we have your *actual* character/currency, or are we assuming?
-- **Source agreement** — do poe2scout and poe.ninja agree on the price, or diverge?
+- **Source agreement** — do two price sources agree? *Not available: only poe2scout is integrated
+  (poe.ninja never was), so the rubric doesn't claim agreement.*
 - **Knowledge recency** — for trials/meta, is our knowledge file current with the live patch, or possibly stale?
 
 Output format for every answer: a band (**High / Medium / Low**), plus a one-line *why* ("Medium — only 3 listings matched and prices ranged 2×"). That way the confidence is auditable and actually means something. This rubric lives in the shared `poe2-core` reference so all skills score the same way.
+
+**Built (Oct 2026):** the tools return the signals as fields, so skills score from numbers rather
+than eyeballing listings — `search_trade` returns `priceStats` (listings converted to exalted via
+poe2scout rates: count, min/median/max, spread ratio, unconvertable currencies) and the real match
+count; every market tool returns `fetchedAt`/`ageSeconds` (oldest input wins); currency returns
+`quantityListed`. The thresholds that map fields → bands live in one table in
+`poe2-core/references/confidence.md` (band = weakest signal). They are first-guess defaults — tune
+them from real use.
 
 ---
 
@@ -186,7 +198,7 @@ Output format for every answer: a band (**High / Medium / Low**), plus a one-lin
 
 1. **Every ask carries a one-line "how" hint.** When the tool needs something, the ask includes a short parenthetical on how to get it — e.g. *"Paste your build's PoB code (in Path of Building, click **Import/Export → Generate** and copy the code — or just say 'how?' and I'll walk you through it)."* Short enough that a veteran ignores it, present enough that a beginner isn't stuck.
 
-2. **"How do I get that for you?" is always answered.** At any point the player can ask "how do I get that?" / "what's a PoB code?" / "which tab?" and the skill gives clear, current, step-by-step instructions with the exact clicks. These live as a shared **how-to reference in `poe2-core`** so every skill answers consistently. Core how-tos to cover: exporting a PoB code, copying an item in-game (Ctrl+C on hover), screenshotting a currency/crafting tab, connecting OAuth, finding your character on the trade site, and finding a build guide.
+2. **"How do I get that for you?" is always answered.** At any point the player can ask "how do I get that?" / "what's a PoB code?" / "which tab?" and the skill gives clear, current, step-by-step instructions with the exact clicks. These live as a shared **how-to reference in `poe2-core`** so every skill answers consistently. Core how-tos to cover: exporting a PoB code, copying an item in-game (Ctrl+C on hover), screenshotting a currency/crafting tab, finding your character on the trade site, and finding a build guide.
 
 3. **Experience level tunes verbosity automatically.** Onboarding gauges whether jargon is familiar (§4.1) and stores it. Newer players get terms defined inline and more how-to offered proactively; experienced players get terse asks. The player can change this any time ("stop explaining basics" / "explain more").
 
@@ -239,8 +251,26 @@ reading is screenshot/description instead. It knows *you* — your roster, and y
 freshness-stamped trials knowledge file), and `parse_pob_code` (decode a PoB export into stats/gems/
 gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
 
-**Phase 4 — Custom MCP consolidation + meta.**
-Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-strategy`.
+**Hardening pass (Sep–Oct 2026). ✅ done.**
+- *Grounded confidence (F7):* `priceStats`, freshness, and the real `matched` count (above, §6);
+  rubric thresholds in `confidence.md`, consumed by price-check, gear-upgrade, currency-tracker.
+- *PoB parsing:* reads only the active skill set; splits item mods into `implicitMods` /
+  `explicitMods`; **pobb.in links are not supported** — they hold an id, not the code, and resolving
+  one would mean a network call from an offline tool, so a pasted link gets a clear "paste the code"
+  error instead.
+- *Client correctness:* trade2 stat index now refreshes with its 6h cache (it was stuck at first
+  load); fetch cache keyed by hashes (a larger `limit` was served a smaller cached batch); `ttl=0`
+  honored. Offline tests (httpx `MockTransport`, injected via `transport=`) cover caching,
+  `resolve_league` fallback order, and rate-limit backoff.
+
+**Remaining work, in rough priority order:**
+1. **Passive tree from PoB** — build-review compares tree state against guide stages (§5.1), but
+   `parse_pob_code` doesn't read `<Tree>` (or tree-socketed jewels) yet. Needs design.
+2. **Currency trend** — poe2scout's `PriceLogs` (7 daily points) as a volatility signal for currency.
+3. **League rotation** — `POE2_LEAGUE` is pinned per machine; a new league fails loudly ("not found")
+   until it's updated. Fine, but worth a reminder in the onboarding flow.
+4. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
+   pieces (poe2scout) held up.
 
 ---
 
@@ -257,7 +287,8 @@ Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-
   (browser/paste) when it won't fetch. No single "fetch a guide" solution — it's the tiered approach in
   §F3 (PoB code > static fetch > browser read > paste). Expect this to drift with site changes.
 - **`/trade2` is unofficial & rate-limited (F6)** — cache hard, never auto-purchase, treat it as read-only filter generation. Your account safety comes first.
-- **Confidence calibration (F7)** — grounded in signals, not model vibes (§6). Worth getting right early since every answer depends on it.
+- **Confidence calibration (F7)** — grounded in signals, not model vibes (§6), and now built on tool
+  fields. Remaining risk: the band thresholds are guesses until checked against real trades.
 - **Patch churn** — trials contents, currencies, meta, *and the game UI in the how-to steps* shift per patch. `poe2-core` (knowledge + how-to reference) and the trials knowledge need scheduled refreshes. Plan for maintenance.
 
 **Resolved:** test set = Ice Shot Deadeye + minion gear; character reading is screenshot/description
@@ -265,7 +296,7 @@ Replace any weak reused plumbing with a small purpose-built MCP; add `poe2-meta-
 guide fetch is robots/license-aware and re-verified (§F3). Guides are modeled as staged progressions
 with variant links (§5.1).
 
-**No open questions blocking Phase 0** — remaining work is the poe2scout MCP reuse-vs-build evaluation.
+**Open:** how to model the passive tree for build-review (§9, remaining work #1).
 
 ---
 
