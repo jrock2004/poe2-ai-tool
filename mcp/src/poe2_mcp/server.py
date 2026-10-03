@@ -16,7 +16,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from ._cache import freshness
+from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, parse_pob_code as _parse_pob
 from .poe2scout import (
@@ -24,6 +24,7 @@ from .poe2scout import (
     change_vs_divine,
     exalted_to_divine,
     price_trend,
+    rank_movers,
     rates_from_items,
     value_holdings,
 )
@@ -46,6 +47,17 @@ def _round(n: float, places: int) -> float | None:
     if n is None or not math.isfinite(n):
         return None
     return round(n, places)
+
+
+async def _divine_change(league_value: str) -> tuple[Fetched[Any], float | None]:
+    """Divine's own ~7-day change in exalted (for divine-relative moves), and the fetch it came from.
+
+    Fetched on its own (cached) since divine may not be on the page a caller asked for.
+    """
+    fetched = await _scout.get_currencies_by_category(league_value, "currency", search="divine", per_page=5)
+    divine = next((c for c in fetched.body.get("Items", []) if c.get("ApiId") == "divine"), None)
+    trend = price_trend(divine.get("PriceLogs")) if divine else None
+    return fetched, trend["changePct"] if trend else None
 
 
 @mcp.tool()
@@ -93,14 +105,7 @@ async def get_currency_prices(
         resolved["Value"], category, search=search, per_page=per_page
     )
     resp = resp_f.body
-    # Divine's own trend, for divine-relative changes -- fetched separately (cached) since divine may
-    # not be on the page asked for.
-    divine_f = await _scout.get_currencies_by_category(
-        resolved["Value"], "currency", search="divine", per_page=5
-    )
-    divine_item = next((c for c in divine_f.body.get("Items", []) if c.get("ApiId") == "divine"), None)
-    divine_trend = price_trend(divine_item.get("PriceLogs")) if divine_item else None
-    divine_change = divine_trend["changePct"] if divine_trend else None
+    divine_f, divine_change = await _divine_change(resolved["Value"])
     items = []
     for c in resp.get("Items", []):
         price_ex = c.get("CurrentPrice")
@@ -132,6 +137,76 @@ async def get_currency_prices(
         **freshness(resolved_f, resp_f, divine_f),
         "items": items,
         "note": "poe2scout reference prices (cached ~5 min). Currency/uniques only; no rare-affix search here.",
+    }
+
+
+# The farming-relevant categories market_movers scans by default (poe2scout has 17 in all).
+DEFAULT_MOVER_CATEGORIES = ["fragments", "essences", "breach", "delirium", "ritual", "expedition", "abyss", "runes"]
+
+
+@mcp.tool()
+async def market_movers(
+    categories: list[str] | None = None,
+    league: str | None = None,
+    top: int = 5,
+) -> dict[str, Any]:
+    """The biggest 7-day risers and fallers per Path of Exile 2 currency category, measured in divine.
+
+    categories: poe2scout currency category apiIds; defaults to the farming set (fragments, essences,
+    breach, delirium, ritual, expedition, abyss, runes). Others include 'currency', 'ultimatum',
+    'vaultkeys', 'uncutgems', 'lineagesupportgems', 'idol', 'incursion', 'verisium', 'vaal'.
+    Moves are changePctVsDivine -- the item's own move with exalted's drift removed. Items listed
+    fewer than 50 times are skipped as too thin to trust (`thin` counts them). Read-only; cached.
+    """
+    resolved_f = await _scout.resolve_league(league)
+    league_value = resolved_f.body["Value"]
+    top = max(1, min(top, 20))
+    divine_f, divine_change = await _divine_change(league_value)
+    sources: list[Fetched[Any]] = [resolved_f, divine_f]
+
+    results: dict[str, Any] = {}
+    for category in categories or DEFAULT_MOVER_CATEGORIES:
+        items: list[dict[str, Any]] = []
+        page, pages = 1, 1
+        while page <= pages:  # every item, not just page 1 -- a mover list must see the category
+            page_f = await _scout.get_currencies_by_category(league_value, category, page=page, per_page=250)
+            sources.append(page_f)
+            items.extend(page_f.body.get("Items", []))
+            pages = page_f.body.get("Pages") or 0
+            page += 1
+        if not items:
+            results[category] = {"unknownCategory": True,
+                                 "note": "poe2scout returned no items -- check the category apiId."}
+            continue
+        movers = rank_movers(items, divine_change, top=top)
+
+        def shape(m: dict[str, Any]) -> dict[str, Any]:
+            return {
+                "name": m["name"], "apiId": m["apiId"],
+                "priceExalted": _round(m["priceExalted"], 2) if m["priceExalted"] is not None else None,
+                "quantityListed": m["quantityListed"],
+                "changePct": _round(m["changePct"], 1),
+                "changePctVsDivine": _round(m["changePctVsDivine"], 1),
+            }
+
+        results[category] = {
+            "risers": [shape(m) for m in movers["risers"]],
+            "fallers": [shape(m) for m in movers["fallers"]],
+            "thin": movers["thin"],
+            "noTrend": movers["noTrend"],
+        }
+
+    return {
+        "league": league_value,
+        "divineChangePct": _round(divine_change, 1),
+        **freshness(*sources),
+        "categories": results,
+        "note": (
+            "Moves are ~7-day, in divine terms. A mover is a price signal, not a profit rate -- no "
+            "drop rates or run times are known."
+            if divine_change is not None else
+            "Divine's own price history is unavailable, so no inflation-free moves could be ranked."
+        ),
     }
 
 

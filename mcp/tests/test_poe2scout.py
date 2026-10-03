@@ -11,6 +11,7 @@ from poe2_mcp.poe2scout import (
     change_vs_divine,
     exalted_to_divine,
     price_trend,
+    rank_movers,
     rates_from_items,
 )
 
@@ -187,3 +188,50 @@ def test_change_vs_divine_can_turn_a_rise_into_a_fall():
 @pytest.mark.parametrize("item, divine", [(None, 10.0), (10.0, None), (None, None), (10.0, -100.0)])
 def test_change_vs_divine_is_none_without_both_changes(item, divine):
     assert change_vs_divine(item, divine) is None
+
+
+def _cat_item(name: str, qty, prices: list[float] | None) -> dict:
+    """A ByCategory item; `prices` run oldest -> newest (sent newest-first, as poe2scout does)."""
+    logs = None if prices is None else [_log(20 + i, p) for i, p in enumerate(prices)][::-1]
+    return {"Text": name, "ApiId": name.lower(), "CurrentPrice": prices[-1] if prices else None,
+            "CurrentQuantity": qty, "PriceLogs": logs}
+
+
+MOVER_ITEMS = [
+    _cat_item("Alpha", 500, [100, 150]),   # +50% exalted -> +36.4% vs divine (+10%)
+    _cat_item("Bravo", 500, [100, 110]),   # moved exactly with divine -> 0, neither list
+    _cat_item("Charlie", 500, [100, 80]),  # -20% exalted -> -27.3% vs divine
+    _cat_item("Delta", 500, [100, 121]),   # +21% exalted -> +10% vs divine
+    _cat_item("Echo", 10, [100, 300]),     # big move but thin -> skipped
+    _cat_item("Foxtrot", None, [100, 300]),  # unknown depth -> skipped as thin
+    _cat_item("Golf", 500, None),          # no history -> noTrend
+]
+
+
+def test_rank_movers_orders_risers_and_fallers_by_divine_relative_change():
+    movers = rank_movers(MOVER_ITEMS, divine_change_pct=10.0)
+    assert [m["name"] for m in movers["risers"]] == ["Alpha", "Delta"]
+    assert [m["name"] for m in movers["fallers"]] == ["Charlie"]
+    alpha = movers["risers"][0]
+    assert alpha["changePct"] == pytest.approx(50.0)
+    assert alpha["changePctVsDivine"] == pytest.approx(100 * (1.5 / 1.1 - 1))
+    assert alpha["quantityListed"] == 500 and alpha["priceExalted"] == 150
+
+
+def test_rank_movers_counts_what_it_skipped():
+    movers = rank_movers(MOVER_ITEMS, divine_change_pct=10.0)
+    assert movers["thin"] == 2      # Echo (10 listed), Foxtrot (unknown)
+    assert movers["noTrend"] == 1   # Golf
+
+
+def test_rank_movers_respects_top():
+    movers = rank_movers(MOVER_ITEMS, divine_change_pct=10.0, top=1)
+    assert [m["name"] for m in movers["risers"]] == ["Alpha"]
+
+
+def test_rank_movers_without_divine_change_ranks_nothing():
+    # Without divine's own change there's no inflation-free number, and the rubric says not to
+    # fall back to raw exalted changes -- so nothing is ranked, and every deep item is noTrend.
+    movers = rank_movers(MOVER_ITEMS, divine_change_pct=None)
+    assert movers["risers"] == [] and movers["fallers"] == []
+    assert movers["noTrend"] == 5 and movers["thin"] == 2

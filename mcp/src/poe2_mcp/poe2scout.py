@@ -89,6 +89,49 @@ def change_vs_divine(item_change_pct: float | None, divine_change_pct: float | N
     return 100 * ((1 + item_change_pct / 100) / (1 + divine_change_pct / 100) - 1)
 
 
+def rank_movers(
+    items: list[dict[str, Any]],
+    divine_change_pct: float | None,
+    min_quantity: int = 50,
+    top: int = 5,
+) -> dict[str, Any]:
+    """Rank one category's poe2scout items by their 7-day move measured in divine. Pure.
+
+    items: raw ByCategory items (Text, ApiId, CurrentPrice, CurrentQuantity, PriceLogs).
+    Items listed fewer than `min_quantity` times (or with unknown quantity) are skipped as thin --
+    a thin market's move is noise -- and counted in `thin`. Items with no usable divine-relative
+    change (no history, or divine's own change unknown) are counted in `noTrend`. Of the rest,
+    `risers` are the `top` biggest positive changePctVsDivine (largest first) and `fallers` the
+    `top` biggest negative (most negative first); exactly 0 is neither. Ties break by name.
+    Entries: {name, apiId, priceExalted, quantityListed, changePct, changePctVsDivine} (unrounded).
+    """
+    ranked: list[dict[str, Any]] = []
+    thin = no_trend = 0
+    for it in items:
+        qty = it.get("CurrentQuantity")
+        if qty is None or qty < min_quantity:
+            thin += 1
+            continue
+        trend = price_trend(it.get("PriceLogs"))
+        vs_divine = change_vs_divine(trend["changePct"] if trend else None, divine_change_pct)
+        if vs_divine is None:
+            no_trend += 1
+            continue
+        ranked.append({
+            "name": it.get("Text"),
+            "apiId": it.get("ApiId"),
+            "priceExalted": it.get("CurrentPrice"),
+            "quantityListed": qty,
+            "changePct": trend["changePct"] if trend else None,
+            "changePctVsDivine": vs_divine,
+        })
+    risers = sorted((m for m in ranked if m["changePctVsDivine"] > 0),
+                    key=lambda m: (-m["changePctVsDivine"], m["name"] or ""))
+    fallers = sorted((m for m in ranked if m["changePctVsDivine"] < 0),
+                     key=lambda m: (m["changePctVsDivine"], m["name"] or ""))
+    return {"risers": risers[:top], "fallers": fallers[:top], "thin": thin, "noTrend": no_trend}
+
+
 def value_holdings(
     items: list[dict[str, Any]],
     holdings: list[dict[str, Any]],
