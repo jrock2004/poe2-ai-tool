@@ -82,9 +82,9 @@ computed stats + gems + gear), a **character screenshot** (vision), or a **plain
         │ • trials-advisor │        │   build_trade_filter      │
         │ • character      │        │   search_trade            │
         │ • currency-track │        │   fetch_guide             │
-        │ (meta-strategy:  │        │   parse_pob_code          │
-        │   not built)     │        └───────────┬───────────────┘
-        └───────┬──────────┘                    │
+        │ • meta-strategy  │        │   parse_pob_code          │
+        │                  │        │   market_movers           │
+        └───────┬──────────┘        └───────────┬───────────────┘
                 │                     poe2scout / trade2 /
         ┌───────▼──────────┐          guide sites (robots-aware)
         │  PERSISTENT STATE │         (all cached + rate-limited)
@@ -221,8 +221,9 @@ This is cross-cutting: it applies to every skill, which is exactly why the how-t
 5. `poe2-build-review` — F2: your character vs. a guide.
 6. `poe2-trials-advisor` — F4: Sekhemas/Chaos pick recommendations.
 7. `poe2-currency-tracker` — F5: screenshot → parsed inventory (confirmed) + affordability.
+8. `poe2-meta-strategy` — market direction (divine-relative movers), sell/hold, and what-to-farm.
 
-Two things deliberately *not* separate skills: **trade-filter generation** (lives inside price-check/gear-upgrade) and **character switching** (a one-line state update inside `poe2-character`, plus per-request override). `poe2-meta-strategy` (league-start / what-to-farm) folds in later once the data layer is proven.
+Two things deliberately *not* separate skills: **trade-filter generation** (lives inside price-check/gear-upgrade) and **character switching** (a one-line state update inside `poe2-character`, plus per-request override). `poe2-meta-strategy` came last, once the data layer was proven (§9).
 
 ---
 
@@ -277,9 +278,15 @@ gear, so a pasted code feeds gear-upgrade/build-review without a screenshot).
   `PriceLogs`, including `changePctVsDivine` — the move measured in divine, since exalted-quoted
   changes inflate together when exalted weakens. The rubric scores volatility on that number.
 
-**Remaining work, in rough priority order:**
-1. **Phase 4 — meta.** `poe2-meta-strategy`. "Replace weak reused plumbing" is moot: the reused
-   pieces (poe2scout) held up.
+**Phase 4 — meta. ✅ built (Oct 2026).** `market_movers` ranks each currency category's 7-day
+risers/fallers in divine terms (thin markets skipped); `poe2-meta-strategy` turns that into "what's
+moving", sell/hold advice against the tracked inventory, and what-to-farm by mechanic using a
+sourced, freshness-stamped `farming-knowledge.md` — prices grounded, yields deliberately not claimed
+(confidence capped at Medium). A meta-*builds* view (poe.ninja) was considered and not built: it
+would need a check of poe.ninja's undocumented API and terms first. "Replace weak reused plumbing"
+proved moot — poe2scout held up.
+
+**Remaining work:** none planned. Next is using it and fixing what real conversations expose.
 
 ---
 
