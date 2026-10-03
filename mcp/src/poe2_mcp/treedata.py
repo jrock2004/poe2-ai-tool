@@ -138,9 +138,11 @@ def parse_lua_table(text: str) -> Any:
 def extract_named_nodes(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Select the nodes worth naming from a parsed tree.lua: keystones, notables, ascendancy nodes.
 
-    Returns {str(node id): {name, kind, ascendancy, stats}} where kind is 'keystone' | 'notable' |
-    'small' ('small' only appears for ascendancy nodes -- ordinary small nodes are excluded),
-    ascendancy is the ascendancy name or None, and stats is a list of stat lines ([] if none).
+    Returns {str(node id): {name, kind, ascendancy, stats}} where kind is the first that applies of
+    'keystone' | 'notable' | 'choice' (an ascendancy choice option -- what the player picked under a
+    choice-parent notable) | 'small'. 'choice' and 'small' only appear for ascendancy nodes, since
+    ordinary small nodes are excluded. ascendancy is the ascendancy name or None, and stats is a list
+    of stat lines ([] if none).
     """
     named: dict[str, dict[str, Any]] = {}
     nodes = tree.get("nodes") or {}
@@ -149,7 +151,14 @@ def extract_named_nodes(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
         ascendancy = node.get("ascendancyName")
         if not (node.get("isKeystone") or node.get("isNotable") or ascendancy):
             continue
-        kind = "keystone" if node.get("isKeystone") else "notable" if node.get("isNotable") else "small"
+        if node.get("isKeystone"):
+            kind = "keystone"
+        elif node.get("isNotable"):
+            kind = "notable"
+        elif node.get("isMultipleChoiceOption"):
+            kind = "choice"
+        else:
+            kind = "small"
         stats = node.get("stats") or []
         named[str(node_id)] = {
             "name": node.get("name"),

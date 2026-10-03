@@ -144,12 +144,21 @@ def test_extract_uncounted_with_none_is_empty():
     assert extract_uncounted(parse_lua_table(TREE_LUA)) == []
 
 
+def test_extract_named_nodes_marks_ascendancy_choice_options():
+    # A choice option (e.g. Deadeye's Point Blank / Far Shot) is what the player picked under a
+    # choice-parent notable -- named as its own kind so the pick isn't lost among small nodes.
+    named = extract_named_nodes(parse_lua_table(STARTS_LUA))
+    assert named["32"]["kind"] == "choice"
+    assert named["32"]["ascendancy"] == "Deadeye"
+    assert named["31"]["kind"] == "small"  # the ascendancy start stays a plain small node
+
+
 def test_load_snapshot_reads_the_committed_snapshot():
     snapshot = load_snapshot("0_5")
     assert snapshot["nodes"]  # non-empty
     sample = next(iter(snapshot["nodes"].values()))
     assert set(sample) == {"name", "kind", "ascendancy", "stats"}
-    assert {v["kind"] for v in snapshot["nodes"].values()} == {"keystone", "notable", "small"}
+    assert {v["kind"] for v in snapshot["nodes"].values()} == {"keystone", "notable", "small", "choice"}
     assert snapshot["uncounted"] and all(isinstance(i, int) for i in snapshot["uncounted"])
 
 
