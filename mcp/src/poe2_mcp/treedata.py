@@ -160,9 +160,27 @@ def extract_named_nodes(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return named
 
 
+def extract_uncounted(tree: dict[str, Any]) -> list[int]:
+    """Allocated-but-free node ids, sorted: what PoB's CountAllocNodes skips when counting points.
+
+    Class starts (`classesStart`), ascendancy starts (`isAscendancyStart`), ascendancy choice options
+    (`isMultipleChoiceOption` -- the parent costs the point, the chosen option doesn't), and
+    `isFreeAllocate` nodes. They appear in a PoB export's `nodes` but cost no passive point.
+    """
+    nodes = tree.get("nodes") or {}
+    return sorted(
+        node_id
+        for node_id, node in nodes.items()
+        if node.get("classesStart")
+        or node.get("isAscendancyStart")
+        or node.get("isMultipleChoiceOption")
+        or node.get("isFreeAllocate")
+    )
+
+
 @functools.lru_cache(maxsize=None)
-def load_named_nodes(version: str | None) -> dict[str, dict[str, Any]] | None:
-    """The committed snapshot's named nodes for a tree version, or None if there's no snapshot.
+def load_snapshot(version: str | None) -> dict[str, Any] | None:
+    """The committed snapshot for a tree version -- {"nodes", "uncounted", ...} -- or None if none.
 
     `version` comes from pasted PoB XML, so it is validated (digits_digits, e.g. '0_5') before it
     becomes part of a file path; anything else -- including suffixed variants -- returns None, and
@@ -170,10 +188,10 @@ def load_named_nodes(version: str | None) -> dict[str, dict[str, Any]] | None:
     """
     if not version or not _VERSION_RE.fullmatch(version):
         return None
-    snapshot = resources.files("poe2_mcp").joinpath("data").joinpath(f"tree_{version}.json")  # 3.10-safe
-    if not snapshot.is_file():
+    path = resources.files("poe2_mcp").joinpath("data").joinpath(f"tree_{version}.json")  # 3.10-safe
+    if not path.is_file():
         return None
-    return json.loads(snapshot.read_text(encoding="utf-8"))["nodes"]
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def main(argv: list[str]) -> None:
@@ -184,12 +202,14 @@ def main(argv: list[str]) -> None:
     with open(path, encoding="utf-8") as f:
         tree = parse_lua_table(f.read())
     snapshot = {"treeVersion": version, "source": source, "nodes": extract_named_nodes(tree)}
+    uncounted = extract_uncounted(tree)
     # One node per line keeps a per-patch regeneration reviewable as a diff.
     lines = [f"  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in snapshot["nodes"].items()]
     sys.stdout.write(
         "{\n"
         f'"treeVersion": {json.dumps(version)},\n'
         f'"source": {json.dumps(source)},\n'
+        f'"uncounted": {json.dumps(uncounted)},\n'
         '"nodes": {\n' + ",\n".join(lines) + "\n}\n}\n"
     )
 

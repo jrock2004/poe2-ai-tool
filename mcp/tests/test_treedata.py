@@ -1,7 +1,7 @@
 """Unit tests for the tree.lua parser and named-node extraction (pure, no network)."""
 import pytest
 
-from poe2_mcp.treedata import extract_named_nodes, load_named_nodes, parse_lua_table
+from poe2_mcp.treedata import extract_named_nodes, extract_uncounted, load_snapshot, parse_lua_table
 
 # Shaped like real PoB2 src/TreeData/0_5/tree.lua: tab-indented, `[id]=` node keys, `[1]=` lists,
 # escaped quotes/newlines in strings, `["string"]` keys, negative/decimal numbers, booleans.
@@ -100,18 +100,63 @@ def test_extract_named_nodes_defaults_missing_stats_to_empty():
     assert extract_named_nodes(parse_lua_table(TREE_LUA))["777"]["stats"] == []
 
 
-def test_load_named_nodes_reads_the_committed_snapshot():
-    named = load_named_nodes("0_5")
-    assert named  # non-empty
-    sample = next(iter(named.values()))
+# Nodes PoB allocates for free (and so excludes from its point count), shaped like real tree.lua.
+STARTS_LUA = r'''return {
+	nodes={
+		[5]={
+			classesStart={
+				[1]="Ranger",
+				[2]="Huntress"
+			},
+			name="RANGER"
+		},
+		[31]={
+			ascendancyName="Deadeye",
+			isAscendancyStart=true,
+			name="Deadeye"
+		},
+		[32]={
+			ascendancyName="Deadeye",
+			isMultipleChoiceOption=true,
+			name="Choice Option"
+		},
+		[33]={
+			isFreeAllocate=true,
+			name="Free Node"
+		},
+		[40]={
+			ascendancyName="Deadeye",
+			isNotable=true,
+			name="Gathering Winds"
+		},
+		[41]={
+			name="Shock Chance"
+		}
+	}
+}'''
+
+
+def test_extract_uncounted_lists_free_nodes_sorted():
+    assert extract_uncounted(parse_lua_table(STARTS_LUA)) == [5, 31, 32, 33]
+
+
+def test_extract_uncounted_with_none_is_empty():
+    assert extract_uncounted(parse_lua_table(TREE_LUA)) == []
+
+
+def test_load_snapshot_reads_the_committed_snapshot():
+    snapshot = load_snapshot("0_5")
+    assert snapshot["nodes"]  # non-empty
+    sample = next(iter(snapshot["nodes"].values()))
     assert set(sample) == {"name", "kind", "ascendancy", "stats"}
-    assert {v["kind"] for v in named.values()} == {"keystone", "notable", "small"}
+    assert {v["kind"] for v in snapshot["nodes"].values()} == {"keystone", "notable", "small"}
+    assert snapshot["uncounted"] and all(isinstance(i, int) for i in snapshot["uncounted"])
 
 
-def test_load_named_nodes_is_cached():
-    assert load_named_nodes("0_5") is load_named_nodes("0_5")
+def test_load_snapshot_is_cached():
+    assert load_snapshot("0_5") is load_snapshot("0_5")
 
 
 @pytest.mark.parametrize("version", ["9_99", None, "", "0_5_ruthless", "../data/tree_0_5", "0_5/../0_5"])
-def test_load_named_nodes_returns_none_for_unknown_or_unsafe_versions(version):
-    assert load_named_nodes(version) is None
+def test_load_snapshot_returns_none_for_unknown_or_unsafe_versions(version):
+    assert load_snapshot(version) is None

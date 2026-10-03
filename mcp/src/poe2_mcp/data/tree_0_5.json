@@ -1,6 +1,7 @@
 {
 "treeVersion": "0_5",
 "source": "PathOfBuilding-PoE2@d1dc9154d811 (dev, 2026-09-29), src/TreeData/0_5/tree.lua -- MIT; tree data originally from GGG",
+"uncounted": [74, 664, 1583, 5852, 7120, 8305, 8415, 9710, 9988, 9994, 11495, 12795, 18940, 22147, 23710, 26283, 28254, 32534, 32699, 32952, 33812, 35535, 36252, 36365, 37397, 38004, 40721, 41736, 41875, 42761, 44683, 46990, 47175, 50459, 50986, 54447, 55536, 56331, 56618, 57253, 58379, 59542, 59822, 61525, 63259, 63493],
 "nodes": {
   "16": {"name": "Life Flask Charges", "kind": "small", "ascendancy": "Pathfinder", "stats": ["20% increased Life Flask Charges gained"]},
   "30": {"name": "Gathering Winds", "kind": "notable", "ascendancy": "Deadeye", "stats": ["Gain Tailwind on Skill use", "Lose all Tailwind when Hit"]},
