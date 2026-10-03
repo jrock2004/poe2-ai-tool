@@ -160,6 +160,12 @@ poe2-ai-tools/
 
 The MCP server is written in **Python** (first-class MCP SDK; PoB-code parsing and guide-HTML parsing are materially easier in Python). Ported from an initial TypeScript sketch.
 
+## Contributing
+
+Market data is live, but a few files describe the game itself and go stale each patch (passive-tree
+snapshot, trials and farming knowledge, how-to steps). [`CONTRIBUTING.md`](CONTRIBUTING.md) has the
+per-patch refresh checklist and the ground rules for changes.
+
 ## License & notices
 
 This project's code is MIT-licensed — see [`LICENSE`](LICENSE).
