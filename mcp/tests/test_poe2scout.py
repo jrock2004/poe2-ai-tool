@@ -6,7 +6,7 @@ import pytest
 
 from poe2_mcp import poe2scout
 from poe2_mcp._cache import Fetched
-from poe2_mcp.poe2scout import Poe2ScoutClient, exalted_to_divine, rates_from_items
+from poe2_mcp.poe2scout import Poe2ScoutClient, exalted_to_divine, price_trend, rates_from_items
 
 
 def test_exalted_to_divine_converts():
@@ -130,3 +130,36 @@ def test_resolve_league_unknown_names_its_source_and_the_options(monkeypatch):
 def test_resolve_league_with_no_leagues_raises(monkeypatch):
     with pytest.raises(RuntimeError, match="no leagues"):
         _resolve(monkeypatch, [], None, configured=None)
+
+
+def _log(day: int, price):
+    return {"Price": price, "Time": f"2026-09-{day:02d}T00:00:00.0000000Z", "Quantity": 1000}
+
+
+def test_price_trend_orders_by_time_not_input_order():
+    # poe2scout sends newest first; the trend must still run oldest -> newest.
+    trend = price_trend([_log(22, 520.0), _log(21, 500.0), _log(20, 480.0)])
+    assert trend["days"] == 3
+    assert trend["minExalted"] == 480.0
+    assert trend["maxExalted"] == 520.0
+    assert trend["changePct"] == pytest.approx(100 * (520 - 480) / 480)
+
+
+def test_price_trend_skips_points_without_a_price():
+    trend = price_trend([_log(22, 510.0), _log(21, None), _log(20, 500.0)])
+    assert trend["days"] == 2
+    assert trend["changePct"] == pytest.approx(2.0)
+
+
+def test_price_trend_single_point_has_no_change():
+    trend = price_trend([_log(22, 500.0)])
+    assert trend == {"days": 1, "minExalted": 500.0, "maxExalted": 500.0, "changePct": None}
+
+
+def test_price_trend_zero_oldest_price_has_no_change():
+    assert price_trend([_log(21, 0.0), _log(22, 5.0)])["changePct"] is None
+
+
+@pytest.mark.parametrize("logs", [None, [], [_log(22, None)]])
+def test_price_trend_with_no_priced_points_is_none(logs):
+    assert price_trend(logs) is None

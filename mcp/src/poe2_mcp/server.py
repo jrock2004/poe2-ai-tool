@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from ._cache import freshness
 from .guides import GuideFetcher
 from .pob import PobError, parse_pob_code as _parse_pob
-from .poe2scout import Poe2ScoutClient, exalted_to_divine, rates_from_items, value_holdings
+from .poe2scout import Poe2ScoutClient, exalted_to_divine, price_trend, rates_from_items, value_holdings
 from .trade2 import (
     StatFilter,
     Trade2Client,
@@ -72,7 +72,9 @@ async def get_currency_prices(
     category: currency category apiId, e.g. 'currency', 'essence', 'runes', 'catalysts'.
     search: optional name filter, e.g. 'divine' or 'chaos'.
     league: league value; defaults to the current league.
-    Prices are returned in both exalted and divine. Currency/uniques only -- no rare-affix search.
+    Prices are returned in both exalted and divine. Each item also carries `trend` -- its daily price
+    history (usually ~7 days): min/max in exalted and the oldest -> newest change in percent -- as a
+    volatility signal. Currency/uniques only -- no rare-affix search.
     """
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
@@ -84,6 +86,7 @@ async def get_currency_prices(
     items = []
     for c in resp.get("Items", []):
         price_ex = c.get("CurrentPrice")
+        trend = price_trend(c.get("PriceLogs"))
         items.append(
             {
                 "name": c.get("Text"),
@@ -93,6 +96,12 @@ async def get_currency_prices(
                 if price_ex is None
                 else _round(exalted_to_divine(price_ex, divine_price), 4),
                 "quantityListed": c.get("CurrentQuantity"),
+                "trend": None if trend is None else {
+                    "days": trend["days"],
+                    "minExalted": _round(trend["minExalted"], 2),
+                    "maxExalted": _round(trend["maxExalted"], 2),
+                    "changePct": _round(trend["changePct"], 1),
+                },
             }
         )
     return {

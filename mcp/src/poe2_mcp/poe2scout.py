@@ -53,6 +53,29 @@ def rates_from_items(items: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
+def price_trend(logs: list[dict[str, Any]] | None) -> dict[str, Any] | None:
+    """Summarize a poe2scout `PriceLogs` series (daily {Price, Time, Quantity}). Pure -- no network.
+
+    Returns {days, minExalted, maxExalted, changePct} over the points that have a Price, or None if
+    there are none. Points are ordered by Time (ISO-8601), not by input order. changePct is the
+    oldest -> newest change in percent; None with fewer than 2 points or an oldest price <= 0.
+    """
+    points = sorted(
+        (lg for lg in logs or [] if lg.get("Price") is not None),
+        key=lambda lg: lg.get("Time") or "",  # one ISO-8601 format per series, so text order works
+    )
+    if not points:
+        return None
+    prices = [lg["Price"] for lg in points]
+    oldest, newest = prices[0], prices[-1]
+    return {
+        "days": len(prices),
+        "minExalted": min(prices),
+        "maxExalted": max(prices),
+        "changePct": 100 * (newest - oldest) / oldest if len(prices) >= 2 and oldest > 0 else None,
+    }
+
+
 def value_holdings(
     items: list[dict[str, Any]],
     holdings: list[dict[str, Any]],
