@@ -12,9 +12,11 @@ Build-time only: nothing here touches the network, and runtime reads only the co
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sys
+from importlib import resources
 from typing import Any
 
 _TOKEN_RE = re.compile(
@@ -26,6 +28,7 @@ _TOKEN_RE = re.compile(
     )""",
     re.VERBOSE,
 )
+_VERSION_RE = re.compile(r"\d+_\d+")
 _ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
 
 
@@ -155,6 +158,22 @@ def extract_named_nodes(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
             "stats": list(stats.values()) if isinstance(stats, dict) else list(stats),
         }
     return named
+
+
+@functools.lru_cache(maxsize=None)
+def load_named_nodes(version: str | None) -> dict[str, dict[str, Any]] | None:
+    """The committed snapshot's named nodes for a tree version, or None if there's no snapshot.
+
+    `version` comes from pasted PoB XML, so it is validated (digits_digits, e.g. '0_5') before it
+    becomes part of a file path; anything else -- including suffixed variants -- returns None, and
+    the caller falls back to ids only. Loaded once per version and cached.
+    """
+    if not version or not _VERSION_RE.fullmatch(version):
+        return None
+    snapshot = resources.files("poe2_mcp").joinpath("data").joinpath(f"tree_{version}.json")  # 3.10-safe
+    if not snapshot.is_file():
+        return None
+    return json.loads(snapshot.read_text(encoding="utf-8"))["nodes"]
 
 
 def main(argv: list[str]) -> None:

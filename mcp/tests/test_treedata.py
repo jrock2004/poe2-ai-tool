@@ -1,7 +1,7 @@
 """Unit tests for the tree.lua parser and named-node extraction (pure, no network)."""
 import pytest
 
-from poe2_mcp.treedata import extract_named_nodes, parse_lua_table
+from poe2_mcp.treedata import extract_named_nodes, load_named_nodes, parse_lua_table
 
 # Shaped like real PoB2 src/TreeData/0_5/tree.lua: tab-indented, `[id]=` node keys, `[1]=` lists,
 # escaped quotes/newlines in strings, `["string"]` keys, negative/decimal numbers, booleans.
@@ -98,3 +98,20 @@ def test_extract_named_nodes_keeps_keystones_notables_and_ascendancy_only():
 
 def test_extract_named_nodes_defaults_missing_stats_to_empty():
     assert extract_named_nodes(parse_lua_table(TREE_LUA))["777"]["stats"] == []
+
+
+def test_load_named_nodes_reads_the_committed_snapshot():
+    named = load_named_nodes("0_5")
+    assert named  # non-empty
+    sample = next(iter(named.values()))
+    assert set(sample) == {"name", "kind", "ascendancy", "stats"}
+    assert {v["kind"] for v in named.values()} == {"keystone", "notable", "small"}
+
+
+def test_load_named_nodes_is_cached():
+    assert load_named_nodes("0_5") is load_named_nodes("0_5")
+
+
+@pytest.mark.parametrize("version", ["9_99", None, "", "0_5_ruthless", "../data/tree_0_5", "0_5/../0_5"])
+def test_load_named_nodes_returns_none_for_unknown_or_unsafe_versions(version):
+    assert load_named_nodes(version) is None
