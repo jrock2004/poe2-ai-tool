@@ -87,33 +87,66 @@ Design notes that shape all of them:
 
 ## Setup (per machine)
 
-Two local files wire the tools and skills into the Claude Code app. They hold machine-specific paths,
-so they're **git-ignored** — recreate them once per machine (about a minute, no CLI beyond install):
+Nothing is deployed anywhere: Claude Code starts the MCP server locally and loads the skills from
+this folder. Two local files wire them up. They hold machine-specific paths, so they're
+**git-ignored** — recreate them once per machine (a few minutes).
 
-1. **Install the MCP server** (creates the `poe2-mcp` script):
-   ```bash
-   cd mcp && python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev
+### Prerequisites
+
+- **Claude Code** (desktop app or CLI), opened **in this repo's folder** — the skills only load there.
+- **Git**, to clone the repo.
+- **Python 3.10+.**
+  - **Windows:** `winget install Python.Python.3.13`, or the installer from python.org — tick
+    **"Add python.exe to PATH"**. Then use the `py` launcher, which avoids Windows' "python opens the
+    Microsoft Store" alias. Check with `py --version`.
+  - **macOS:** `brew install python`. Check with `python3 --version`.
+
+### Windows (PowerShell, from the repo root)
+
+1. **Install the MCP server** (no venv activation needed, so PowerShell's script policy doesn't
+   matter; pip is upgraded first because `--group` needs pip 25.1+):
+   ```powershell
+   cd mcp; py -m venv .venv; .venv\Scripts\python -m pip install --upgrade pip; .venv\Scripts\python -m pip install -e . --group dev; cd ..
    ```
-2. **Register the server** — create `.mcp.json` at the repo root. The Code app auto-detects it and
-   prompts to enable the server (no CLI). Use the **absolute path** to the installed script:
+2. **Register the server** — create `.mcp.json` at the repo root. Use the absolute path to
+   `poe2-mcp.exe`; in JSON, either double every backslash or use forward slashes:
    ```json
    {
      "mcpServers": {
        "poe2": {
-         "command": "/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/bin/poe2-mcp",
+         "command": "C:/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/Scripts/poe2-mcp.exe",
          "env": { "POE2_LEAGUE": "Forbidden Rites" }
        }
      }
    }
    ```
-3. **Make the skills discoverable** — link them into the project's skills dir:
+3. **Make the skills discoverable** — link them with **directory junctions** (no admin or Developer
+   Mode needed). Don't use `ln -s` from Git Bash: by default it silently *copies* the folders, so
+   edits under `skills/` would never reach Claude.
+   ```powershell
+   New-Item -ItemType Directory -Force .claude\skills | Out-Null; Get-ChildItem skills -Directory | ForEach-Object { $link = ".claude\skills\$($_.Name)"; if (-not (Test-Path $link)) { New-Item -ItemType Junction -Path $link -Target $_.FullName | Out-Null } }
+   ```
+
+### macOS / Linux (from the repo root)
+
+1. **Install the MCP server:**
+   ```bash
+   cd mcp && python3 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -e . --group dev && cd ..
+   ```
+2. **Register the server** — `.mcp.json` as above, with
+   `"command": "/ABSOLUTE/PATH/TO/poe2-ai-tools/mcp/.venv/bin/poe2-mcp"`.
+3. **Make the skills discoverable:**
    ```bash
    mkdir -p .claude/skills && for d in skills/*/; do ln -sfn "../../$d" ".claude/skills/$(basename "$d")"; done
    ```
 
-Reload the project, approve the `poe2` server when prompted, and the seven skills load automatically.
-Update `POE2_LEAGUE` when the temp league rotates. (Skills are symlinks to the one copy under `skills/`,
-so you still edit each skill in a single place; add a link only when you add a new skill.)
+### Then
+
+Open the folder in Claude Code, approve the `poe2` server when prompted, and the eight skills load
+automatically. Re-run step 3 whenever a new skill folder is added (existing links keep working —
+they point at the one copy under `skills/`). After pulling code changes, restart the session so the
+MCP server reloads (the editable install means no reinstall). Update `POE2_LEAGUE` when the temp
+league rotates.
 
 ## Repo layout
 
