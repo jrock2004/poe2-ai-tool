@@ -76,6 +76,19 @@ def price_trend(logs: list[dict[str, Any]] | None) -> dict[str, Any] | None:
     }
 
 
+def change_vs_divine(item_change_pct: float | None, divine_change_pct: float | None) -> float | None:
+    """An item's percent change measured in divine rather than exalted. Pure.
+
+    Prices are quoted in exalted, so a raw change mixes "the item moved" with "exalted moved"; when
+    exalted weakens, everything looks like it rose. Dividing out divine's own change over the same
+    window leaves the item's real move: (1 + item%) / (1 + divine%) - 1. None if either is None or
+    divine's change is <= -100%.
+    """
+    if item_change_pct is None or divine_change_pct is None or divine_change_pct <= -100:
+        return None
+    return 100 * ((1 + item_change_pct / 100) / (1 + divine_change_pct / 100) - 1)
+
+
 def value_holdings(
     items: list[dict[str, Any]],
     holdings: list[dict[str, Any]],

@@ -6,7 +6,13 @@ import pytest
 
 from poe2_mcp import poe2scout
 from poe2_mcp._cache import Fetched
-from poe2_mcp.poe2scout import Poe2ScoutClient, exalted_to_divine, price_trend, rates_from_items
+from poe2_mcp.poe2scout import (
+    Poe2ScoutClient,
+    change_vs_divine,
+    exalted_to_divine,
+    price_trend,
+    rates_from_items,
+)
 
 
 def test_exalted_to_divine_converts():
@@ -163,3 +169,21 @@ def test_price_trend_zero_oldest_price_has_no_change():
 @pytest.mark.parametrize("logs", [None, [], [_log(22, None)]])
 def test_price_trend_with_no_priced_points_is_none(logs):
     assert price_trend(logs) is None
+
+
+def test_change_vs_divine_removes_exalted_inflation():
+    # Mirror +54.5% in exalted while divine rose 12.4% in exalted -> ~+37.5% in divine terms.
+    assert change_vs_divine(54.5, 12.4) == pytest.approx(100 * (1.545 / 1.124 - 1))
+
+
+def test_change_vs_divine_is_zero_when_moving_with_divine():
+    assert change_vs_divine(12.4, 12.4) == pytest.approx(0.0)
+
+
+def test_change_vs_divine_can_turn_a_rise_into_a_fall():
+    assert change_vs_divine(5.0, 10.0) == pytest.approx(100 * (1.05 / 1.10 - 1))  # ~ -4.5%
+
+
+@pytest.mark.parametrize("item, divine", [(None, 10.0), (10.0, None), (None, None), (10.0, -100.0)])
+def test_change_vs_divine_is_none_without_both_changes(item, divine):
+    assert change_vs_divine(item, divine) is None
