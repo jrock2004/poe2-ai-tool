@@ -55,6 +55,8 @@ Game data drifts each patch. When a patch lands, refresh:
   `python -m poe2_mcp.treedata <tree.lua> <version> "<source note>" > src/poe2_mcp/data/tree_<version>.json`
   Keep the old snapshot — characters on the old tree still use it.
 - **Trials knowledge** — `poe2-trials-advisor/references/trials-knowledge.md` (re-stamp the date).
+- **Farming knowledge** — `poe2-meta-strategy/references/farming-knowledge.md`: re-check how each
+  mechanic is targeted, re-pull the output families from poe2scout, re-stamp the date.
 - **How-to steps** — `references/how-to.md`, where the game or PoB UI changed.
 - **League** — `POE2_LEAGUE` in `.mcp.json` when a new league starts.
 

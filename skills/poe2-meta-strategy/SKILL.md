@@ -1,6 +1,6 @@
 ---
 name: poe2-meta-strategy
-description: Read the Path of Exile 2 market's direction — what's rising or falling this week across fragments, essences, breach, delirium, ritual, expedition, abyss and runes — and turn it into sell/hold advice for the player's own currency. Use when the player asks "what's moving", "what's worth more lately", "should I sell or hold my X", or "what's the market doing".
+description: Read the Path of Exile 2 market's direction — what's rising or falling this week across fragments, essences, breach, delirium, ritual, expedition, abyss and runes — and turn it into sell/hold advice for the player's own currency and farming advice by mechanic. Use when the player asks "what's moving", "what's worth more lately", "should I sell or hold my X", "what's the market doing", or "what should I farm".
 ---
 # poe2-meta-strategy
 
@@ -44,6 +44,26 @@ a currency-tab screenshot (one-line how-to from `poe2-core`).
 3. Weigh size: put the advice where the value is (`count × priceExalted`), not on a 2-exalted stack.
 4. **Never trade for them.** Output is advice plus, if they want, `poe2-price-check` for a listing
    price. They list and sell themselves.
+
+## "What should I farm?"
+
+Read `references/farming-knowledge.md` first — it maps each mechanic to its poe2scout category and
+says what its outputs are for. Check its freshness stamp; if the patch has moved on, say so.
+
+1. Call `market_movers()` (the default set covers the farming categories).
+2. For each mechanic, summarize its outputs' direction and depth: mostly rising or falling in divine
+   terms, and whether the valuable outputs are deep (high `quantityListed`) or thin. Name the
+   outputs that drive it ("refined catalysts up 35–50%; basic catalysts down").
+3. Recommend by **direction and depth of the outputs**, matched to the player's build and goal
+   (from `poe2-character`): a mechanic their build clears comfortably, whose valuable outputs are
+   rising and deep. Use the file's decision principles (crafting-meta splits, league phase).
+4. **No rates.** Never say "X div/hour" or rank by yield — nothing reports drop rates or run times.
+   Say that plainly if asked, and offer what *is* known: what the outputs are worth and where
+   they're heading.
+5. For the fragments the file marks as not researched (Crisis Fragments, Fates, Origin items, …),
+   give the price and direction only; say the mechanic isn't covered.
+
+Confidence for farming advice tops out at **Medium**: prices are grounded, yields aren't.
 
 ## Confidence (per `poe2-core/references/confidence.md`)
 
