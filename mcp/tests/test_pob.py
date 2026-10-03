@@ -164,3 +164,69 @@ Implicits: 0
 +60 to maximum Life"""))["items"][0]
     assert ring["implicitMods"] == []
     assert ring["explicitMods"] == ["+60 to maximum Life"]
+
+
+# --- Passive tree (slice A: ids only) -------------------------------------------------------------
+# PoB2 writes <Tree activeSpec="N"> where N is the 1-based POSITION of the active <Spec> (not an id
+# attribute). `nodes` lists every allocated node; <WeaponSetN nodes> marks the subset allocated to a
+# weapon set; <Sockets> maps a jewel socket's node id to an <Item id>.
+TREE_XML = """<PathOfBuilding2>
+  <Build level="70" className="Ranger" ascendClassName="Deadeye"/>
+  <Tree activeSpec="2">
+    <Spec title="Leveling" treeVersion="0_4" nodes="1,2"/>
+    <Spec title="Endgame" treeVersion="0_5" nodes="100,200,300,400">
+      <WeaponSet1 nodes="300"/>
+      <WeaponSet2 nodes="400"/>
+      <Sockets>
+        <Socket nodeId="200" itemId="3"/>
+        <Socket nodeId="500" itemId="0"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="3">Rarity: RARE
+Storm Gaze
+Emerald
+Implicits: 0
++12% to Cold Resistance</Item>
+    <ItemSet id="1"/>
+  </Items>
+</PathOfBuilding2>"""
+
+
+def test_tree_reads_the_active_spec_by_position():
+    tree = parse_pob_xml(TREE_XML)["tree"]
+    assert tree["treeVersion"] == "0_5"
+    assert tree["nodes"] == [100, 200, 300, 400]
+    assert tree["allocatedCount"] == 4
+
+
+def test_tree_defaults_to_the_first_spec():
+    tree = parse_pob_xml(TREE_XML.replace(' activeSpec="2"', ""))["tree"]
+    assert tree["treeVersion"] == "0_4"
+    assert tree["nodes"] == [1, 2]
+
+
+def test_tree_weapon_set_nodes_are_a_subset_of_nodes():
+    tree = parse_pob_xml(TREE_XML)["tree"]
+    assert tree["weaponSetNodes"] == {"1": [300], "2": [400]}
+
+
+def test_tree_jewels_link_sockets_to_items_and_skip_empty_sockets():
+    tree = parse_pob_xml(TREE_XML)["tree"]
+    assert len(tree["jewels"]) == 1
+    jewel = tree["jewels"][0]
+    assert jewel["nodeId"] == 200
+    assert jewel["name"] == "Storm Gaze"
+    assert jewel["base"] == "Emerald"
+    assert jewel["explicitMods"] == ["+12% to Cold Resistance"]
+
+
+def test_tree_with_no_allocated_nodes():
+    tree = parse_pob_xml(TREE_XML.replace('nodes="100,200,300,400"', 'nodes=""'))["tree"]
+    assert tree["nodes"] == []
+    assert tree["allocatedCount"] == 0
+
+
+def test_tree_is_none_without_a_tree_element():
+    assert parse_pob_xml(SAMPLE_XML)["tree"] is None

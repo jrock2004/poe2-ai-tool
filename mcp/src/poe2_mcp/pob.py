@@ -146,6 +146,7 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
     # Equipped items in the active ItemSet
     items: list[dict[str, Any]] = []
     items_el = root.find("Items")
+    by_id: dict[str | None, str] = {}
     if items_el is not None:
         by_id = {it.get("id"): (it.text or "") for it in items_el.findall("Item")}
         itemset = _active_itemset(items_el)
@@ -153,11 +154,7 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
             item_id = slot.get("itemId", "0")
             if item_id == "0" or item_id not in by_id:
                 continue
-            rarity, name, base, implicits, explicits = _clean_item_mods(by_id[item_id])
-            items.append(
-                {"slot": slot.get("name"), "rarity": rarity or None, "name": name or None,
-                 "base": base or None, "implicitMods": implicits, "explicitMods": explicits}
-            )
+            items.append({"slot": slot.get("name"), **_item_summary(by_id[item_id])})
 
     return {
         "valid": True,
@@ -170,6 +167,58 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
         "stats": stats,
         "skills": skills,
         "items": items,
+        "tree": _parse_tree(root, by_id),
+    }
+
+
+def _item_summary(text: str) -> dict[str, Any]:
+    rarity, name, base, implicits, explicits = _clean_item_mods(text)
+    return {"rarity": rarity or None, "name": name or None, "base": base or None,
+            "implicitMods": implicits, "explicitMods": explicits}
+
+
+def _node_ids(csv: str | None) -> list[int]:
+    """'100,200,300' -> [100, 200, 300]; blanks and non-numeric tokens are skipped."""
+    return [int(t) for t in (csv or "").split(",") if t.strip().isdigit()]
+
+
+def _parse_tree(root: ET.Element, items_by_id: dict[str | None, str]) -> dict[str, Any] | None:
+    """The active passive-tree <Spec> as node ids (no names -- those need the tree data).
+
+    `activeSpec` is the 1-based POSITION of the active <Spec>, defaulting to the first. `nodes` lists
+    every allocated node; <WeaponSetN nodes> marks the subset allocated to weapon set N; <Sockets>
+    maps a jewel socket's node id to an <Item id> (itemId 0 = empty socket).
+    """
+    tree_el = root.find("Tree")
+    specs = tree_el.findall("Spec") if tree_el is not None else []
+    if not specs:
+        return None
+    try:
+        index = int(tree_el.get("activeSpec", "1")) - 1
+    except ValueError:
+        index = 0
+    spec = specs[index] if 0 <= index < len(specs) else specs[0]
+
+    nodes = _node_ids(spec.get("nodes"))
+    weapon_sets = {
+        child.tag.removeprefix("WeaponSet"): _node_ids(child.get("nodes"))
+        for child in spec
+        if child.tag.startswith("WeaponSet") and child.tag.removeprefix("WeaponSet").isdigit()
+    }
+    jewels = []
+    for socket in spec.findall("Sockets/Socket"):
+        item_id = socket.get("itemId", "0")
+        node_id = socket.get("nodeId", "")
+        if item_id == "0" or item_id not in items_by_id or not node_id.isdigit():
+            continue
+        jewels.append({"nodeId": int(node_id), **_item_summary(items_by_id[item_id])})
+
+    return {
+        "treeVersion": spec.get("treeVersion"),
+        "nodes": nodes,
+        "allocatedCount": len(nodes),
+        "weaponSetNodes": weapon_sets,
+        "jewels": jewels,
     }
 
 
