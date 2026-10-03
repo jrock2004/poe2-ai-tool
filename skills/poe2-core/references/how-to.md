@@ -6,8 +6,10 @@ when the player asks "how?". Game UI shifts per patch — keep these current (se
 ## Export a Path of Building (PoB) code
 1. Open Path of Building 2 with your build loaded.
 2. Import/Export tab → **Generate** (or Export) → **Copy** the code.
-3. Paste it here (a `pobb.in/<id>` share link works too). The assistant decodes it into your stats,
-   gems, and gear — the highest-fidelity way to read a build. (TODO: verify exact menu labels vs current PoB2.)
+3. Paste the code itself here. The assistant decodes it into your stats, gems, and gear — the
+   highest-fidelity way to read a build. (TODO: verify exact menu labels vs current PoB2.)
+   - Only have a `pobb.in` share link? The link itself can't be read — open it and copy the build
+     code from the page, then paste that.
 
 ## Copy an item from in-game
 1. Hover the item so its tooltip shows.

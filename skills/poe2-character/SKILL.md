@@ -60,9 +60,10 @@ it.
 
 Gear/skill reading feeds `poe2-gear-upgrade` and `poe2-build-review`. Order of preference:
 
-- **PoB code** — best fidelity. `parse_pob_code` (MCP) decodes a Path of Building 2 export code (or a
-  pobb.in link) into computed stats (resistances, life/ES, DPS), gems, and equipped items. Prefer this
-  when the player has a PoB open. Record `build_source: "pob"` and the parsed summary.
+- **PoB code** — best fidelity. `parse_pob_code` (MCP) decodes a Path of Building 2 export code into
+  computed stats (resistances, life/ES, DPS), gems, and equipped items. Prefer this when the player
+  has a PoB open. It takes the code itself, not a pobb.in share link — if they paste a link, ask them
+  to copy the code from that page. Record `build_source: "pob"` and the parsed summary.
 - **Character screenshot** — the player screenshots their character/inventory panel; vision reads it.
   Good when there's no PoB.
 - **Plain description** — "level 84 Deadeye, Ice Shot, resists capped, ~2.4k life" — lowest fidelity,
