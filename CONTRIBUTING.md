@@ -5,7 +5,7 @@ data is live, but a few files describe the game itself and go stale when GGG shi
 
 ## Setup and tests
 
-Run the setup script for your platform (see [README → Setup](README.md#setup-per-machine)), then
+Run the dev setup script for your platform (see [README → Development](README.md#development)), then
 from `mcp/`:
 
 ```bash
@@ -84,9 +84,9 @@ Update `skills/poe2-core/references/how-to.md`.
 
 ### 6. League
 
-**Needed when** a new league starts. Each player runs `/poe2-new-league`, which updates `POE2_LEAGUE` in
-their own `.mcp.json` (it's git-ignored). In the repo, update the default league in `scripts/setup.sh` and
-`scripts/setup.ps1`, and the `POE2_LEAGUE` example in `mcp/README.md`.
+**Needed when** a new league starts. Nothing to change in the repo: each player runs `/poe2-new-league`,
+which saves the league in their own data dir (`set_league`). Ship the step 2–4 knowledge refreshes so
+players who skip their own refresh still get them on update.
 
 ## Pull requests
 

@@ -25,7 +25,7 @@ If they don't know how to copy an item, give the one-liner from `poe2-core/refer
   `runes`, `catalysts`, …), `search` narrows by name. Prices come back in both exalted and divine.
 - Unique: `price_unique(name)` — exact match returns the reference price; otherwise it returns
   close-name suggestions. If there's no match, say so and offer the nearest names; don't invent a price.
-- League defaults to the configured one (`POE2_LEAGUE`); pass `league` only to override.
+- League defaults to the saved one (the active character's); pass `league` only to override.
 
 ## Rare items (the /trade2 flow)
 

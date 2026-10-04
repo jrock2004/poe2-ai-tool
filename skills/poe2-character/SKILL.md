@@ -49,8 +49,7 @@ end). Keep it short:
    in plain words ("Ice Shot Deadeye", "minion army"). Fine if they only know some of it.
 4. **Which league?** (so currency and trade prices resolve correctly). Offer the leagues `get_leagues`
    marks `current` as choices and store the exact league name it lists. If they name one that isn't
-   `current`, say so: temp leagues end and fold into Standard, and the tools default to the league
-   pinned in `POE2_LEAGUE` — see "League rotation" in `poe2-core`.
+   `current`, say so: temp leagues end and fold into Standard — see "League rotation" in `poe2-core`.
 5. **Trade or SSF?** Choices: "Trade" / "SSF (Solo Self-Found)". Store `trade_mode`. It decides whether
    advice can say "buy it", and which currency pool is theirs.
 6. **First character this league?** Ask only when state can't tell — no other roster character in this
@@ -104,6 +103,9 @@ registration reopens, this upgrades transparently (see `docs/ggg-oauth-applicati
   else — and store it.
 - **Set active** — a one-line state update ("work on my Deadeye now"): `{"characters": {"<name>":
   {"active": true}}}`. The server clears the old one, so exactly one stays active.
+- **Default league follows the active character** — whenever a character becomes active (onboarding or
+  switching), call `set_league` with its `league`, so every tool defaults to it. Skip the call when it's
+  already the saved league; `set_league` returns it.
 - **Per-request override** — "check my *minion build's* boots" names a character inline for that one
   answer **without** changing the default active. This plus a default active is the whole of "switching"
   — deliberately not its own skill.

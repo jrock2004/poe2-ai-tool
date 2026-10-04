@@ -1,0 +1,32 @@
+{
+  "name": "poe2",
+  "displayName": "PoE2 decision assistant",
+  "description": "Path of Exile 2 decision assistant: prices, trade searches, gear upgrades, crafting gate checks, build reviews, Trials picks and market moves, each with a grounded confidence level. Read-only toward GGG.",
+  "author": {
+    "name": "John Costanzo"
+  },
+  "repository": "https://github.com/jrock2004/poe2-ai-tool",
+  "license": "MIT",
+  "keywords": [
+    "path-of-exile-2",
+    "poe2",
+    "trade",
+    "build"
+  ],
+  "mcpServers": {
+    "poe2": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--quiet",
+        "--no-dev",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}/mcp",
+        "poe2-mcp"
+      ],
+      "env": {
+        "UV_PROJECT_ENVIRONMENT": "${CLAUDE_PLUGIN_DATA}/venv"
+      }
+    }
+  }
+}

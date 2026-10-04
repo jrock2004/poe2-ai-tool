@@ -68,7 +68,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
 | `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
-| `poe2-new-league` | `/poe2-new-league` at league start: pick the league, point `POE2_LEAGUE` at it, flag what the patch made stale, onboard the first character. |
+| `poe2-new-league` | `/poe2-new-league` at league start: pick the league, save it as the default, refresh what the patch made stale, onboard the first character. |
 
 Design notes that shape all of them:
 
@@ -89,65 +89,77 @@ Design notes that shape all of them:
 - [x] **Hardening** — grounded confidence signals (price stats, freshness, 7-day trends), passive-tree parsing, client cache/rate-limit fixes + offline tests.
 - [x] **Phase 4** — `market_movers` + `poe2-meta-strategy`.
 
-## Setup (per machine)
+## Install
 
-Nothing is deployed anywhere: Claude Code starts the MCP server locally and loads the skills from
-this folder. Two local files wire them up. They hold machine-specific paths, so they're
-**git-ignored** — recreate them once per machine (a few minutes).
+It installs as a **Claude Code plugin**: the skills plus the local MCP server, in one step. It works in
+the Claude Code CLI and in the Claude desktop app's **Code** tab (they share the same install).
 
 ### Prerequisites
 
-- **Claude Code** (desktop app or CLI), opened **in this repo's folder** — the skills only load there.
-- **Git**, to clone the repo.
-- **Python 3.10+.**
-  - **Windows:** `winget install Python.Python.3.13`, or the installer from python.org — tick
-    **"Add python.exe to PATH"**. Then use the `py` launcher, which avoids Windows' "python opens the
-    Microsoft Store" alias. Check with `py --version`.
-  - **macOS:** `brew install python`. Check with `python3 --version`.
+- **Claude Code** — the CLI, or the desktop app's Code tab.
+- **uv**, which runs the server and fetches Python for it if needed — no separate Python install.
+  - **Windows:** `winget install --id=astral-sh.uv -e`
+  - **macOS:** `brew install uv`
 
-### Run the setup script (from the repo root)
+  Check with `uv --version`.
 
-**Windows (PowerShell):**
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
-```
-**macOS / Linux:**
+### Add the plugin (any terminal, once)
+
 ```bash
-scripts/setup.sh
+claude plugin marketplace add jrock2004/poe2-ai-tool
+```
+```bash
+claude plugin install poe2@poe2-ai-tool
 ```
 
-Add a league to override the default — `-League "Name"` on Windows, or as the first argument on
-macOS/Linux. The script is safe to re-run. It:
+Then start (or restart) Claude Code, from any folder. The first start takes a few seconds longer while
+uv sets up the server. On your first question, `poe2-character` onboards your character and saves your
+league.
 
-1. installs the MCP server into `mcp/.venv` (editable, with the dev group — so pulled code changes
-   apply without reinstalling);
-2. writes `.mcp.json` with the absolute path to `poe2-mcp` — **only if it doesn't exist**, so your
-   edits (like `POE2_LEAGUE`) are never overwritten;
-3. links every skill into `.claude/skills` — directory junctions on Windows (no admin needed),
-   symlinks elsewhere — so each skill still lives in one place under `skills/`;
-4. checks the server imports.
+### Updates
 
-It doesn't install Python; it checks for 3.10+ and tells you how if it's missing.
-`-ExecutionPolicy Bypass` applies to that one run only and changes no system setting.
+```bash
+claude plugin update poe2@poe2-ai-tool
+```
 
-### Then
+Updates bring new skills, fixes and refreshed game knowledge (trials, farming, crafting). Your own data
+— characters, currency, saved league, any knowledge you refreshed — lives outside the install, so
+updates never touch it. When a new league starts, run `/poe2-new-league`.
 
-Open the folder in Claude Code, approve the `poe2` server when prompted, and the eleven skills load
-automatically. Re-run the script whenever a new skill folder is added. After pulling code changes,
-restart the session so the MCP server reloads. When a new league starts, run `/poe2-new-league` — it
-updates `POE2_LEAGUE` in `.mcp.json` for you.
+**Where your data lives:** `%APPDATA%\poe2-ai-tools` (Windows), `~/Library/Application Support/poe2-ai-tools`
+(macOS), `~/.local/share/poe2-ai-tools` (Linux). Set `POE2_DATA_DIR` to move it.
+
+## Development
+
+Clone the repo, then build the dev venv for the tests — `scripts\setup.ps1` (Windows, via
+`powershell -ExecutionPolicy Bypass -File scripts\setup.ps1`) or `scripts/setup.sh`. That needs
+**Python 3.10+** (Windows: `winget install Python.Python.3.13`; macOS: `brew install python`).
+
+To run your working copy in Claude Code, add the clone as a **local marketplace**; it loads in place, so
+edits apply after a restart (CLI and desktop Code tab alike):
+
+```bash
+claude plugin marketplace add /path/to/poe2-ai-tools
+```
+```bash
+claude plugin install poe2@poe2-ai-tool
+```
+
+If you used the pre-plugin setup, delete the old `.mcp.json` and `.claude/skills` in the clone first —
+otherwise the server and skills load twice. Check the manifests with `claude plugin validate .`.
 
 ## Repo layout
 
 ```
 poe2-ai-tools/
+├── .claude-plugin/        # plugin.json (skills + MCP server) and marketplace.json
 ├── README.md
 ├── docs/
 │   └── plan.md            # full design doc
 ├── mcp/                   # the MCP server (data plumbing)
 │   ├── README.md          # endpoints, source decisions, run notes
 │   └── src/
-├── scripts/               # per-machine setup: setup.ps1 (Windows), setup.sh (macOS/Linux)
+├── scripts/               # dev setup (test venv): setup.ps1 (Windows), setup.sh (macOS/Linux)
 └── skills/                # one folder per skill, each with a SKILL.md
     ├── poe2-core/
     │   └── references/    # confidence rubric, currency glossary, how-to

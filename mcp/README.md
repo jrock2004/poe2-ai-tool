@@ -104,11 +104,14 @@ Implemented (Phase 1):
 Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strategy` data.
 
 ## Config (env)
-- `POE2_LEAGUE` — default league (e.g. `Forbidden Rites`). **Set this**; temp leagues rotate and
-  poe2scout marks several leagues current at once, so the "first current" fallback is unreliable.
+- `POE2_DATA_DIR` — where the per-user data lives (saved league, state, knowledge refreshes); defaults
+  to the platform's app-data folder (`store.data_dir`).
+- `POE2_LEAGUE` — fallback default league when none is saved with `set_league` (the plugin doesn't set
+  it). poe2scout marks several leagues current at once, so the "first current" fallback is unreliable.
 - `POE2_REALM` (default `poe2`), `POE2SCOUT_BASE`, `POE2_USER_AGENT`, `POE2_TRADE_USER_AGENT`,
   `POE2_GUIDE_USER_AGENT`.
 
 ## Run
-`python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev && POE2_LEAGUE="Forbidden Rites" poe2-mcp`
-— then register it in your MCP client. Tests: `pytest -q` from `mcp/`. (Windows: `.venv\Scripts\activate`.)
+The plugin runs it with `uv run --no-dev --project mcp poe2-mcp` (see `.claude-plugin/plugin.json`).
+By hand: `python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev && poe2-mcp`
+— stdio; register it in your MCP client. Tests: `pytest -q` from `mcp/`. (Windows: `.venv\Scripts\activate`.)

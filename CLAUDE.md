@@ -56,14 +56,18 @@ commands. They become one only when John asks for them to be reviewed as a chang
 Personal Path of Exile 2 decision assistant. Two parts:
 
 - `mcp/` — Python MCP server (official `mcp` SDK, pinned `<2`; `httpx`; `beautifulsoup4`).
-  Data plumbing only.
+  Data plumbing, plus storage for the player's own data — no judgment.
+  - `store.py` / `state.py` / `knowledge.py` — the per-user data dir (outside the install, survives
+    updates): saved league, roster/currency state (JSON merge patch), and local knowledge refreshes.
   - `_cache.py` — every network result is a `Fetched(body, fetched_at)`; tools report freshness
     (`fetchedAt`/`ageSeconds`, oldest input wins) from it.
   - `treedata.py` + `data/tree_<version>.json` — the passive-tree name snapshot. The JSON is
     **generated, never hand-edited**: regenerate it with `python -m poe2_mcp.treedata` (see
     `CONTRIBUTING.md`).
 - `skills/` — one folder per skill (eleven). The judgment lives here, not in the server.
-- `scripts/` — per-machine setup: `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
+- `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
+- `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
+  install the repo as a plugin; it is not deployed anywhere else.
 
 Design rules that hold across both:
 

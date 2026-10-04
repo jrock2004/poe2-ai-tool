@@ -1,13 +1,9 @@
-# Per-machine setup for Windows. Safe to re-run (e.g. after a new skill is added).
-#   1. installs the MCP server into mcp\.venv (editable, with the dev group)
-#   2. writes .mcp.json pointing at it -- only if .mcp.json doesn't exist yet
-#   3. links every skill under skills\ into .claude\skills as directory junctions
-#      (junctions need no admin rights or Developer Mode, unlike symlinks)
+# Dev setup for Windows: builds mcp\.venv (editable, with the dev group) so the tests run.
+# Players don't need this -- they install the plugin (README -> Install). Safe to re-run.
 # Usage (from the repo root):
-#   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 [-League "League Name"]
+#   powershell -ExecutionPolicy Bypass -File scripts\setup.ps1
 # -ExecutionPolicy Bypass applies to this one run only; it changes no system setting.
 # It does not install Python: it checks for 3.10+ and tells you how if it's missing.
-param([string]$League = "Forbidden Rites")
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent $PSScriptRoot
@@ -36,13 +32,6 @@ $PyExe = $Python[0]
 $PyRest = @($Python | Select-Object -Skip 1)
 Write-Host "==> Using $(& $PyExe @PyRest --version)"
 
-# Windows won't let pip replace an .exe that's running, and Claude Code keeps the server running.
-# setup.sh has no equivalent: macOS/Linux can replace a running executable.
-$ServerExe = Join-Path $Root "mcp\.venv\Scripts\poe2-mcp.exe"
-if (Get-Process -Name "poe2-mcp" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $ServerExe }) {
-    Write-Error "The poe2 MCP server is running ($ServerExe). Quit Claude Code, then re-run."
-}
-
 Write-Host "==> Installing the MCP server into mcp\.venv"
 $VenvPython = Join-Path $Root "mcp\.venv\Scripts\python.exe"
 if (-not (Test-Path $VenvPython)) { Invoke-Checked $PyExe ($PyRest + @("-m", "venv", "mcp\.venv")) }
@@ -52,32 +41,18 @@ Push-Location (Join-Path $Root "mcp")
 try { Invoke-Checked $VenvPython @("-m", "pip", "install", "--quiet", "-e", ".", "--group", "dev") }
 finally { Pop-Location }
 
-$McpJson = Join-Path $Root ".mcp.json"
-if (Test-Path $McpJson) {
-    Write-Host "==> .mcp.json already exists; leaving it as is"
-} else {
-    Write-Host "==> Writing .mcp.json (league: $League)"
-    $config = @{ mcpServers = @{ poe2 = @{
-        command = (Join-Path $Root "mcp\.venv\Scripts\poe2-mcp.exe")
-        env     = @{ POE2_LEAGUE = $League }
-    } } }
-    # UTF-8 without a BOM: Windows PowerShell's own UTF8 encoding adds one, which can break JSON readers.
-    $json = ($config | ConvertTo-Json -Depth 5) + "`n"
-    [System.IO.File]::WriteAllText($McpJson, $json, (New-Object System.Text.UTF8Encoding $false))
-}
-
-Write-Host "==> Linking skills into .claude\skills"
-$SkillsLinks = Join-Path $Root ".claude\skills"
-New-Item -ItemType Directory -Force $SkillsLinks | Out-Null
-Get-ChildItem (Join-Path $Root "skills") -Directory | ForEach-Object {
-    $link = Join-Path $SkillsLinks $_.Name
-    if (-not (Test-Path $link)) { New-Item -ItemType Junction -Path $link -Target $_.FullName | Out-Null }
-    Write-Host "    $($_.Name)"
-}
-
 Write-Host "==> Checking the server imports"
 Invoke-Checked $VenvPython @("-c", "import poe2_mcp.server")
 Write-Host "    ok"
 
+# The pre-plugin setup wired the server and skills in per project; with the plugin installed too,
+# both would load twice. Point it out rather than deleting anything.
+if ((Test-Path (Join-Path $Root ".mcp.json")) -or (Test-Path (Join-Path $Root ".claude\skills"))) {
+    Write-Host ""
+    Write-Host "Note: .mcp.json and/or .claude\skills are left over from the old setup. Delete them once the"
+    Write-Host "plugin is installed, or the poe2 server and skills load twice."
+}
+
 Write-Host ""
-Write-Host "Done. Open this folder in Claude Code (or restart the session) and approve the 'poe2' server."
+Write-Host "Done. Run the tests with: cd mcp; .venv\Scripts\python -m pytest -q"
+Write-Host "To use your working copy in Claude Code, add it as a local marketplace (README -> Development)."

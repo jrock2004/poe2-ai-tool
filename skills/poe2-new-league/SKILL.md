@@ -1,12 +1,12 @@
 ---
 name: poe2-new-league
-description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, find its patch from the patch notes, point POE2_LEAGUE in .mcp.json at it, refresh the game knowledge the patch made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
+description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, find its patch from the patch notes, save it as the default league, refresh the game knowledge the patch made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
 disable-model-invocation: true
 ---
 # poe2-new-league
 
-Load `poe2-core` first. This is a **checklist**, run once per league start. It sets the one piece of
-machine config that follows the league, reads the patch notes, refreshes the knowledge they made
+Load `poe2-core` first. This is a **checklist**, run once per league start. It saves the new league as the
+default, reads the patch notes, refreshes the knowledge they made
 stale, and hands off to `poe2-character` for the build itself. It does **not** regenerate the tree
 snapshot or collect build guides — those belong to `CONTRIBUTING.md` and `poe2-character`.
 
@@ -14,7 +14,7 @@ Go one step at a time, and say which step you're on.
 
 ## 1. Pick the league
 
-Call `get_leagues`. It doesn't depend on `POE2_LEAGUE`, so it works even while the config still names
+Call `get_leagues`. It doesn't depend on the saved league, so it works even while that still names
 last league.
 
 Show the leagues marked `current` as choices and ask which one the player is starting. **Don't pick for them from
@@ -37,20 +37,11 @@ Store it with `update_state` as `leagues["<league>"].patch` (see the shared mode
 back to when a guide doesn't say which patch it's for. Keep the patch notes you found — step 3 reads
 them, along with any hotfix notes posted since.
 
-## 2. Point `POE2_LEAGUE` at it
+## 2. Make it the default league
 
-`.mcp.json` sits at the repo root. It is git-ignored and machine-local: it holds this machine's absolute
-path to `poe2-mcp`, so **never rewrite the file** — change only `mcpServers.poe2.env.POE2_LEAGUE`, and
-add that key (and `env`) only if it's missing. Keep the rest byte-for-byte.
-
-1. Read the file. If `POE2_LEAGUE` already names the chosen league, say so in a line and move on.
-2. Otherwise make the edit. Keep the file UTF-8 with `\n` line endings.
-3. If `.mcp.json` doesn't exist, **don't create it** — the path inside it is machine-specific. Tell the
-   player to run the setup script with the league (`scripts/setup.sh "<league>"`, or
-   `scripts\setup.ps1 -League "<league>"` on Windows), which writes it.
-
-Then tell the player to **restart Claude to finish switching leagues**. Until then, pass
-`league="<new>"` explicitly on any tool call in this session — that's yours to handle, not theirs.
+Call `set_league` with the chosen league. It checks the name and saves it; every tool uses it from the
+next call on — no restart. If it returns an error, the name didn't match `get_leagues`: go back to the
+choice in step 1.
 
 ## 3. Refresh what the patch made stale
 
@@ -100,8 +91,8 @@ one from step 1). The rest of the character questions are asked there.
 
 ## Guardrails
 
-- The only file this skill writes is `.mcp.json` (only `POE2_LEAGUE` in it); knowledge refreshes in
-  step 3 go through `save_knowledge`. It never stages or commits, and doesn't suggest `git` commands; the tree snapshot is left
+- It writes nothing directly: the league goes through `set_league`, the patch through `update_state`,
+  and knowledge refreshes through `save_knowledge`. It never stages or commits, and doesn't suggest `git` commands; the tree snapshot is left
   to `CONTRIBUTING.md`.
 - Read-only toward GGG, like every poe2 skill.
 - Beginner-friendly: if the player asks what a step means ("what's an MCP server?"), answer in a line

@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
-# Per-machine setup for macOS / Linux. Safe to re-run (e.g. after a new skill is added).
-#   1. installs the MCP server into mcp/.venv (editable, with the dev group)
-#   2. writes .mcp.json pointing at it -- only if .mcp.json doesn't exist yet
-#   3. links every skill under skills/ into .claude/skills
-# Usage: scripts/setup.sh ["League Name"]   (league defaults to "Forbidden Rites")
+# Dev setup for macOS / Linux: builds mcp/.venv (editable, with the dev group) so the tests run.
+# Players don't need this -- they install the plugin (README -> Install). Safe to re-run.
+# Usage: scripts/setup.sh
 # It does not install Python: it checks for 3.10+ and tells you how if it's missing.
 set -euo pipefail
 
-LEAGUE="${1:-Forbidden Rites}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -31,30 +28,17 @@ mcp/.venv/bin/python -m pip install --quiet --upgrade pip
 # --group reads pyproject.toml from the current directory, so install from inside mcp/.
 (cd mcp && .venv/bin/python -m pip install --quiet -e . --group dev)
 
-if [ -e .mcp.json ]; then
-  echo "==> .mcp.json already exists; leaving it as is"
-else
-  echo "==> Writing .mcp.json (league: $LEAGUE)"
-  mcp/.venv/bin/python - "$ROOT/mcp/.venv/bin/poe2-mcp" "$LEAGUE" <<'PYEOF'
-import json, sys
-command, league = sys.argv[1], sys.argv[2]
-config = {"mcpServers": {"poe2": {"command": command, "env": {"POE2_LEAGUE": league}}}}
-with open(".mcp.json", "w", encoding="utf-8") as f:
-    json.dump(config, f, indent=2)
-    f.write("\n")
-PYEOF
-fi
-
-echo "==> Linking skills into .claude/skills"
-mkdir -p .claude/skills
-for dir in skills/*/; do
-  name="$(basename "$dir")"
-  ln -sfn "../../skills/$name" ".claude/skills/$name"
-  echo "    $name"
-done
-
 echo "==> Checking the server imports"
 mcp/.venv/bin/python -c "import poe2_mcp.server" && echo "    ok"
 
+# The pre-plugin setup wired the server and skills in per project; with the plugin installed too,
+# both would load twice. Point it out rather than deleting anything.
+if [ -e .mcp.json ] || [ -e .claude/skills ]; then
+  echo
+  echo "Note: .mcp.json and/or .claude/skills are left over from the old setup. Delete them once the"
+  echo "plugin is installed, or the poe2 server and skills load twice."
+fi
+
 echo
-echo "Done. Open this folder in Claude Code (or restart the session) and approve the 'poe2' server."
+echo "Done. Run the tests with: cd mcp && .venv/bin/python -m pytest -q"
+echo "To use your working copy in Claude Code, add it as a local marketplace (README -> Development)."

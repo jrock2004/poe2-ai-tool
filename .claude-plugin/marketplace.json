@@ -1,0 +1,13 @@
+{
+  "name": "poe2-ai-tool",
+  "description": "A personal Path of Exile 2 decision assistant for Claude Code.",
+  "owner": {
+    "name": "John Costanzo"
+  },
+  "plugins": [
+    {
+      "name": "poe2",
+      "source": "./"
+    }
+  ]
+}
