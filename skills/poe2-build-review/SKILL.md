@@ -49,7 +49,8 @@ especially handy here since both the guide and the character can be PoB-sourced 
 
 The payoff feature: "you're level 28 → here are your 24–30 gem/gear targets, and here's exactly what
 changes when you hit 31." The player never has to figure out which tab of the guide applies. Also: if
-they're near the end of the leveling guide, point them to the **endgame variant** and what to switch.
+they're near the end of the leveling guide, say the **endgame variant** exists and hand off to
+`poe2-build-switch` for whether they're ready to move to it.
 
 ## 4. Produce the stage-aware diff
 
