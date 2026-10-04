@@ -343,3 +343,127 @@ def test_passive_count_ignores_uncounted_nodes_in_a_weapon_set(monkeypatch):
     # Node 1 is free, so it doesn't count toward weapon set 1: min(1, 3) = 1, not min(2, 3) = 2.
     tree = _weapon_set_tree(monkeypatch, ws1="1,20", ws2="30,31,32")
     assert tree["passiveCount"] == 8 - 1
+
+
+# --- Every set, not just the active one (guides carry one set per stage) --------------------------
+# PoB keeps tree specs, skill sets, and item sets as three independent lists. The parser indexes all
+# three by 1-based document POSITION (PoB itself uses positions for specs but ids for skill/item
+# sets); selectors pick which set is parsed in full. Computed stats exist only for the active sets.
+MULTI_SET_XML = """<PathOfBuilding2>
+  <Build level="70" className="Ranger" ascendClassName="Deadeye">
+    <PlayerStat stat="Life" value="2500"/>
+  </Build>
+  <Tree activeSpec="2">
+    <Spec title="Leveling" treeVersion="0_4" nodes="1,2">
+      <Sockets><Socket nodeId="2" itemId="5"/></Sockets>
+    </Spec>
+    <Spec title="Endgame" treeVersion="0_5" nodes="100,200,300"/>
+  </Tree>
+  <Skills activeSkillSet="1">
+    <SkillSet id="3" title="Endgame">
+      <Skill label="Main"><Gem nameSpec="Ice Shot" level="20"/></Skill>
+    </SkillSet>
+    <SkillSet id="1" title="Leveling">
+      <Skill label="Old"><Gem nameSpec="Lightning Arrow" level="10"/></Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="1">
+    <Item id="1">Rarity: NORMAL
+Iron Ring</Item>
+    <Item id="2">Rarity: NORMAL
+Gold Ring</Item>
+    <Item id="5">Rarity: RARE
+Storm Gaze
+Emerald
+Implicits: 0
++12% to Cold Resistance</Item>
+    <ItemSet id="1" title="Leveling"><Slot name="Ring 1" itemId="1"/></ItemSet>
+    <ItemSet id="2" title="Endgame"><Slot name="Ring 1" itemId="2"/></ItemSet>
+  </Items>
+</PathOfBuilding2>"""
+
+
+def test_sets_index_lists_every_set_by_position_with_the_active_one_marked():
+    sets = parse_pob_xml(MULTI_SET_XML)["sets"]
+    assert sets["trees"] == [
+        {"position": 1, "title": "Leveling", "active": False},
+        {"position": 2, "title": "Endgame", "active": True},
+    ]
+    # Positions follow document order, not PoB's ids: id 3 comes first, so it's position 1.
+    assert sets["skillSets"] == [
+        {"position": 1, "title": "Endgame", "active": False},
+        {"position": 2, "title": "Leveling", "active": True},  # activeSkillSet="1" is the 2nd set
+    ]
+    assert sets["itemSets"] == [
+        {"position": 1, "title": "Leveling", "active": True},
+        {"position": 2, "title": "Endgame", "active": False},
+    ]
+
+
+def test_without_selectors_the_active_sets_are_parsed_as_before():
+    r = parse_pob_xml(MULTI_SET_XML)
+    assert r["tree"]["treeVersion"] == "0_5"
+    assert _gem_names(r) == ["Lightning Arrow"]
+    assert [it["name"] for it in r["items"]] == ["Iron Ring"]
+    assert r["statsNote"] is None
+
+
+def test_tree_spec_selects_which_spec_is_parsed():
+    tree = parse_pob_xml(MULTI_SET_XML, tree_spec=1)["tree"]
+    assert tree["treeVersion"] == "0_4"
+    assert tree["nodes"] == [1, 2]
+
+
+def test_tree_spec_uses_the_selected_specs_version_for_names(monkeypatch):
+    asked: list = []
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: asked.append(version))
+    parse_pob_xml(MULTI_SET_XML, tree_spec=1)
+    assert asked == ["0_4"]
+
+
+def test_skill_set_and_item_set_select_which_sets_are_parsed():
+    r = parse_pob_xml(MULTI_SET_XML, skill_set=1, item_set=2)
+    assert _gem_names(r) == ["Ice Shot"]
+    assert [it["name"] for it in r["items"]] == ["Gold Ring"]
+
+
+def test_jewels_in_a_non_active_spec_resolve_from_the_shared_items():
+    jewels = parse_pob_xml(MULTI_SET_XML, tree_spec=1)["tree"]["jewels"]
+    assert [(j["nodeId"], j["name"]) for j in jewels] == [(2, "Storm Gaze")]
+
+
+@pytest.mark.parametrize("selector", ["tree_spec", "skill_set", "item_set"])
+@pytest.mark.parametrize("position", [0, 3])
+def test_an_out_of_range_selector_is_an_error_naming_the_range(selector, position):
+    # Never fall back to the active set: that would silently compare the wrong stage.
+    with pytest.raises(PobError, match=rf"{selector}.*1.*2"):
+        parse_pob_xml(MULTI_SET_XML, **{selector: position})
+
+
+def test_stats_note_flags_when_a_selected_set_is_not_the_active_one():
+    note = parse_pob_xml(MULTI_SET_XML, tree_spec=1)["statsNote"]
+    assert note is not None
+    assert "active" in note
+    assert parse_pob_xml(MULTI_SET_XML, tree_spec=1)["life"] == 2500.0  # still the active sets'
+
+
+def test_selecting_the_active_set_explicitly_needs_no_stats_note():
+    assert parse_pob_xml(MULTI_SET_XML, tree_spec=2, skill_set=2, item_set=1)["statsNote"] is None
+
+
+def test_an_older_export_without_skill_sets_has_one_implicit_skill_set():
+    r = parse_pob_xml(SAMPLE_XML, skill_set=1)
+    assert r["sets"]["skillSets"] == [{"position": 1, "title": None, "active": True}]
+    assert _gem_names(r) == ["Ice Shot", "Bad Support"]
+    with pytest.raises(PobError, match=r"skill_set.*1"):
+        parse_pob_xml(SAMPLE_XML, skill_set=2)
+
+
+def test_missing_sections_give_empty_set_lists():
+    sets = parse_pob_xml("<PathOfBuilding2/>")["sets"]
+    assert sets == {"trees": [], "skillSets": [], "itemSets": []}
+
+
+def test_parse_code_passes_selectors_through():
+    r = parse_pob_code(_encode(MULTI_SET_XML), skill_set=1)
+    assert _gem_names(r) == ["Ice Shot"]

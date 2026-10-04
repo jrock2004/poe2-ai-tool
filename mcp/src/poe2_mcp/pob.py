@@ -15,7 +15,7 @@ import base64
 import re
 import zlib
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, Callable
 
 from .treedata import load_snapshot
 
@@ -33,6 +33,10 @@ _RESIST_KEYS = {"FireResist": "fire", "ColdResist": "cold", "LightningResist": "
 
 class PobError(ValueError):
     """Raised when a code can't be decoded as a PoB export."""
+
+
+class PobSelectionError(PobError):
+    """Raised when a set selector is out of range -- the code itself was fine."""
 
 
 def decode_pob_code(code: str) -> str:
@@ -105,12 +109,37 @@ def _clean_item_mods(text: str) -> tuple[str, str, str, list[str], list[str]]:
     return rarity, name, base, implicits, explicits
 
 
-def parse_pob_xml(xml: str) -> dict[str, Any]:
-    """Parse decoded PoB XML into a structured summary. Pure; tolerant of missing sections."""
+def parse_pob_xml(
+    xml: str,
+    tree_spec: int | None = None,
+    skill_set: int | None = None,
+    item_set: int | None = None,
+) -> dict[str, Any]:
+    """Parse decoded PoB XML into a structured summary. Pure; tolerant of missing sections.
+
+    A build can carry several tree specs, skill sets, and item sets (a guide often has one per
+    stage). `sets` indexes all three by 1-based document position; the selectors pick which one of
+    each is parsed in full, defaulting to the active one. An out-of-range selector raises PobError
+    rather than falling back. Computed stats exist only for the active sets -- `statsNote` says so
+    when a selector picks a different one.
+    """
     try:
         root = ET.fromstring(xml)
     except ET.ParseError as e:
         raise PobError(f"PoB XML did not parse ({e}).") from e
+
+    tree_el = root.find("Tree")
+    specs, spec_active = _sets(tree_el, "Spec", _active_spec_index)
+    skills_el = root.find("Skills")
+    skill_sets, skills_active = _sets(skills_el, "SkillSet", _active_by_id("activeSkillSet"))
+    if skills_el is not None and not skill_sets:  # older exports hold <Skill> directly
+        skill_sets, skills_active = [skills_el], 0
+    items_el = root.find("Items")
+    item_sets, items_active = _sets(items_el, "ItemSet", _active_by_id("activeItemSet"))
+
+    spec_i = _select(specs, spec_active, tree_spec, "tree_spec")
+    skills_i = _select(skill_sets, skills_active, skill_set, "skill_set")
+    items_i = _select(item_sets, items_active, item_set, "item_set")
 
     build = root.find("Build")
     stats: dict[str, float] = {}
@@ -128,10 +157,9 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
 
     resistances = {friendly: stats[key] for key, friendly in _RESIST_KEYS.items() if key in stats}
 
-    # Skill groups -> gems, from the active SkillSet only (a build can carry leveling + endgame sets)
+    # Skill groups -> gems, from the selected SkillSet only (a build can carry leveling + endgame sets)
     skills: list[dict[str, Any]] = []
-    skills_el = root.find("Skills")
-    skill_parent = _active_skillset(skills_el) if skills_el is not None else None
+    skill_parent = skill_sets[skills_i] if skills_i is not None else None
     for skill in (skill_parent.findall("Skill") if skill_parent is not None else []):
         gems = [
             {
@@ -145,13 +173,12 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
         if gems:
             skills.append({"label": (skill.get("label") or "").strip() or None, "gems": gems})
 
-    # Equipped items in the active ItemSet
+    # Equipped items in the selected ItemSet
     items: list[dict[str, Any]] = []
-    items_el = root.find("Items")
     by_id: dict[str | None, str] = {}
     if items_el is not None:
         by_id = {it.get("id"): (it.text or "") for it in items_el.findall("Item")}
-        itemset = _active_itemset(items_el)
+        itemset = item_sets[items_i] if items_i is not None else None
         for slot in (itemset.findall("Slot") if itemset is not None else []):
             item_id = slot.get("itemId", "0")
             if item_id == "0" or item_id not in by_id:
@@ -169,7 +196,16 @@ def parse_pob_xml(xml: str) -> dict[str, Any]:
         "stats": stats,
         "skills": skills,
         "items": items,
-        "tree": _parse_tree(root, by_id),
+        "tree": _parse_tree(specs[spec_i], by_id) if spec_i is not None else None,
+        "sets": {
+            "trees": _index(specs, spec_active),
+            "skillSets": _index(skill_sets, skills_active),
+            "itemSets": _index(item_sets, items_active),
+        },
+        "statsNote": _stats_note(
+            [("tree", spec_i, spec_active), ("skills", skills_i, skills_active),
+             ("items", items_i, items_active)]
+        ),
     }
 
 
@@ -184,23 +220,12 @@ def _node_ids(csv: str | None) -> list[int]:
     return [int(t) for t in (csv or "").split(",") if t.strip().isdigit()]
 
 
-def _parse_tree(root: ET.Element, items_by_id: dict[str | None, str]) -> dict[str, Any] | None:
-    """The active passive-tree <Spec> as node ids (no names -- those need the tree data).
+def _parse_tree(spec: ET.Element, items_by_id: dict[str | None, str]) -> dict[str, Any]:
+    """A passive-tree <Spec> as node ids, plus names and point counts from the tree snapshot.
 
-    `activeSpec` is the 1-based POSITION of the active <Spec>, defaulting to the first. `nodes` lists
-    every allocated node; <WeaponSetN nodes> marks the subset allocated to weapon set N; <Sockets>
-    maps a jewel socket's node id to an <Item id> (itemId 0 = empty socket).
+    `nodes` lists every allocated node; <WeaponSetN nodes> marks the subset allocated to weapon set
+    N; <Sockets> maps a jewel socket's node id to an <Item id> (itemId 0 = empty socket).
     """
-    tree_el = root.find("Tree")
-    specs = tree_el.findall("Spec") if tree_el is not None else []
-    if not specs:
-        return None
-    try:
-        index = int(tree_el.get("activeSpec", "1")) - 1
-    except ValueError:
-        index = 0
-    spec = specs[index] if 0 <= index < len(specs) else specs[0]
-
     nodes = _node_ids(spec.get("nodes"))
     weapon_sets = {
         child.tag.removeprefix("WeaponSet"): _node_ids(child.get("nodes"))
@@ -279,29 +304,66 @@ def _name_and_count(
     }
 
 
-def _active_skillset(skills_el: ET.Element) -> ET.Element:
-    """The active <SkillSet>, else the first; older exports with no SkillSets hold <Skill> directly."""
-    sets = skills_el.findall("SkillSet")
-    if not sets:
-        return skills_el
-    active_id = skills_el.get("activeSkillSet")
-    for s in sets:
-        if active_id is not None and s.get("id") == active_id:
-            return s
-    return sets[0]
+ActiveFinder = Callable[[ET.Element, list[ET.Element]], int]
 
 
-def _active_itemset(items_el: ET.Element) -> ET.Element | None:
-    sets = items_el.findall("ItemSet")
-    if not sets:
+def _sets(
+    parent: ET.Element | None, tag: str, find_active: ActiveFinder
+) -> tuple[list[ET.Element], int | None]:
+    """The <tag> children of `parent` in document order, and the 0-based index of the active one."""
+    sets = parent.findall(tag) if parent is not None else []
+    return sets, (find_active(parent, sets) if sets else None)
+
+
+def _active_spec_index(tree_el: ET.Element, specs: list[ET.Element]) -> int:
+    """`activeSpec` is the 1-based POSITION of the active <Spec>; the first if missing or invalid."""
+    try:
+        index = int(tree_el.get("activeSpec", "1")) - 1
+    except ValueError:
+        return 0
+    return index if 0 <= index < len(specs) else 0
+
+
+def _active_by_id(attr: str) -> ActiveFinder:
+    """Skill and item sets name the active one by its `id` attribute; the first if none matches."""
+    def find(parent: ET.Element, sets: list[ET.Element]) -> int:
+        active_id = parent.get(attr)
+        for i, s in enumerate(sets):
+            if active_id is not None and s.get("id") == active_id:
+                return i
+        return 0
+    return find
+
+
+def _select(sets: list[ET.Element], active: int | None, position: int | None, name: str) -> int | None:
+    """0-based index of the set to parse: the 1-based `position` if given, else the active one."""
+    if position is None:
+        return active
+    if not 1 <= position <= len(sets):
+        available = f"1-{len(sets)}" if sets else "none"
+        raise PobSelectionError(f"{name}={position} is out of range; this build has {available}.")
+    return position - 1
+
+
+def _index(sets: list[ET.Element], active: int | None) -> list[dict[str, Any]]:
+    return [{"position": i + 1, "title": (s.get("title") or "").strip() or None, "active": i == active}
+            for i, s in enumerate(sets)]
+
+
+def _stats_note(chosen: list[tuple[str, int | None, int | None]]) -> str | None:
+    """Say so when any selected set isn't the active one: PoB only stores stats for the active sets."""
+    if all(index == active for _, index, active in chosen):
         return None
-    active_id = items_el.get("activeItemSet")
-    for s in sets:
-        if active_id is not None and s.get("id") == active_id:
-            return s
-    return sets[0]
+    active = ", ".join(f"{kind} {a + 1}" for kind, _, a in chosen if a is not None)
+    return (f"Stats (resistances, life, DPS) are for the active sets ({active}); PoB only stores "
+            "computed stats for those, so they don't reflect the sets selected here.")
 
 
-def parse_pob_code(code: str) -> dict[str, Any]:
-    """Decode + parse a PoB export code into a build summary."""
-    return parse_pob_xml(decode_pob_code(code))
+def parse_pob_code(
+    code: str,
+    tree_spec: int | None = None,
+    skill_set: int | None = None,
+    item_set: int | None = None,
+) -> dict[str, Any]:
+    """Decode + parse a PoB export code into a build summary (see parse_pob_xml for the selectors)."""
+    return parse_pob_xml(decode_pob_code(code), tree_spec, skill_set, item_set)

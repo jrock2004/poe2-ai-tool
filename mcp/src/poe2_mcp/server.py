@@ -18,7 +18,7 @@ from mcp.server.fastmcp import FastMCP
 
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
-from .pob import PobError, parse_pob_code as _parse_pob
+from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
 from .poe2scout import (
     Poe2ScoutClient,
     change_vs_divine,
@@ -443,20 +443,33 @@ async def fetch_guide(url: str) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def parse_pob_code(code: str) -> dict[str, Any]:
+async def parse_pob_code(
+    code: str,
+    tree_spec: int | None = None,
+    skill_set: int | None = None,
+    item_set: int | None = None,
+) -> dict[str, Any]:
     """Decode a Path of Building 2 export code into a structured build summary.
 
     Accepts a raw PoB code or raw PoB XML -- not a share link (pobb.in links hold an id, not the
     code). Returns the character (level/class/ascendancy), computed stats (resistances, life, energy
-    shield, DPS), the active skill set's gems, equipped items with implicit and explicit mods, and
-    the active passive tree: allocated node ids, socketed jewels, named keystones/notables, the
-    ascendancy choices taken, and passive/ascendancy point counts (names and counts come from a
-    bundled tree snapshot; if the build's tree version has none, `tree.note` says so and only ids
-    are returned) -- so a pasted PoB code can feed poe2-gear-upgrade / poe2-build-review without a
-    character screenshot. Offline; no network.
+    shield, DPS), a skill set's gems, equipped items with implicit and explicit mods, and a passive
+    tree: allocated node ids, socketed jewels, named keystones/notables, the ascendancy choices
+    taken, and passive/ascendancy point counts (names and counts come from a bundled tree snapshot;
+    if the build's tree version has none, `tree.note` says so and only ids are returned) -- so a
+    pasted PoB code can feed poe2-gear-upgrade / poe2-build-review without a character screenshot.
+
+    A build can carry several tree specs, skill sets, and item sets -- guides often keep one per
+    stage. `sets` lists all three by 1-based position with titles and which is active. By default
+    the active ones are parsed; pass `tree_spec` / `skill_set` / `item_set` (a position from `sets`)
+    to parse another. Computed stats only exist for the active sets: `statsNote` says so when a
+    selector picks a different one. An out-of-range position is an error, never a fallback.
+    Offline; no network.
     """
     try:
-        return _parse_pob(code)
+        return _parse_pob(code, tree_spec, skill_set, item_set)
+    except PobSelectionError as e:
+        return {"valid": False, "error": str(e), "note": "Pick a position listed in `sets`."}
     except PobError as e:
         return {
             "valid": False,
