@@ -89,7 +89,7 @@ Where it doesn't, reason from what the main skill needs; say it's your judgment.
   the new one. Name both costs: the gold, and the Trial run (hand off to `poe2-trials-advisor`).
 - **Affordability** — compare the total against `poe2-currency-tracker`'s inventory, if there is one.
   If not, give the total and ask.
-- **SSF** — ask if it isn't clear. In SSF, missing uniques can't be bought: the blocker is "until it
+- **SSF** — from the character's `trade_mode` (see `poe2-core`). In SSF, missing uniques can't be bought: the blocker is "until it
   drops", and the plan should say what to keep doing in the meantime.
 
 ## 5. Answer

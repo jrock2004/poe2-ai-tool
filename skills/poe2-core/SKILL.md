@@ -42,10 +42,19 @@ explain things to newcomers consistently.
 
 Skills read and write a small persistent state (in Claude memory):
 
-- **characters[]** — each with name, class/ascendancy, build archetype, goal, guide link, and an
-  `active` flag. Currency is **league-scoped**, shared across all characters in a league.
-- **currency inventory** — per league, populated from screenshots (see `poe2-currency-tracker`).
+- **characters[]** — each with name, class/ascendancy, build archetype, goal, guide link, league,
+  `trade_mode`, and an `active` flag.
+- **currency inventory** — per **league + trade mode**, shared by every character in that pool,
+  populated from screenshots (see `poe2-currency-tracker`). An SSF character has its own stash, so its
+  currency never mixes with a trade character's in the same league.
 - **active trade context** — the last search + results, for the iterative trade-filter loop.
+
+**Trade or SSF** — `trade_mode` is `"trade"` or `"ssf"`, per character. Any skill whose advice depends
+on whether the player can trade reads it from the character it's working on; skills point here rather
+than restating this. If it's unset (characters onboarded before it existed), ask once — "Is <name> a
+trade or SSF character?" — store the answer on the character, and carry on. Never assume either way.
+`league` stays the trade league's name in both modes: it's what the price tools accept, and prices
+still serve as a reference in SSF.
 
 ## Per-patch maintenance
 

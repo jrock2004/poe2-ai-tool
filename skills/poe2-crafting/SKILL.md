@@ -69,8 +69,7 @@ researched, so **never give a percentage or "1 in N"**.
 
 ## 5. Cost and alternatives
 
-**Ask whether the character is in SSF if it isn't clear from the conversation** — don't assume
-either way.
+Branch on the character's `trade_mode` (see "Trade or SSF" in `poe2-core`).
 
 - **SSF:** no market. Compare against what else that currency could do for the player — e.g. a
   Divine is better spent on a finished Rare with low rolls on the right mods.
@@ -104,5 +103,5 @@ weakest signal.
 - **No invented numbers.** Tiers, item-level gates, and currency behaviour come from the knowledge
   file; odds are qualitative only.
 - **Corrupted means stop.**
-- **Don't assume SSF or trade** — ask.
+- **Don't assume SSF or trade** — read `trade_mode`, per `poe2-core`.
 - Never buy, list, or whisper. Output is advice and trade links the player acts on.

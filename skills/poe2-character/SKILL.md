@@ -18,7 +18,8 @@ player = { experience_level }            # account-level; tunes verbosity (poe2-
 
 characters = [ {
   name,                 # character name (the id)
-  league,              # which league they're in -> ties to currency[league]
+  league,              # which league they're in (the trade league's name, even for SSF)
+  trade_mode,          # "trade" | "ssf" -> with league, picks the currency pool (poe2-core)
   clazz, ascendancy,   # e.g. Ranger / Deadeye
   archetype,           # the build in plain words, e.g. "Ice Shot Deadeye", "minion army"
   goal,                # bossing | mapping | league-start | leveling | ...
@@ -30,8 +31,9 @@ characters = [ {
 } ]
 ```
 
-Currency is **league-scoped, not character-scoped** — all characters in a league share one currency
-pool (`poe2-currency-tracker`). Don't attach currency to a character.
+Currency is **pooled by league + trade mode, not by character** — all trade characters in a league
+share one pool, and all SSF characters in it share another (`poe2-currency-tracker`). Don't attach
+currency to a character.
 
 ## First-run onboarding (interview, one question at a time)
 
@@ -48,7 +50,9 @@ end). Keep it short:
    `get_leagues` and store the exact league name it lists. If their league isn't marked `current`, or
    a newer league is, say so: temp leagues end and fold into Standard, and the tools default to the
    league pinned in `POE2_LEAGUE` — see "League rotation" in `poe2-core`.
-6. **How should I read your gear when we need it?** See "Reading a build" below.
+6. **Trade or SSF?** Can this character trade with other players, or is it Solo Self-Found? Store
+   `trade_mode`. It decides whether advice can say "buy it", and which currency pool is theirs.
+7. **How should I read your gear when we need it?** See "Reading a build" below.
 
 Set this first character **active**. Then confirm the profile back in one line.
 
@@ -57,7 +61,7 @@ familiar — e.g. "Are terms like *PoB*, *exalt*, *resist cap* familiar, or shou
 Store `experience_level`; `poe2-core` uses it to tune verbosity. The player can change it any time
 ("stop explaining basics" / "explain more").
 
-**Each new character** triggers a *short* version (steps 1–6); experience level is already set, so skip
+**Each new character** triggers a *short* version (steps 1–7); experience level is already set, so skip
 it. **`/poe2-character new`** goes straight to this short interview, without asking what the player
 wants to do first. If the league is already known — e.g. handed over by `poe2-new-league` — skip
 step 5. When it's done, set the new character active and say which one it replaced.
@@ -81,7 +85,8 @@ registration reopens, this upgrades transparently (see `docs/ggg-oauth-applicati
 
 ## Listing, updating, switching
 
-- **List** the roster on request: name, class/archetype, goal, league, and which is active.
+- **List** the roster on request: name, class/archetype, goal, league, trade or SSF, and which is
+  active.
 - **Update** a build: re-take a screenshot or edit goal/guide/archetype; bump `updated_at`.
 - **Set active** — a one-line state update ("work on my Deadeye now"). Exactly one active at a time.
 - **Per-request override** — "check my *minion build's* boots" names a character inline for that one

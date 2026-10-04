@@ -6,18 +6,19 @@ description: Track the player's Path of Exile 2 currency by reading screenshots 
 
 Load `poe2-core` first. There is **no PoE2 stash API**, so the inventory can't be read from the game —
 the player sends **screenshots** of their currency/crafting tabs and this skill reads them (vision)
-into a remembered, per-league inventory, then values it and answers "can I afford this?".
+into a remembered inventory per league and trade mode, then values it and answers "can I afford this?".
 
 Vision can misread a stack count or a look-alike icon, so the rule is **confirm before saving** and
 **never guess** — a wrong count silently corrupts every affordability answer downstream.
 
-## State: currency inventory (per league)
+## State: currency inventory (per league + trade mode)
 
-Currency is **league-scoped**, shared across every character in that league (see the shared model in
-`poe2-core`). Persist in memory keyed by league:
+Currency is pooled by **league and trade mode**: every trade character in a league shares one pool, and
+every SSF character in it shares another — in-game they're separate stashes (see the shared model in
+`poe2-core`). Persist in memory keyed by both:
 
 ```
-currency[league] = {
+currency[league, trade_mode] = {
   tabs: {
     "<tab name>": {              # e.g. "currency", "crafting", "essences"
       items: [ { name, count, confidence } ],   # name = canonical (glossary-normalized)
@@ -29,6 +30,11 @@ currency[league] = {
   updated_at
 }
 ```
+
+**Which pool** — the one matching the character being worked on: its `league` and `trade_mode`. If
+there's no active character, or its `trade_mode` is unset, ask before saving — a screenshot saved to
+the wrong pool silently corrupts both. An entry keyed by league alone (saved before trade mode existed)
+is the trade pool.
 
 **Totals** = per-name sum across all tabs, plus any `adjustments`. Keep tabs separate so re-sending one
 tab replaces just that bucket instead of double-counting.
