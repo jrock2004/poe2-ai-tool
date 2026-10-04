@@ -28,7 +28,10 @@ Then get the guide the way `poe2-build-review` §1 does (same fetch routes, same
 preference) and structure it per `poe2-core/references/guide-structure.md` — ordered stages with
 entry conditions, off-path tabs kept out. From the character, find the **current stage**; the switch
 to check is the **next switch** after it, unless the player names a different one. You need both
-sides of it in detail: the current stage and the first stage after the switch.
+sides of it in detail: the current stage and the first stage after the switch. With a guide PoB,
+both are often in the same code — read its `sets` and select each stage's sets (see the PoB note in
+`guide-structure.md`); its stats belong to the active sets only, so check post-switch defenses (§3)
+from the gear and tree, not the guide PoB's numbers.
 
 **If the guide doesn't link the next variant, stop and ask the player which build they're moving
 to** — a URL or its PoB code. Some leveling guides only say "swap to another endgame build" and leave

@@ -43,9 +43,13 @@ is one stage list.
 
 - **Tabbed pages** (e.g. Mobalytics) only show the selected tab's gems and tree in the page text. Read
   each tab you need specifically — on Mobalytics each tab has its own URL (`?…=activeVariantId,N`).
-- **PoB codes** often hold every stage as separate tree specs, skill sets, and item sets, but
-  `parse_pob_code` returns only the **active** one. A guide PoB gives you one stage per export; say
-  which stage it is, and ask for a re-export with another set active if you need a different one.
+- **PoB codes** often hold every stage as separate tree specs, skill sets, and item sets.
+  `parse_pob_code` parses the active ones and lists all three in `sets` (position, title, active).
+  Read `sets` first to map stages, then call again with `tree_spec` / `skill_set` / `item_set` set
+  to a position to read another stage. The three lists are independent: match them by title, and
+  when titles don't line up (or are missing), ask the player which sets belong together rather
+  than pairing them by position. Computed stats (resistances, life, DPS) exist only for the active
+  sets — `statsNote` says so — so for any other stage, compare gems, tree, and gear, not stats.
 - Tab labels are the author's — "Early" in one guide is "Midgame" in another. Order stages by the
   guide's sequence and entry conditions, not by the label.
 
