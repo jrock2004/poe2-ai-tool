@@ -26,7 +26,8 @@ You (in Claude)
    │
    ├── Skills  ── the judgment + confidence
    │     poe2-core, poe2-price-check, poe2-character,
-   │     poe2-gear-upgrade, poe2-build-review,
+   │     poe2-gear-upgrade, poe2-crafting,
+   │     poe2-build-review, poe2-build-switch,
    │     poe2-trials-advisor, poe2-currency-tracker,
    │     poe2-meta-strategy
    │
@@ -63,6 +64,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-gear-upgrade` | Find your weak slots and rank realistic market upgrades by value-per-currency. |
 | `poe2-crafting` | Say whether a crafting currency can get an item to your goal — and stop you wasting it when it can't. |
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
+| `poe2-build-switch` | Say whether you're ready to move from a guide's leveling version to its endgame version, and what's in the way. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
 | `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
@@ -129,7 +131,7 @@ It doesn't install Python; it checks for 3.10+ and tells you how if it's missing
 
 ### Then
 
-Open the folder in Claude Code, approve the `poe2` server when prompted, and the nine skills load
+Open the folder in Claude Code, approve the `poe2` server when prompted, and the ten skills load
 automatically. Re-run the script whenever a new skill folder is added. After pulling code changes,
 restart the session so the MCP server reloads. Update `POE2_LEAGUE` in `.mcp.json` when the temp
 league rotates.
@@ -151,7 +153,9 @@ poe2-ai-tools/
     ├── poe2-price-check/
     ├── poe2-character/
     ├── poe2-gear-upgrade/
+    ├── poe2-crafting/
     ├── poe2-build-review/
+    ├── poe2-build-switch/
     ├── poe2-trials-advisor/
     ├── poe2-currency-tracker/
     └── poe2-meta-strategy/
