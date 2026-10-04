@@ -68,6 +68,17 @@ back what they saw or bought, and you critique and refine ("those are overpriced
 filter is too tight — drop it and the floor halves"). Keep the last search in active trade context so
 "search again, cheaper" continues without re-stating everything.
 
+## SSF characters
+
+When the character being worked on is SSF (`trade_mode`, see `poe2-core`), still price the item — what
+trade players pay is a fair signal of how rare or wanted a drop is, and whether it's worth crafting on.
+Label it as a reference: *"trade players pay ~X for this — you can't sell it in SSF, but it tells you
+it's a strong drop."* Leave out the trade link, whisper strings, budget `max_price`, and the iterate
+loop, unless the player asks for the search to see comparables.
+
+A price is the same in either mode, so don't stop to ask `trade_mode` just to price something — if it's
+unknown, answer the trade way.
+
 ## Confidence (per `poe2-core/references/confidence.md`)
 
 Score the market signals from the tool fields, using the thresholds in the rubric's **Market

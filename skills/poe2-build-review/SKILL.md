@@ -96,7 +96,9 @@ guide have different `treeVersion`s, node ids may not line up across patches —
 ## 5. Hand off acquisition
 
 For each fix that needs an item, hand off to `poe2-gear-upgrade` / `poe2-price-check` to turn it into a
-real, budget-bounded `/trade2` search (using the player's currency as the ceiling). For gems/tree, say
+real, budget-bounded `/trade2` search (using the player's currency as the ceiling). For an SSF character
+(`trade_mode`, see `poe2-core`), hand off to `poe2-gear-upgrade` only — it turns the fix into a craft or
+farm route instead of a search. For gems/tree, say
 where/how to get them. The player acts — never auto-buy or auto-whisper.
 
 ## Confidence (per `poe2-core/references/confidence.md`)

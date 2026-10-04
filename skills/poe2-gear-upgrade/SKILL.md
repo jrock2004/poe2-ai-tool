@@ -1,6 +1,6 @@
 ---
 name: poe2-gear-upgrade
-description: Look at the player's Path of Exile 2 character and recommend gear upgrades ranked by value-per-currency, with trade filters to find them. Use when the player asks "how do I improve my gear", "what should I upgrade next", or "is this an upgrade".
+description: Look at the player's Path of Exile 2 character and recommend gear upgrades ranked by value-per-currency, with trade filters to find them (or, for SSF, how to craft or farm them). Use when the player asks "how do I improve my gear", "what should I upgrade next", or "is this an upgrade".
 ---
 # poe2-gear-upgrade
 
@@ -50,6 +50,20 @@ may not use. State plainly *which* slot is weakest and *why* — "your boots hav
 you're 40% fire, that's your survivability hole."
 
 ## 3. Find upgrades for the weak slot(s)
+
+**SSF characters** (`trade_mode`, see `poe2-core`) can't buy, so §3–§5 don't apply — the trade search,
+value-per-currency ranking, and budget are all market steps. Instead, for each weak slot in severity
+order (§2):
+
+1. **Name the target** — the 1–2 mods that fix the slot, from the build's targets (§1). Don't invent
+   tier numbers; if the guide or `poe2-crafting/references/crafting-knowledge.md` gives them, use them.
+2. **Name the route** — craft it from a base the player has (hand off to `poe2-crafting`, which checks
+   the currency can actually do it), or keep playing for it: what to pick up and check while mapping.
+3. **Net-diff still applies** (§3b) to anything they craft or find.
+
+Confidence comes from the gear read and the target's source (§1); the market signals don't apply.
+
+**Trade characters:**
 
 For each priority slot:
 

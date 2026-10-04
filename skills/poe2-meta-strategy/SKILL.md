@@ -33,7 +33,7 @@ for its current price.
 
 ## "Should I sell or hold?"
 
-Needs the player's inventory from `poe2-currency-tracker` (league-scoped). If there's none, ask for
+Needs the player's inventory from `poe2-currency-tracker` (their league + trade mode pool). If there's none, ask for
 a currency-tab screenshot (one-line how-to from `poe2-core`).
 
 1. For the categories their holdings fall in, call `market_movers(categories=[...])`; for a specific
@@ -44,6 +44,10 @@ a currency-tab screenshot (one-line how-to from `poe2-core`).
 3. Weigh size: put the advice where the value is (`count × priceExalted`), not on a 2-exalted stack.
 4. **Never trade for them.** Output is advice plus, if they want, `poe2-price-check` for a listing
    price. They list and sell themselves.
+
+**SSF characters** (`trade_mode`, see `poe2-core`) can't sell, so there's no sell/hold call to make —
+say so in one line. Offer instead what their currency could do for the build: hand off to
+`poe2-crafting` or `poe2-gear-upgrade`.
 
 ## "What should I farm?"
 
@@ -62,6 +66,12 @@ says what its outputs are for. Check its freshness stamp; if the patch has moved
    they're heading.
 5. For the fragments the file marks as not researched (Crisis Fragments, Fates, Origin items, …),
    give the price and direction only; say the mechanic isn't covered.
+
+**SSF characters:** market direction doesn't help — they can't sell what they farm. Recommend by what
+the build needs instead: the currencies and crafting materials its next upgrades call for (from
+`poe2-gear-upgrade` / `poe2-crafting`), mapped to the mechanics that produce them via the knowledge
+file, among those the build clears comfortably. Skip `market_movers`. "What's moving?" can still be
+answered if they ask, with a line that it doesn't affect them.
 
 Confidence for farming advice tops out at **Medium**: prices are grounded, yields aren't.
 
