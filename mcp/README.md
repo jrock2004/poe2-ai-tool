@@ -88,6 +88,10 @@ Implemented (Phase 1):
   is an error, never a fallback). Stats exist only for the active sets — `statsNote` says so.
   Offline, so share links (pobb.in) aren't resolved — paste the code itself. Feeds gear-upgrade /
   build-review / build-switch without a screenshot.
+- `summarize_tree(main, tree_version, weapon_set_1?, weapon_set_2?, ascendancy?)` — the same tree
+  block as `parse_pob_code` (names, keystones/notables, ascendancy choices, point counts), from bare
+  node ids. For guides with no PoB whose pages carry node ids (Mobalytics). Lists may be disjoint or
+  overlap; no `jewels`. Offline.
 
 Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strategy` data.
 

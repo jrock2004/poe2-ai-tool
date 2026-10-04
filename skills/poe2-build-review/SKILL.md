@@ -66,8 +66,10 @@ or convenience, consistent with `poe2-gear-upgrade`. One clear "do this next," n
 
 ### The passive tree
 
-`parse_pob_code` returns a `tree` block. When both the character and the guide stage come from PoB
-codes, compare the two blocks — this is the most precise part of the review:
+`parse_pob_code` returns a `tree` block. A guide with no PoB but with node ids in its page (e.g.
+Mobalytics — see `poe2-core/references/guide-structure.md`) gets the same block from
+`summarize_tree`. When both the character and the guide stage have a tree block, compare the two —
+this is the most precise part of the review:
 
 - **Keystones** (`tree.keystones`) the guide has and the character lacks, or vice versa → **Deviated**.
   Keystones change how the build works; flag them first.
@@ -78,12 +80,13 @@ codes, compare the two blocks — this is the most precise part of the review:
 - **Notables** (`tree.notables`): if the character has spent about as many points (`passiveCount`) as
   the guide but holds different notables → **Deviated**. If they've simply spent fewer points →
   **Behind**; list the guide's next few notables in order, not the whole gap.
-- **Socketed jewels** (`tree.jewels`) — compare like gear.
+- **Socketed jewels** (`tree.jewels`) — compare like gear. A `summarize_tree` block has no jewels;
+  take them from the guide's gear section instead.
 
 Don't work out "unspent points" from the character's level: available points also depend on quest
-rewards, which nothing here reads. Compare `passiveCount` against the guide's PoB for the same stage.
+rewards, which nothing here reads. Compare `passiveCount` against the guide's tree for the same stage.
 
-When the guide is **prose only** (no PoB), match the notables and keystones it names against
+When the guide is **prose only** (no PoB, no node ids in the page), match the notables and keystones it names against
 `tree.notables` / `tree.keystones` by name. That's weaker — say the comparison is name-based.
 
 If `tree.note` is set (no snapshot for that tree version), you only have node ids: compare the id

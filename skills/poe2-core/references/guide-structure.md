@@ -43,6 +43,29 @@ is one stage list.
 
 - **Tabbed pages** (e.g. Mobalytics) only show the selected tab's gems and tree in the page text. Read
   each tab you need specifically — on Mobalytics each tab has its own URL (`?…=activeVariantId,N`).
+- **Mobalytics trees** aren't in the page text, but every variant's tree is in the page's state, as
+  PoB-compatible node ids. Mobalytics bot-blocks `fetch_guide`, so read it in the browser (the
+  "browser" route). In the page, run:
+
+  ```js
+  const t = [...document.scripts].map(s => s.textContent)
+    .find(x => x.startsWith("window.__PRELOADED_STATE__"));
+  const objAt = (s, k) => { let d = 0;
+    for (let i = k; i < s.length; i++) { if (s[i] == "{") d++; else if (s[i] == "}" && !--d) return s.slice(k, i + 1); } };
+  const variants = JSON.parse(objAt(t, t.indexOf('"buildVariants":') + 16)).values;
+  const titles = Object.fromEntries([...t.matchAll(/\{"id":"([^"]+)","title":"([^"]*)","description"/g)]
+    .map(m => [m[1], m[2]]));
+  const ids = l => (l?.selectedSlugs ?? []).map(s => +s.replace("node-", ""));  // null before weapon-set points
+  variants.map(v => ({ id: v.id, title: titles[v.id] ?? null,
+    main: ids(v.passiveTree.mainTree), set1: ids(v.passiveTree.set1Tree),
+    set2: ids(v.passiveTree.set2Tree), ascendancy: ids(v.passiveTree.ascendancyTree) }));
+  ```
+
+  Each variant's `id` is the tab's `activeVariantId`, and joining on it gives the tab title — join by
+  `id`, not position. Pass each variant's lists to `summarize_tree` with the guide's patch as the
+  tree version ("0.5.5" → `"0_5"`). That gives the same tree block as `parse_pob_code`, so trees
+  compare id-to-id like a PoB guide. The state is Mobalytics' internal shape and can change: if a
+  key is missing, say so, fall back to the tab text, and treat tree comparison as name-based.
 - **PoB codes** often hold every stage as separate tree specs, skill sets, and item sets.
   `parse_pob_code` parses the active ones and lists all three in `sets` (position, title, active).
   Read `sets` first to map stages, then call again with `tree_spec` / `skill_set` / `item_set` set
