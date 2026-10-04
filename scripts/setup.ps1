@@ -36,6 +36,13 @@ $PyExe = $Python[0]
 $PyRest = @($Python | Select-Object -Skip 1)
 Write-Host "==> Using $(& $PyExe @PyRest --version)"
 
+# Windows won't let pip replace an .exe that's running, and Claude Code keeps the server running.
+# setup.sh has no equivalent: macOS/Linux can replace a running executable.
+$ServerExe = Join-Path $Root "mcp\.venv\Scripts\poe2-mcp.exe"
+if (Get-Process -Name "poe2-mcp" -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $ServerExe }) {
+    Write-Error "The poe2 MCP server is running ($ServerExe). Quit Claude Code, then re-run."
+}
+
 Write-Host "==> Installing the MCP server into mcp\.venv"
 $VenvPython = Join-Path $Root "mcp\.venv\Scripts\python.exe"
 if (-not (Test-Path $VenvPython)) { Invoke-Checked $PyExe ($PyRest + @("-m", "venv", "mcp\.venv")) }
