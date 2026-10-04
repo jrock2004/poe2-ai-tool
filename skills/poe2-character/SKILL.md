@@ -1,6 +1,7 @@
 ---
 name: poe2-character
 description: Manage the player's Path of Exile 2 character roster — onboard a new character, list characters, update a build, and set which one is active. Use when the player starts a new character, switches characters, or first uses the assistant.
+argument-hint: "[new]"
 ---
 # poe2-character
 
@@ -57,7 +58,9 @@ Store `experience_level`; `poe2-core` uses it to tune verbosity. The player can 
 ("stop explaining basics" / "explain more").
 
 **Each new character** triggers a *short* version (steps 1–6); experience level is already set, so skip
-it.
+it. **`/poe2-character new`** goes straight to this short interview, without asking what the player
+wants to do first. If the league is already known — e.g. handed over by `poe2-new-league` — skip
+step 5. When it's done, set the new character active and say which one it replaced.
 
 ## Reading a build (what actually works today)
 

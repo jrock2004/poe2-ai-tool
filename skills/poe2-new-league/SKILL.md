@@ -72,8 +72,8 @@ Report, don't fix. Each item points to its section of `CONTRIBUTING.md` → "Per
 
 ## 5. Hand off
 
-Start `poe2-character`'s new-character interview for the first character of the league, with the league
-already answered (the one from step 1). Build guide, goal, SSF, and how to read the build are all asked
+Run `/poe2-character new` for the first character of the league, with the league already answered (the
+one from step 1). Build guide, goal, SSF, and how to read the build are all asked
 there.
 
 ## Guardrails
