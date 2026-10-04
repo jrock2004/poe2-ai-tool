@@ -16,6 +16,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from . import store
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
@@ -78,6 +79,25 @@ async def get_leagues() -> list[dict[str, Any]]:
         }
         for lg in leagues
     ]
+
+
+@mcp.tool()
+async def set_league(league: str) -> dict[str, Any]:
+    """Save the player's league as the default for every tool, until changed again.
+
+    league: league name or short name, as listed by get_leagues. It's checked against poe2scout first;
+    an unknown name raises and nothing is saved. Takes effect on the next call -- no restart needed.
+    """
+    resolved = (await _scout.resolve_league(league)).body
+    root = store.data_dir()
+    config = store.read_config(root)
+    config["league"] = resolved["Value"]
+    store.write_config(root, config)
+    return {
+        "league": resolved["Value"],
+        "shortName": resolved.get("ShortName"),
+        "savedTo": str(root / store.CONFIG_FILE),
+    }
 
 
 @mcp.tool()

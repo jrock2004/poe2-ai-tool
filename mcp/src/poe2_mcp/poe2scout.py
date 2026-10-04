@@ -16,13 +16,15 @@ from urllib.parse import quote, urlencode
 
 import httpx
 
+from . import store
 from ._cache import CacheEntry, Fetched
 
 BASE = os.environ.get("POE2SCOUT_BASE", "https://api.poe2scout.com")
 REALM = os.environ.get("POE2_REALM", "poe2")
 # Configured default league. Temp leagues rotate (Forbidden Rites won't last), and poe2scout marks
 # *several* leagues IsCurrent at once (SC + HC + event), so "first IsCurrent" is not a safe default.
-# Set POE2_LEAGUE to pin the default; an explicit league= arg on any call still overrides it.
+# The league saved by the set_league tool (store.py) wins over POE2_LEAGUE, so a switch made in chat
+# isn't silently overridden by an older env setting; an explicit league= arg still beats both.
 DEFAULT_LEAGUE = os.environ.get("POE2_LEAGUE") or None
 USER_AGENT = os.environ.get(
     "POE2_USER_AGENT", "poe2-ai-tools (personal; contact: jrock2004@gmail.com)"
@@ -229,23 +231,29 @@ class Poe2ScoutClient:
     async def resolve_league(self, league: str | None = None) -> Fetched[dict[str, Any]]:
         """Return a league dict, stamped with when the league list was fetched.
 
-        Precedence: explicit ``league`` arg -> configured ``POE2_LEAGUE`` -> first IsCurrent -> first.
-        The IsCurrent fallback is last-resort only: poe2scout marks SC/HC/event leagues current at
-        once, so relying on array order is unsafe -- prefer setting POE2_LEAGUE.
+        Precedence: explicit ``league`` arg -> saved league (``set_league``, read per call) ->
+        configured ``POE2_LEAGUE`` -> first IsCurrent -> first. The IsCurrent fallback is last-resort
+        only: poe2scout marks SC/HC/event leagues current at once, so relying on array order is
+        unsafe -- prefer saving a league.
         """
         fetched = await self.get_leagues()
         leagues = fetched.body
         if not leagues:
             raise RuntimeError("poe2scout returned no leagues")
 
-        wanted = league or DEFAULT_LEAGUE
+        saved = store.read_config(store.data_dir()).get("league")
+        if league:
+            wanted, source = league, "league argument"
+        elif saved:
+            wanted, source = saved, "saved league"
+        else:
+            wanted, source = DEFAULT_LEAGUE, "POE2_LEAGUE"
         if wanted:
             needle = wanted.lower()
             for lg in leagues:
                 if lg.get("Value", "").lower() == needle or lg.get("ShortName", "").lower() == needle:
                     return Fetched(body=lg, fetched_at=fetched.fetched_at)
             available = ", ".join(lg.get("Value", "?") for lg in leagues)
-            source = "league argument" if league else "POE2_LEAGUE"
             raise RuntimeError(f'League "{wanted}" ({source}) not found. Available: {available}')
 
         current = next((lg for lg in leagues if lg.get("IsCurrent")), leagues[0])

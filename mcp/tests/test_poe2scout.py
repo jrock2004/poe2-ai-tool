@@ -6,6 +6,7 @@ import pytest
 
 from poe2_mcp import poe2scout
 from poe2_mcp._cache import Fetched
+from poe2_mcp.store import data_dir, write_config
 from poe2_mcp.poe2scout import (
     Poe2ScoutClient,
     change_vs_divine,
@@ -14,6 +15,13 @@ from poe2_mcp.poe2scout import (
     rank_movers,
     rates_from_items,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolated_data_dir(monkeypatch, tmp_path):
+    """resolve_league reads the saved league; never let a test see the real per-user data dir."""
+    monkeypatch.setenv("POE2_DATA_DIR", str(tmp_path))
+    return tmp_path
 
 
 def test_exalted_to_divine_converts():
@@ -92,9 +100,18 @@ MULTI = [
 ]
 
 
-def _resolve(monkeypatch, leagues: list[dict], league: str | None, configured: str | None) -> str:
-    """resolve_league(league) with POE2_LEAGUE set to `configured`; returns the chosen league's Value."""
+def _resolve(
+    monkeypatch,
+    leagues: list[dict],
+    league: str | None,
+    configured: str | None,
+    saved: str | None = None,
+) -> str:
+    """resolve_league(league) with POE2_LEAGUE set to `configured` and `saved` in the data dir's config;
+    returns the chosen league's Value."""
     monkeypatch.setattr(poe2scout, "DEFAULT_LEAGUE", configured)
+    if saved is not None:
+        write_config(data_dir(), {"league": saved})
 
     async def run():
         client = _offline_client([], leagues)
@@ -132,6 +149,19 @@ def test_resolve_league_unknown_names_its_source_and_the_options(monkeypatch):
         _resolve(monkeypatch, MULTI, None, configured="Dawn of the Hunt")
     with pytest.raises(RuntimeError, match="league argument"):
         _resolve(monkeypatch, MULTI, "Dawn of the Hunt", configured=None)
+
+
+def test_resolve_league_saved_league_beats_configured(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, None, configured="Forbidden Rites", saved="Standard") == "Standard"
+
+
+def test_resolve_league_explicit_argument_beats_saved(monkeypatch):
+    assert _resolve(monkeypatch, MULTI, "HCFR", configured=None, saved="Standard") == "HC Forbidden Rites"
+
+
+def test_resolve_league_unknown_saved_league_names_its_source_and_the_options(monkeypatch):
+    with pytest.raises(RuntimeError, match=r"saved league.*Standard, Forbidden Rites, HC Forbidden Rites"):
+        _resolve(monkeypatch, MULTI, None, configured="Forbidden Rites", saved="Dawn of the Hunt")
 
 
 def test_resolve_league_with_no_leagues_raises(monkeypatch):
