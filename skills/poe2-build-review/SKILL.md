@@ -28,14 +28,12 @@ Best fidelity always comes from the guide's **exported PoB code** — prefer it 
 
 ## 2. Structure the guide into stages (the §5.1 model)
 
-A guide is **not** one blob — it's an ordered progression. Structure what you got into:
+A guide is **not** one blob — it's an ordered progression. Structure it per
+`poe2-core/references/guide-structure.md`: ordered stages with entry conditions, linked variants
+joined into one list, and off-path tabs (reference gear, alternatives, situational setups) kept out
+of the stages. Review only against stages — never mark a player "behind" on an off-path tab.
 
-- **Ordered stages**, each keyed by a level range and/or act (guides use brackets like 1–14, 15–23, …
-  or Act 1→2→3), each carrying its own **gems/links, gear targets, and passive-tree state**.
-- **Variant links** — a leveling guide usually points to its endgame version. Track both and that
-  they're the same build at different phases.
-- **Milestone hooks** — stage transitions often coincide with Trials (e.g. minion play comes online
-  after the Act 3 Trial of Chaos). These tie into `poe2-trials-advisor` when it exists.
+Stage transitions that coincide with Trials tie into `poe2-trials-advisor`.
 
 If the guide only gave you partial structure, review against what you *do* have and flag the gaps
 rather than inventing stage targets.

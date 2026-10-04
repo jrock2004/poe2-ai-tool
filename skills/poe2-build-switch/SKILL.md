@@ -21,21 +21,19 @@ character), `price_unique` / `poe2-price-check` (cost of what's missing), `poe2-
 **Check for the character first, before reading any guide.** Without it there's no verdict, only a
 summary of the guide. Use the active (or named) character from `poe2-character`. If there isn't one,
 ask for it and the guide in **one** message — a PoB code (best) or a screenshot of gems, gear, and
-tree, plus the guide URL if it wasn't given. If the player has no character yet, say this skill
-needs one and stop.
+tree, plus the guide URL if it wasn't given. If the player has no character yet, offer the
+**guide-only preview** (§6) instead of a verdict.
 
-Then follow `poe2-build-review` §1–3 — same fetch routes, same PoB-first preference, same character
-read. You need **two** guide stages: the **last stage of the current variant** and the **first stage of the
-variant they'd switch to**. A variant can be a separate guide (leveling → endgame) or a tab inside
-one guide (non-crit → crit).
+Then get the guide the way `poe2-build-review` §1 does (same fetch routes, same PoB-first
+preference) and structure it per `poe2-core/references/guide-structure.md` — ordered stages with
+entry conditions, off-path tabs kept out. From the character, find the **current stage**; the switch
+to check is the **next switch** after it, unless the player names a different one. You need both
+sides of it in detail: the current stage and the first stage after the switch.
 
 **If the guide doesn't link the next variant, stop and ask the player which build they're moving
 to** — a URL or its PoB code. Some leveling guides only say "swap to another endgame build" and leave
 the choice open; picking it is the player's call. Don't search for one or guess from the guide's
 name. Nothing else in this skill runs until you have both.
-
-Tabbed guides (e.g. Mobalytics) only show the selected tab's gems and tree in the page text. Read
-each stage's tab specifically — on Mobalytics each tab has its own URL (`?…=activeVariantId,N`).
 
 If the target variant is a **different base class**, stop: that's a new character, not a switch.
 A different **Ascendancy of the same class** is a switch — since 0.5 it can be respecced (see §4).
@@ -48,7 +46,8 @@ front: the switch is small, and the answer is a short list, not the full report 
 **If the guide states one, use it.** Authors usually do: "swap once you have X and are in early maps",
 "respec at level N after the third ascendancy". Switches inside an endgame guide are often gated on
 gear instead ("get a good crit bow and quiver before swapping to crit"). Quote the condition (short),
-and check the character against each part of it. The guide's stated condition wins over anything you infer in §3.
+and check the character against each part of it. The guide's stated condition wins over anything
+you infer in §3.
 
 **If the guide doesn't state one, infer it** from the blockers in §3, and say plainly that the guide
 doesn't give a switch point and this is your read. That inference caps confidence at **Medium**.
@@ -104,6 +103,23 @@ and dying. One clear "do this next".
 If the verdict is "not yet", say what to keep doing on the current variant until then — the player
 shouldn't stall waiting.
 
+**Lookahead** — if the guide states the switch *after* this one and what gates it, end with one line:
+"Next switch after this: non-crit → crit, once you have a crit bow and quiver." Mention it only; don't
+check readiness for it. It's there so the player doesn't spend now on something that switch replaces
+(say so when that's the case).
+
+## 6. Guide-only preview (no character)
+
+When there's no character, describe the switch from the guide alone:
+
+- the **switch point** as the guide states it (or "the guide doesn't say"),
+- **what changes** between the two stages — gems, tree, ascendancy, required gear — with anything the
+  guide marks as required called out,
+- the **lookahead** line, if the guide has one.
+
+Label it plainly as a preview: **no verdict, no blockers, no costs** — those need the character. End
+by asking for a PoB code when they have one. Confidence covers only the guide read.
+
 ## Confidence (per `poe2-core/references/confidence.md`)
 
 - **High** — the guide states the switch point, both variants and the character are PoB-sourced, and
@@ -111,8 +127,8 @@ shouldn't stall waiting.
 - **Medium** — **the guide gives no switch point (§2, always capped here)**, a variant was only
   partially fetched, or the cost rests on `price_unique` (a reference price with no listing volume).
 - **Low** — a stage was read from prose only (no tab detail or PoB), the character's gear or tree was
-  guessed, or the cost is unknown
-  (no inventory, gold not given). Name the one thing that would raise it.
+  guessed, or the cost is unknown (no inventory, gold not given). Name the one thing that would
+  raise it.
 
 The market thresholds in `confidence.md` also apply to the cost, and the band is capped by the weakest
 signal.
