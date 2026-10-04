@@ -29,7 +29,7 @@ You (in Claude)
    │     poe2-gear-upgrade, poe2-crafting,
    │     poe2-build-review, poe2-build-switch,
    │     poe2-trials-advisor, poe2-currency-tracker,
-   │     poe2-meta-strategy
+   │     poe2-meta-strategy, poe2-new-league
    │
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
@@ -68,6 +68,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
 | `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
+| `poe2-new-league` | `/poe2-new-league` at league start: pick the league, point `POE2_LEAGUE` at it, flag what the patch made stale, onboard the first character. |
 
 Design notes that shape all of them:
 
@@ -131,10 +132,10 @@ It doesn't install Python; it checks for 3.10+ and tells you how if it's missing
 
 ### Then
 
-Open the folder in Claude Code, approve the `poe2` server when prompted, and the ten skills load
+Open the folder in Claude Code, approve the `poe2` server when prompted, and the eleven skills load
 automatically. Re-run the script whenever a new skill folder is added. After pulling code changes,
-restart the session so the MCP server reloads. Update `POE2_LEAGUE` in `.mcp.json` when the temp
-league rotates.
+restart the session so the MCP server reloads. When a new league starts, run `/poe2-new-league` — it
+updates `POE2_LEAGUE` in `.mcp.json` for you.
 
 ## Repo layout
 
@@ -158,7 +159,8 @@ poe2-ai-tools/
     ├── poe2-build-switch/
     ├── poe2-trials-advisor/
     ├── poe2-currency-tracker/
-    └── poe2-meta-strategy/
+    ├── poe2-meta-strategy/
+    └── poe2-new-league/
 ```
 
 ## Tech choice

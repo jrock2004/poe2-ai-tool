@@ -43,6 +43,8 @@ node ids only and `tree.note` says so.
    .venv/bin/python -m poe2_mcp.treedata path/to/tree.lua <version> "PathOfBuilding-PoE2@<commit> (dev, <date>), src/TreeData/<version>/tree.lua -- MIT; tree data originally from GGG" src/poe2_mcp/data/tree_<version>.json
    ```
 3. **Keep the old snapshot.** Characters still on the old tree use it.
+   **Restart the MCP server** afterwards — snapshot lookups are cached per version, including
+   "not found", so a running server that already saw the new version keeps returning ids only.
 4. Check it: run the tests, then parse a real export on the new tree and compare `passiveCount` /
    `ascendancyCount` with the points Path of Building shows. If the parser rejects the file, the
    `tree.lua` format changed — fix `treedata.py` rather than hand-editing the JSON.
@@ -82,8 +84,8 @@ Update `skills/poe2-core/references/how-to.md`.
 
 ### 6. League
 
-**Needed when** a new league starts. Each player updates `POE2_LEAGUE` in their own `.mcp.json`
-(it's git-ignored). In the repo, update the default league in `scripts/setup.sh` and
+**Needed when** a new league starts. Each player runs `/poe2-new-league`, which updates `POE2_LEAGUE` in
+their own `.mcp.json` (it's git-ignored). In the repo, update the default league in `scripts/setup.sh` and
 `scripts/setup.ps1`, and the `POE2_LEAGUE` example in `mcp/README.md`.
 
 ## Pull requests
