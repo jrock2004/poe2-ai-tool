@@ -12,6 +12,11 @@ snapshot or collect build guides — those belong to `CONTRIBUTING.md` and `poe2
 
 Go one step at a time, and say which step you're on.
 
+**Report only what changed or needs the player.** A step that found nothing to do gets no line of its
+own. If the whole run changed nothing — league already saved, patch already recorded, knowledge
+current — the summary is one line ("Forbidden Rites is set up and everything's current for 0.5.5d."),
+then step 5's question. No per-topic list, no source links; keep confidence to a short clause.
+
 ## 1. Pick the league
 
 Call `get_leagues`. It doesn't depend on the saved league, so it works even while that still names
@@ -60,9 +65,10 @@ no odds or drop rates) apply here as written.
   If `save_knowledge` refuses because the shipped copy is already as new, that topic is current —
   nothing to do.
 
-  Tell the player in one line per topic what changed ("Trials: two new relics, Chaos afflictions
-  reworded") or that it was unaffected. Saved refreshes are the player's own copy and survive updates;
-  an update that ships newer knowledge takes over from them automatically.
+  Tell the player one line per topic that changed ("Trials: two new relics, Chaos afflictions
+  reworded"); say nothing about unaffected topics. If anything was saved, add once: these refreshes are
+  the player's own copy and survive updates; an update that ships newer knowledge takes over from them
+  automatically.
 - **How-to steps** (`skills/poe2-core/references/how-to.md`): refresh only if the notes change the
   game's UI it describes (CONTRIBUTING step 5).
 - **Passive tree.** Not refreshable yet — Path of Building 2 ships the new tree days after league
@@ -86,8 +92,15 @@ they can be refreshed, and lower confidence accordingly.
 
 ## 5. Hand off
 
-Run `/poe2-character new` for the first character of the league, with the league already answered (the
-one from step 1). The rest of the character questions are asked there.
+If the roster has no character in this league, run `/poe2-character new` for the league's first
+character, with the league already answered (the one from step 1). The rest of the character questions
+are asked there.
+
+If it already has one or more, ask as a choice instead of in prose: **"Start a new character"** first,
+then **"Keep working on <name>"** for each existing character in this league (the active one first).
+- *Start a new character* → `/poe2-character new` as above.
+- *Keep working on <name>* → if it isn't active, make it active (`poe2-character` → "Set active", which
+  also moves the default league); then you're done.
 
 ## Guardrails
 
