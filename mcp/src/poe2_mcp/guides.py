@@ -160,9 +160,9 @@ class GuideFetcher:
         if looks_blocked(resp.status_code, resp.text, headers):
             return _routed(
                 "browser", url,
-                f"The site bot-blocked the fetch (HTTP {resp.status_code}). Open the page in a browser and "
-                "read it there; if it shows a bot check, don't solve it -- ask the player to open it "
-                "or paste the PoB code.",
+                f"The site blocks automatic fetches (HTTP {resp.status_code}), so I'll open it in a browser "
+                "and read it there. If it asks to verify you're human, open the guide in your own "
+                "browser, or paste its PoB code.",
             )
 
         text = extract_text(resp.text)
