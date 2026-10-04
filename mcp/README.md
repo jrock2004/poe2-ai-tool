@@ -71,6 +71,11 @@ Stash/currency is NOT available at all (no PoE2 stash API) — currency comes fr
 ## MCP tools
 Implemented (Phase 1):
 - `get_leagues` — poe2scout leagues + current divine price.
+- `set_league(league)` — validate a league against poe2scout and save it as every tool's default
+  (per-user data dir, read per call — no restart). Beats `POE2_LEAGUE`; an explicit `league=` beats both.
+- `get_knowledge(topic)` / `save_knowledge(topic, text)` — per-patch game knowledge (`trials`,
+  `farming`, `crafting`). Returns the newer of the shipped copy and the player's saved refresh, by the
+  file's `patch`/`refreshed` header. Offline.
 - `get_currency_prices(category, search, league?)` — currency prices in exalted + divine.
 - `price_unique(name, league?)` — unique/currency reference price, with close-name suggestions.
 - `value_currency(holdings, league?)` — value an inventory of {name, count} at current prices, in

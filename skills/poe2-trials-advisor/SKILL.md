@@ -4,7 +4,7 @@ description: Advise which relics, boons, afflictions, or rewards to pick in the 
 ---
 # poe2-trials-advisor
 
-Load `poe2-core` first, then read `references/trials-knowledge.md` before advising. The recommendation
+Load `poe2-core` first, then call `get_knowledge('trials')` before advising. The recommendation
 is only as current as that file, which is **patch-dependent** — so its freshness stamp feeds directly
 into your confidence (see below).
 
@@ -24,7 +24,7 @@ Resolve the active character via `poe2-character`. What matters for trials:
 If you don't have this, ask one or two quick questions (or read a character screenshot). Vague context
 → lower confidence, and say what would sharpen it.
 
-## 2. Match picks to the build (per `references/trials-knowledge.md`)
+## 2. Match picks to the build (per `get_knowledge('trials')`)
 
 - **Trial of the Sekhemas (honour):** honour is lost on being hit, so a build that gets hit is
   honour-bottlenecked. Recommend **Maximum Honour + Honour Resistance relics** and defensive boons for

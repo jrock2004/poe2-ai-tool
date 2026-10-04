@@ -9,7 +9,7 @@ goal, and is it the best way to spend it?** The answer is often "no — that orb
 mod," and saying so before any cost talk is the skill's main value.
 
 Facts about currencies, affix limits, and mod tiers come **only** from
-`references/crafting-knowledge.md`. If what you need isn't there, say "not researched — check poe2db"
+`get_knowledge('crafting')`. If what you need isn't there, say "not researched — check poe2db"
 and lower confidence. Never fill in a tier, item-level gate, or odds from memory.
 
 Scope: single-currency decisions and short paths (a few orbs). Not full multi-step craft plans, and

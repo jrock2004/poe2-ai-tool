@@ -1,3 +1,7 @@
+---
+patch: 0.5.5d
+refreshed: 2026-10-04
+---
 # Trials knowledge (patch-dependent — verify against the live game)
 
 > **Freshness stamp: researched 2026-09-15; refreshed 2026-10-04 for patch 0.5.5 (Forbidden Rites).**

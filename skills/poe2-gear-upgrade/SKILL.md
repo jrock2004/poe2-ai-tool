@@ -56,7 +56,7 @@ value-per-currency ranking, and budget are all market steps. Instead, for each w
 order (§2):
 
 1. **Name the target** — the 1–2 mods that fix the slot, from the build's targets (§1). Don't invent
-   tier numbers; if the guide or `poe2-crafting/references/crafting-knowledge.md` gives them, use them.
+   tier numbers; if the guide or `get_knowledge('crafting')` gives them, use them.
 2. **Name the route** — craft it from a base the player has (hand off to `poe2-crafting`, which checks
    the currency can actually do it), or keep playing for it: what to pick up and check while mapping.
 3. **Net-diff still applies** (§3b) to anything they craft or find.

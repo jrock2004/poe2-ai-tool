@@ -16,7 +16,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from . import store
+from . import knowledge, store
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
@@ -98,6 +98,39 @@ async def set_league(league: str) -> dict[str, Any]:
         "shortName": resolved.get("ShortName"),
         "savedTo": str(root / store.CONFIG_FILE),
     }
+
+
+def _knowledge_fields(k: knowledge.Knowledge) -> dict[str, Any]:
+    return {
+        "topic": k.topic,
+        "source": k.source,
+        "patch": k.stamp.patch,
+        "refreshed": k.stamp.refreshed.isoformat(),
+    }
+
+
+@mcp.tool()
+async def get_knowledge(topic: str) -> dict[str, Any]:
+    """Get the assistant's per-patch game knowledge for a topic: 'trials', 'farming', or 'crafting'.
+
+    Returns the newer of the copy shipped with the assistant and the player's local refresh (see
+    save_knowledge): `source` says which, `patch`/`refreshed` say how current it is (a confidence
+    input), and `text` is the Markdown itself.
+    """
+    k = knowledge.load(topic, store.data_dir())
+    return {**_knowledge_fields(k), "text": k.text}
+
+
+@mcp.tool()
+async def save_knowledge(topic: str, text: str) -> dict[str, Any]:
+    """Save a refreshed copy of a knowledge topic ('trials', 'farming', 'crafting') for this player.
+
+    text: the full Markdown, starting with the header ---, patch: <e.g. 0.6.0>, refreshed: <YYYY-MM-DD>,
+    ---. Refused (nothing written) if the header is missing or the copy isn't newer than the one
+    shipped with the assistant. The copy lives outside the install, so it survives updates; an update
+    that ships newer knowledge takes over from it automatically.
+    """
+    return _knowledge_fields(knowledge.save(topic, text, store.data_dir()))
 
 
 @mcp.tool()

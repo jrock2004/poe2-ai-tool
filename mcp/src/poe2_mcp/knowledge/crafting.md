@@ -1,3 +1,7 @@
+---
+patch: 0.5.5
+refreshed: 2026-10-03
+---
 # Crafting knowledge (patch-dependent — verify against the live game)
 
 > **Freshness stamp: researched 2026-10-03.** Patch not confirmed at research time. Currency

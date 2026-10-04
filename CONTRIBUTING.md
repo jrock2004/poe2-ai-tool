@@ -52,13 +52,13 @@ node ids only and `tree.note` says so.
 ### 2. Trials knowledge
 
 **Needed when** patch notes touch the Trial of the Sekhemas or Trial of Chaos.
-Update `skills/poe2-trials-advisor/references/trials-knowledge.md` and re-stamp its date and sources.
+Update `mcp/src/poe2_mcp/knowledge/trials.md` and re-stamp its date and sources.
 
 ### 3. Farming knowledge
 
 **Needed when** patch notes change how a mechanic is targeted or what it drops, or poe2scout's
 categories change.
-Update `skills/poe2-meta-strategy/references/farming-knowledge.md`:
+Update `mcp/src/poe2_mcp/knowledge/farming.md`:
 
 - Re-pull each category's item families from poe2scout (`/Leagues/<league>/Currencies/ByCategory`)
   rather than writing them from memory.
@@ -69,7 +69,7 @@ Update `skills/poe2-meta-strategy/references/farming-knowledge.md`:
 
 **Needed when** patch notes change what a currency does, add or remove a currency, or change mod tiers
 or their modifier levels.
-Update `skills/poe2-crafting/references/crafting-knowledge.md`:
+Update `mcp/src/poe2_mcp/knowledge/crafting.md`:
 
 - Quote currency descriptions from poe2db's `Stackable_Currency` page rather than paraphrasing.
 - Re-check each tier table against the item class's poe2db page; its rendered tables may not load in a
@@ -91,5 +91,7 @@ their own `.mcp.json` (it's git-ignored). In the repo, update the default league
 ## Pull requests
 
 - Say what patch or change prompted it, and link the patch notes.
-- For knowledge files: list your sources, and keep the freshness stamp current.
+- For knowledge files: list your sources, and keep the freshness stamp current — both the prose stamp
+  and the `patch`/`refreshed` header at the top. The header decides whether a player's local refresh
+  or your shipped copy wins (newer patch, then newer date), so bump it on every content change.
 - For code: tests pass, and new behaviour has a test.

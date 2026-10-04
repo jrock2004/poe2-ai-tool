@@ -1,12 +1,12 @@
 ---
 name: poe2-new-league
-description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, find its patch from the patch notes, point POE2_LEAGUE in .mcp.json at it, refresh the game-knowledge files the patch made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
+description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, find its patch from the patch notes, point POE2_LEAGUE in .mcp.json at it, refresh the game knowledge the patch made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
 disable-model-invocation: true
 ---
 # poe2-new-league
 
 Load `poe2-core` first. This is a **checklist**, run once per league start. It sets the one piece of
-machine config that follows the league, reads the patch notes, refreshes the knowledge files they made
+machine config that follows the league, reads the patch notes, refreshes the knowledge they made
 stale, and hands off to `poe2-character` for the build itself. It does **not** regenerate the tree
 snapshot or collect build guides — those belong to `CONTRIBUTING.md` and `poe2-character`.
 
@@ -58,18 +58,20 @@ Use the patch notes from step 1, plus any hotfix notes posted since. Each item f
 `CONTRIBUTING.md` → "Per-patch refresh" — its sources and rules (quote patch notes verbatim, no Maxroll,
 no odds or drop rates) apply here as written.
 
-- **Knowledge files.** Read the freshness stamp at the top of each:
-  - `skills/poe2-trials-advisor/references/trials-knowledge.md` (Trials — CONTRIBUTING step 2)
-  - `skills/poe2-meta-strategy/references/farming-knowledge.md` (farming — step 3)
-  - `skills/poe2-crafting/references/crafting-knowledge.md` (crafting — step 4)
+- **Knowledge.** Call `get_knowledge` for each topic and read its `patch`/`refreshed`:
+  - `trials` (CONTRIBUTING step 2)
+  - `farming` (step 3)
+  - `crafting` (step 4)
 
   For each, check whether the notes touch its area (the "Needed when" line of its step). If they do,
-  refresh the file in place and re-stamp its date, patch, and sources. If not, leave it alone. Don't
-  commit or stage anything.
+  refresh the text, set the header's `patch` to this patch and `refreshed` to today, re-stamp the prose
+  stamp's date, patch, and sources, and call `save_knowledge` with the full text. If not, leave it alone.
+  If `save_knowledge` refuses because the shipped copy is already as new, that topic is current —
+  nothing to do.
 
-  Tell the player in one line per file what changed ("Trials: two new relics, Chaos afflictions
-  reworded") or that it was unaffected. If any file changed, add once: these are local edits; if
-  updating the assistant later says they're in the way, discard them — the update carries its own.
+  Tell the player in one line per topic what changed ("Trials: two new relics, Chaos afflictions
+  reworded") or that it was unaffected. Saved refreshes are the player's own copy and survive updates;
+  an update that ships newer knowledge takes over from them automatically.
 - **How-to steps** (`skills/poe2-core/references/how-to.md`): refresh only if the notes change the
   game's UI it describes (CONTRIBUTING step 5).
 - **Passive tree.** Not refreshable yet — Path of Building 2 ships the new tree days after league
@@ -98,8 +100,8 @@ one from step 1). The rest of the character questions are asked there.
 
 ## Guardrails
 
-- The only files this skill writes are `.mcp.json` (only `POE2_LEAGUE` in it) and the knowledge files
-  in step 3. It never stages or commits, and doesn't suggest `git` commands; the tree snapshot is left
+- The only file this skill writes is `.mcp.json` (only `POE2_LEAGUE` in it); knowledge refreshes in
+  step 3 go through `save_knowledge`. It never stages or commits, and doesn't suggest `git` commands; the tree snapshot is left
   to `CONTRIBUTING.md`.
 - Read-only toward GGG, like every poe2 skill.
 - Beginner-friendly: if the player asks what a step means ("what's an MCP server?"), answer in a line

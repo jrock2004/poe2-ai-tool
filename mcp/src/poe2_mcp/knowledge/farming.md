@@ -1,3 +1,7 @@
+---
+patch: 0.5.5d
+refreshed: 2026-10-04
+---
 # Farming knowledge (patch-dependent — verify against the live game)
 
 > **Freshness stamp: researched 2026-10-03, patch 0.5.5 (Forbidden Rites, ends with 1.0 on

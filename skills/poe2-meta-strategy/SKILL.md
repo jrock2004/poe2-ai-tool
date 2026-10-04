@@ -51,7 +51,7 @@ say so in one line. Offer instead what their currency could do for the build: ha
 
 ## "What should I farm?"
 
-Read `references/farming-knowledge.md` first — it maps each mechanic to its poe2scout category and
+Call `get_knowledge('farming')` first — it maps each mechanic to its poe2scout category and
 says what its outputs are for. Check its freshness stamp; if the patch has moved on, say so.
 
 1. Call `market_movers()` (the default set covers the farming categories).
