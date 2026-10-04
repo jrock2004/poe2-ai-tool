@@ -63,12 +63,24 @@ Update `skills/poe2-meta-strategy/references/farming-knowledge.md`:
 - Quote patch-note changes verbatim; re-stamp the date, patch, and sources.
 - Never add yields, drop rates, or "X per hour" — nothing reports them reliably.
 
-### 4. How-to steps
+### 4. Crafting knowledge
+
+**Needed when** patch notes change what a currency does, add or remove a currency, or change mod tiers
+or their modifier levels.
+Update `skills/poe2-crafting/references/crafting-knowledge.md`:
+
+- Quote currency descriptions from poe2db's `Stackable_Currency` page rather than paraphrasing.
+- Re-check each tier table against the item class's poe2db page; its rendered tables may not load in a
+  fetcher, but the mod data is embedded in the page's HTML.
+- Never add odds or "1 in N" — mod weights haven't been pulled in. Re-stamp the date, patch, and
+  sources.
+
+### 5. How-to steps
 
 **Needed when** the game's or Path of Building's UI changed (menu names, export flow, hotkeys).
 Update `skills/poe2-core/references/how-to.md`.
 
-### 5. League
+### 6. League
 
 **Needed when** a new league starts. Each player updates `POE2_LEAGUE` in their own `.mcp.json`
 (it's git-ignored). In the repo, update the default league in `scripts/setup.sh` and

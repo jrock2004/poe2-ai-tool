@@ -61,6 +61,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-character` | Roster lifecycle: onboard a new character, list, update, set the active one. |
 | `poe2-price-check` | Price an item or currency, with confidence. |
 | `poe2-gear-upgrade` | Find your weak slots and rank realistic market upgrades by value-per-currency. |
+| `poe2-crafting` | Say whether a crafting currency can get an item to your goal — and stop you wasting it when it can't. |
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
@@ -128,7 +129,7 @@ It doesn't install Python; it checks for 3.10+ and tells you how if it's missing
 
 ### Then
 
-Open the folder in Claude Code, approve the `poe2` server when prompted, and the eight skills load
+Open the folder in Claude Code, approve the `poe2` server when prompted, and the nine skills load
 automatically. Re-run the script whenever a new skill folder is added. After pulling code changes,
 restart the session so the MCP server reloads. Update `POE2_LEAGUE` in `.mcp.json` when the temp
 league rotates.
