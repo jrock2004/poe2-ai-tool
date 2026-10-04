@@ -58,8 +58,11 @@ end). Keep it short:
    - **Fresh start** → a line of league-start advice suited to the build (what to pick up early).
    - **Has a stash** → offer to read a currency-tab screenshot (`poe2-currency-tracker`) and to check
      the stash for leveling uniques or gear worth handing to the new character.
-7. **How should I read your gear when we need it?** Choices, from "Reading a build" below, with
-   "Character screenshot" recommended during the campaign.
+7. **How should I read your gear when we need it?** Choices, from "Reading a build" below. Recommend
+   **"PoB code"** when the player is `experienced` or another of their characters already has
+   `build_source: "pob"` — they keep a PoB, and it's the best data. Otherwise recommend **"Character
+   screenshot"**: no PoB upkeep while gear changes every few levels. If Path of Building hasn't shipped
+   this patch's tree yet (see `poe2-new-league` → passive tree), say so on the PoB option.
 
 Don't ask for a goal: a new character's `goal` starts as `leveling`. Ask for it later, when it starts to
 matter — see "Listing, updating, switching".
