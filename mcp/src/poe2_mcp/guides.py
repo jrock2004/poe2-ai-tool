@@ -5,7 +5,8 @@ is permitted, and only then fetches and cleans the page. Current reality (re-ver
 overturns the plan's older spike):
 
 * **Mobalytics** -- Cloudflare-blocks server fetches (403) even with a browser UA -> browser-assisted
-  read (the assistant loads it in the player's own browser) or a pasted PoB code.
+  read (the assistant opens it in a real browser; the player's own only if a bot check appears) or a
+  pasted PoB code.
 * **poe-vault** -- static and readable -> fetch works.
 * **Maxroll** -- reachable, but its robots.txt (Ziff Davis) explicitly prohibits automated/AI use of
   the content. We respect that and refuse -> paste the PoB code / content instead.
@@ -159,8 +160,9 @@ class GuideFetcher:
         if looks_blocked(resp.status_code, resp.text, headers):
             return _routed(
                 "browser", url,
-                f"The site bot-blocked the fetch (HTTP {resp.status_code}). Open it in your browser so I "
-                "can read the page you're viewing, or paste the PoB code.",
+                f"The site bot-blocked the fetch (HTTP {resp.status_code}). Open the page in a browser and "
+                "read it there; if it shows a bot check, don't solve it -- ask the player to open it "
+                "or paste the PoB code.",
             )
 
         text = extract_text(resp.text)

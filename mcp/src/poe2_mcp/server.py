@@ -436,7 +436,8 @@ async def fetch_guide(url: str) -> dict[str, Any]:
       - route "paste": the site forbids automated/AI use (e.g. Maxroll/Ziff Davis) or robots blocks it
         -- ask the player for the guide's PoB code or pasted text.
       - route "browser": the site bot-blocked the server fetch (e.g. Mobalytics/Cloudflare) -- the
-        assistant can read it in the player's own browser, or the player pastes the PoB code.
+        assistant opens it in a browser and reads it there; at a bot check it asks the player to open
+        it instead, or to paste the PoB code.
     `partial: true` means some content loads client-side and detail may be missing. Never bypasses a
     block or a stated no-AI policy.
     """
