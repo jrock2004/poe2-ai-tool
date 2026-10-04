@@ -1,14 +1,14 @@
 ---
 name: poe2-new-league
-description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, point POE2_LEAGUE in .mcp.json at it, report which game-knowledge files the patch may have made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
+description: Walk the player through starting a new Path of Exile 2 league — pick the league from get_leagues, find its patch from the patch notes, point POE2_LEAGUE in .mcp.json at it, refresh the game-knowledge files the patch made stale, then hand off to onboarding the first character. Run when the player types /poe2-new-league.
 disable-model-invocation: true
 ---
 # poe2-new-league
 
 Load `poe2-core` first. This is a **checklist**, run once per league start. It sets the one piece of
-machine config that follows the league, tells the player what the patch may have made stale, and hands
-off to `poe2-character` for the build itself. It does **not** refresh knowledge files, regenerate the
-tree snapshot, or collect build guides — those belong to `CONTRIBUTING.md` and `poe2-character`.
+machine config that follows the league, reads the patch notes, refreshes the knowledge files they made
+stale, and hands off to `poe2-character` for the build itself. It does **not** regenerate the tree
+snapshot or collect build guides — those belong to `CONTRIBUTING.md` and `poe2-character`.
 
 Go one step at a time, and say which step you're on.
 
@@ -17,16 +17,25 @@ Go one step at a time, and say which step you're on.
 Call `get_leagues`. It doesn't depend on `POE2_LEAGUE`, so it works even while the config still names
 last league.
 
-Show the leagues marked `current` and ask which one the player is starting. **Don't pick for them from
+Show the leagues marked `current` as choices and ask which one the player is starting. **Don't pick for them from
 `current` alone** — poe2scout marks softcore, hardcore, and event leagues current at once. Hardcore is
 part of the league name they choose; SSF is **not** asked here — it's per character, and
 `poe2-character` asks it.
 
 Store the exact `league` value they choose, not the short name.
 
-Then ask which **patch** the league launched with — the version in the patch notes' title, e.g.
-`0.6.0`. `get_leagues` doesn't report it. Store it as the league's `patch` (see the shared model in
-`poe2-core`); it's what tree lookups fall back to when a guide doesn't say which patch it's for.
+Then find the **patch** the league launched with — `get_leagues` doesn't report it, so look it up:
+
+1. Find the official PoE2 patch notes on pathofexile.com (the forum's patch-notes section) for the
+   content update that launched this league. If the server fetch is blocked, open it in the browser; if
+   that's blocked too, use poe2db's patch-notes page. The version is in the title, e.g. `0.6.0` — take
+   the launch patch, not a later hotfix.
+2. Confirm it as a choice: **"<version> (from the patch notes)"** first, and "Other" for the player to
+   type one. If nothing turned up, ask for it directly, still offering "skip".
+
+Store it as the league's `patch` (see the shared model in `poe2-core`); it's what tree lookups fall
+back to when a guide doesn't say which patch it's for. Keep the patch notes you found — step 3 reads
+them, along with any hotfix notes posted since.
 
 ## 2. Point `POE2_LEAGUE` at it
 
@@ -34,38 +43,46 @@ Then ask which **patch** the league launched with — the version in the patch n
 path to `poe2-mcp`, so **never rewrite the file** — change only `mcpServers.poe2.env.POE2_LEAGUE`, and
 add that key (and `env`) only if it's missing. Keep the rest byte-for-byte.
 
-1. Read the file. Show the change in one line: `POE2_LEAGUE: "<old>" → "<new>"`.
-2. Make the edit. Keep the file UTF-8 with `\n` line endings.
+1. Read the file. If `POE2_LEAGUE` already names the chosen league, say so in a line and move on.
+2. Otherwise make the edit. Keep the file UTF-8 with `\n` line endings.
 3. If `.mcp.json` doesn't exist, **don't create it** — the path inside it is machine-specific. Tell the
    player to run the setup script with the league (`scripts/setup.sh "<league>"`, or
    `scripts\setup.ps1 -League "<league>"` on Windows), which writes it.
 
-Then say plainly: **the running MCP server still has the old league.** The new default applies after
-the session restarts. Until then, pass `league="<new>"` explicitly on any tool call in this session.
+Then tell the player to **restart Claude to finish switching leagues**. Until then, pass
+`league="<new>"` explicitly on any tool call in this session — that's yours to handle, not theirs.
 
-If the player plays on more than one machine, remind them `.mcp.json` is per machine — each one needs
-this step.
+## 3. Refresh what the patch made stale
 
-## 3. What the patch may have made stale
+Use the patch notes from step 1, plus any hotfix notes posted since. Each item follows its section of
+`CONTRIBUTING.md` → "Per-patch refresh" — its sources and rules (quote patch notes verbatim, no Maxroll,
+no odds or drop rates) apply here as written.
 
-Report, don't fix. Each item points to its section of `CONTRIBUTING.md` → "Per-patch refresh".
+- **Knowledge files.** Read the freshness stamp at the top of each:
+  - `skills/poe2-trials-advisor/references/trials-knowledge.md` (Trials — CONTRIBUTING step 2)
+  - `skills/poe2-meta-strategy/references/farming-knowledge.md` (farming — step 3)
+  - `skills/poe2-crafting/references/crafting-knowledge.md` (crafting — step 4)
 
-- **Passive tree.** List the snapshots in `mcp/src/poe2_mcp/data/` (`tree_<version>.json`). Path of
-  Building 2 usually ships the new tree days after league start, so there's normally nothing to check
-  yet. Tell the player what to expect:
-  > Until PoB2 ships the new tree, PoB-based reviews reflect last patch's tree — use screenshots or a
-  > description for the campaign. The first PoB from the updated version will come back with
-  > `tree.note` set; that's the signal to refresh the snapshot (CONTRIBUTING step 1).
-- **Knowledge files.** Read the freshness stamp at the top of each and show it:
-  - `skills/poe2-trials-advisor/references/trials-knowledge.md`
-  - `skills/poe2-crafting/references/crafting-knowledge.md`
-  - `skills/poe2-meta-strategy/references/farming-knowledge.md`
+  For each, check whether the notes touch its area (the "Needed when" line of its step). If they do,
+  refresh the file in place and re-stamp its date, patch, and sources. If not, leave it alone. Don't
+  commit or stage anything.
 
-  Ask whether the patch notes touched Trials, crafting currencies or mod tiers, or league mechanics.
-  For each yes, name the CONTRIBUTING step. If they haven't read the notes yet, say these files may be
-  stale and that the skills built on them should be treated as last patch's knowledge until refreshed.
-- **How-to steps** (`skills/poe2-core/references/how-to.md`) have no stamp; mention them only if the
-  player says the game's or PoB's UI changed.
+  Tell the player in one line per file what changed ("Trials: two new relics, Chaos afflictions
+  reworded") or that it was unaffected. If any file changed, add once: these are local edits; if
+  updating the assistant later says they're in the way, discard them — the update carries its own.
+- **How-to steps** (`skills/poe2-core/references/how-to.md`): refresh only if the notes change the
+  game's UI it describes (CONTRIBUTING step 5).
+- **Passive tree.** Not refreshable yet — Path of Building 2 ships the new tree days after league
+  start. List the snapshots in `mcp/src/poe2_mcp/data/` for yourself; tell the player only what affects
+  them:
+  > Until Path of Building 2 updates for this patch, reviews from a PoB code reflect last patch's tree —
+  > use screenshots or a description for the campaign.
+
+  The first PoB from the updated version comes back with `tree.note` set; that's the signal for
+  CONTRIBUTING step 1 (a maintainer task — don't attempt it here).
+
+If the patch notes couldn't be found, say these skills are working from last patch's knowledge until
+they can be refreshed, and lower confidence accordingly.
 
 ## 4. Existing state
 
@@ -77,13 +94,12 @@ Report, don't fix. Each item points to its section of `CONTRIBUTING.md` → "Per
 ## 5. Hand off
 
 Run `/poe2-character new` for the first character of the league, with the league already answered (the
-one from step 1). Build guide, goal, SSF, and how to read the build are all asked
-there.
+one from step 1). The rest of the character questions are asked there.
 
 ## Guardrails
 
-- The only file this skill writes is `.mcp.json`, and only `POE2_LEAGUE` in it. Knowledge files and
-  the tree snapshot are refreshed by following `CONTRIBUTING.md`, as a separate, reviewed change.
+- The only files this skill writes are `.mcp.json` (only `POE2_LEAGUE` in it) and the knowledge files
+  in step 3. It never stages or commits; the tree snapshot is left to `CONTRIBUTING.md`.
 - Read-only toward GGG, like every poe2 skill.
 - Beginner-friendly: if the player asks what a step means ("what's an MCP server?"), answer in a line
   and move on.
