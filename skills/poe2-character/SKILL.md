@@ -22,7 +22,7 @@ characters = [ {
   trade_mode,          # "trade" | "ssf" -> with league, picks the currency pool (poe2-core)
   clazz, ascendancy,   # e.g. Ranger / Deadeye
   archetype,           # the build in plain words, e.g. "Ice Shot Deadeye", "minion army"
-  goal,                # bossing | mapping | league-start | leveling | ...
+  goal,                # bossing | mapping | league-start | leveling | ... (new characters: leveling)
   guide,               # optional: a guide link or PoB reference
   build_source,        # how we read the actual gear/skills: "screenshot" | "description" | "pob"
   build_snapshot,      # optional: the last screenshot read / pasted build, for gear-upgrade/build-review
@@ -42,17 +42,29 @@ a time**, in plain language, and **write each answer to state as it comes in** (
 end). Keep it short:
 
 1. **Which character are we working on?** (name)
-2. **What is it?** Class + ascendancy and the build in plain words ("Ice Shot Deadeye", "minion army").
-   Fine if they only know some of it.
-3. **What's the goal right now?** Bossing, mapping, league-start, just leveling?
-4. **Following a guide?** If yes, take the link or PoB reference (optional).
-5. **Which league?** (so currency and trade prices resolve correctly). Check the answer against
-   `get_leagues` and store the exact league name it lists. If their league isn't marked `current`, or
-   a newer league is, say so: temp leagues end and fold into Standard, and the tools default to the
-   league pinned in `POE2_LEAGUE` — see "League rotation" in `poe2-core`.
-6. **Trade or SSF?** Can this character trade with other players, or is it Solo Self-Found? Store
-   `trade_mode`. It decides whether advice can say "buy it", and which currency pool is theirs.
-7. **How should I read your gear when we need it?** See "Reading a build" below.
+2. **Following a guide?** Choices: "Yes — I'll paste a link or PoB code" / "No". If yes, take it and
+   read class, ascendancy, and archetype from it (`fetch_guide` / `parse_pob_code`, handling routes as
+   `poe2-build-review` §1 does). Confirm them in one line ("Ice Shot Deadeye — right?") and store the
+   guide.
+3. **What is it?** Only if there's no guide, or the guide didn't say: class + ascendancy and the build
+   in plain words ("Ice Shot Deadeye", "minion army"). Fine if they only know some of it.
+4. **Which league?** (so currency and trade prices resolve correctly). Offer the leagues `get_leagues`
+   marks `current` as choices and store the exact league name it lists. If they name one that isn't
+   `current`, say so: temp leagues end and fold into Standard, and the tools default to the league
+   pinned in `POE2_LEAGUE` — see "League rotation" in `poe2-core`.
+5. **Trade or SSF?** Choices: "Trade" / "SSF (Solo Self-Found)". Store `trade_mode`. It decides whether
+   advice can say "buy it", and which currency pool is theirs.
+6. **First character this league?** Ask only when state can't tell — no other roster character in this
+   league + trade mode, and no currency pool for it. Choices: "Yes, fresh start" / "No, I have currency
+   or gear stashed". This isn't stored; it picks the next tip:
+   - **Fresh start** → a line of league-start advice suited to the build (what to pick up early).
+   - **Has a stash** → offer to read a currency-tab screenshot (`poe2-currency-tracker`) and to check
+     the stash for leveling uniques or gear worth handing to the new character.
+7. **How should I read your gear when we need it?** Choices, from "Reading a build" below, with
+   "Character screenshot" recommended during the campaign.
+
+Don't ask for a goal: a new character's `goal` starts as `leveling`. Ask for it later, when it starts to
+matter — see "Listing, updating, switching".
 
 Set this first character **active**. Then confirm the profile back in one line.
 
@@ -64,7 +76,7 @@ Store `experience_level`; `poe2-core` uses it to tune verbosity. The player can 
 **Each new character** triggers a *short* version (steps 1–7); experience level is already set, so skip
 it. **`/poe2-character new`** goes straight to this short interview, without asking what the player
 wants to do first. If the league is already known — e.g. handed over by `poe2-new-league` — skip
-step 5. When it's done, set the new character active and say which one it replaced.
+step 4. When it's done, set the new character active and say which one it replaced.
 
 ## Reading a build (what actually works today)
 
@@ -88,6 +100,9 @@ registration reopens, this upgrades transparently (see `docs/ggg-oauth-applicati
 - **List** the roster on request: name, class/archetype, goal, league, trade or SSF, and which is
   active.
 - **Update** a build: re-take a screenshot or edit goal/guide/archetype; bump `updated_at`.
+- **Goal past leveling** — when a character with `goal: leveling` has clearly finished the campaign
+  (maps, endgame gear, a build-switch question), ask once as a choice — bossing, mapping, or something
+  else — and store it.
 - **Set active** — a one-line state update ("work on my Deadeye now"). Exactly one active at a time.
 - **Per-request override** — "check my *minion build's* boots" names a character inline for that one
   answer **without** changing the default active. This plus a default active is the whole of "switching"
