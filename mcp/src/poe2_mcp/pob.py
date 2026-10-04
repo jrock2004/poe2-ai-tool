@@ -240,13 +240,40 @@ def _parse_tree(spec: ET.Element, items_by_id: dict[str | None, str]) -> dict[st
             continue
         jewels.append({"nodeId": int(node_id), **_item_summary(items_by_id[item_id])})
 
-    tree_version = spec.get("treeVersion")
+    return {**_tree_block(nodes, spec.get("treeVersion"), weapon_sets), "jewels": jewels}
+
+
+def summarize_tree(
+    main: list[int],
+    tree_version: str,
+    weapon_set_1: list[int] | None = None,
+    weapon_set_2: list[int] | None = None,
+    ascendancy: list[int] | None = None,
+) -> dict[str, Any]:
+    """A passive tree from bare node ids -- for guides with no PoB (e.g. Mobalytics' page data).
+
+    Gives the same block as a PoB tree, minus `jewels` (ids carry no items). The lists may be
+    disjoint (Mobalytics' authored variants) or overlap (PoB puts weapon-set nodes in the main list
+    too); a repeated node counts once, so both shapes give the same counts.
+    """
+    set_1, set_2 = _unique(weapon_set_1 or []), _unique(weapon_set_2 or [])
+    nodes = _unique([*main, *set_1, *set_2, *(ascendancy or [])])
+    return _tree_block(nodes, tree_version, {"1": set_1, "2": set_2})
+
+
+def _unique(ids: list[int]) -> list[int]:
+    """`ids` without repeats, first occurrence kept."""
+    return list(dict.fromkeys(ids))
+
+
+def _tree_block(
+    nodes: list[int], tree_version: str | None, weapon_sets: dict[str, list[int]]
+) -> dict[str, Any]:
     return {
         "treeVersion": tree_version,
         "nodes": nodes,
         "allocatedCount": len(nodes),
         "weaponSetNodes": weapon_sets,
-        "jewels": jewels,
         **_name_and_count(nodes, tree_version, weapon_sets),
     }
 

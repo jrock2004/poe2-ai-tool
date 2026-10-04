@@ -5,7 +5,7 @@ import zlib
 import pytest
 
 from poe2_mcp import pob
-from poe2_mcp.pob import PobError, decode_pob_code, parse_pob_code, parse_pob_xml
+from poe2_mcp.pob import PobError, decode_pob_code, parse_pob_code, parse_pob_xml, summarize_tree
 
 SAMPLE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <PathOfBuilding2>
@@ -467,3 +467,80 @@ def test_missing_sections_give_empty_set_lists():
 def test_parse_code_passes_selectors_through():
     r = parse_pob_code(_encode(MULTI_SET_XML), skill_set=1)
     assert _gem_names(r) == ["Ice Shot"]
+
+
+# --- A tree from bare node ids (guides with no PoB, e.g. Mobalytics) ------------------------------
+# Same naming and point counting as a PoB tree, from id lists. Mobalytics' authored variants give
+# main / weapon set 1 / weapon set 2 / ascendancy as disjoint lists; PoB (and Mobalytics' imported
+# "Live Gear") put weapon-set nodes in the main list too. Both shapes must give the same answer.
+
+
+def test_summarize_tree_merges_every_list_into_nodes():
+    tree = summarize_tree([100, 200], "0_5", weapon_set_1=[300], weapon_set_2=[400], ascendancy=[500])
+    assert tree["treeVersion"] == "0_5"
+    assert tree["nodes"] == [100, 200, 300, 400, 500]
+    assert tree["allocatedCount"] == 5
+    assert tree["weaponSetNodes"] == {"1": [300], "2": [400]}
+
+
+def test_summarize_tree_counts_a_repeated_node_once():
+    tree = summarize_tree([100, 100, 200], "0_5", ascendancy=[200])
+    assert tree["nodes"] == [100, 200]
+    assert tree["allocatedCount"] == 2
+
+
+def test_summarize_tree_names_nodes_from_the_given_version(monkeypatch):
+    asked: list = []
+
+    def fake_load_snapshot(version):
+        asked.append(version)
+        return FAKE_SNAPSHOT
+
+    monkeypatch.setattr(pob, "load_snapshot", fake_load_snapshot)
+    tree = summarize_tree([100, 200, 500], "0_5", ascendancy=[300, 400])
+    assert asked == ["0_5"]
+    assert [n["name"] for n in tree["keystones"]] == ["Zealot's Oath"]
+    assert [n["name"] for n in tree["notables"]] == ["Heavy Buffer", "Gathering Winds"]
+    assert tree["passiveCount"] == 3     # 100, 200, 500
+    assert tree["ascendancyCount"] == 1  # 400; the ascendancy start (300) is free
+
+
+def test_summarize_tree_nets_out_the_smaller_weapon_set(monkeypatch):
+    # Same nodes as test_passive_count_nets_out_the_smaller_weapon_set, in the disjoint shape.
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: WEAPON_SET_SNAPSHOT)
+    tree = summarize_tree([1, 10, 11, 12], "0_5", weapon_set_1=[20, 21], weapon_set_2=[30, 31, 32])
+    assert tree["passiveCount"] == 8 - 2
+
+
+def test_summarize_tree_gives_the_same_counts_when_main_includes_weapon_set_nodes(monkeypatch):
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: WEAPON_SET_SNAPSHOT)
+    disjoint = summarize_tree([1, 10, 11, 12], "0_5", weapon_set_1=[20, 21], weapon_set_2=[30, 31, 32])
+    overlapping = summarize_tree([1, 10, 11, 12, 20, 21, 30, 31, 32], "0_5",
+                                 weapon_set_1=[20, 21], weapon_set_2=[30, 31, 32])
+    for field in ("allocatedCount", "passiveCount", "ascendancyCount"):
+        assert overlapping[field] == disjoint[field]
+
+
+def test_summarize_tree_matches_a_pob_tree_with_the_same_nodes(monkeypatch):
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: FAKE_SNAPSHOT)
+    from_pob = parse_pob_xml(NAMED_TREE_XML)["tree"]
+    from_ids = summarize_tree([100, 200, 500], "0_5", weapon_set_1=[300], weapon_set_2=[400])
+    for field in ("passiveCount", "ascendancyCount", "keystones", "notables", "ascendancyChoices",
+                  "treeDataVersion", "note", "weaponSetNodes", "allocatedCount"):
+        assert from_ids[field] == from_pob[field], field
+    assert sorted(from_ids["nodes"]) == sorted(from_pob["nodes"])
+
+
+def test_summarize_tree_without_a_snapshot_keeps_ids_and_says_why(monkeypatch):
+    monkeypatch.setattr(pob, "load_snapshot", lambda version: None)
+    tree = summarize_tree([100, 200], "0_9")
+    assert tree["nodes"] == [100, 200]
+    assert tree["passiveCount"] is None
+    assert "0_9" in tree["note"]
+
+
+def test_summarize_tree_with_no_nodes():
+    tree = summarize_tree([], "0_5")
+    assert tree["nodes"] == []
+    assert tree["allocatedCount"] == 0
+    assert tree["weaponSetNodes"] == {"1": [], "2": []}

@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
+from .pob import summarize_tree as _summarize_tree
 from .poe2scout import (
     Poe2ScoutClient,
     change_vs_divine,
@@ -476,6 +477,27 @@ async def parse_pob_code(
             "error": str(e),
             "note": "Paste the code from Path of Building: Import/Export -> Generate -> Copy.",
         }
+
+
+@mcp.tool()
+async def summarize_tree(
+    main: list[int],
+    tree_version: str,
+    weapon_set_1: list[int] | None = None,
+    weapon_set_2: list[int] | None = None,
+    ascendancy: list[int] | None = None,
+) -> dict[str, Any]:
+    """Name and count a Path of Exile 2 passive tree from bare node ids.
+
+    For guides with no PoB code -- e.g. Mobalytics, whose page data lists each variant's tree as
+    `node-<id>` slugs (strip the `node-` prefix). Pass the main tree, each weapon set's nodes, and
+    the ascendancy nodes; the lists may be disjoint or overlap. `tree_version` is the snapshot to
+    name against, e.g. "0_5" for patch 0.5.x. Returns the same block as `parse_pob_code`'s `tree`
+    (node ids, named keystones/notables, ascendancy choices, passive/ascendancy point counts),
+    without `jewels`; if there's no snapshot for the version, `note` says so and only ids come back.
+    Offline; no network.
+    """
+    return _summarize_tree(main, tree_version, weapon_set_1, weapon_set_2, ascendancy)
 
 
 def main() -> None:
