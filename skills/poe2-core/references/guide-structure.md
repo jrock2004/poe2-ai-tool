@@ -58,7 +58,9 @@ is one stage list.
   const ids = l => (l?.selectedSlugs ?? []).map(s => +s.replace("node-", ""));  // null before weapon-set points
   variants.map(v => ({ id: v.id, title: titles[v.id] ?? null,
     main: ids(v.passiveTree.mainTree), set1: ids(v.passiveTree.set1Tree),
-    set2: ids(v.passiveTree.set2Tree), ascendancy: ids(v.passiveTree.ascendancyTree) }));
+    set2: ids(v.passiveTree.set2Tree), ascendancy: ids(v.passiveTree.ascendancyTree),
+    gems: (v.skillGems?.gems ?? []).map(g => ({ skill: g.activeSkill?.name,
+      weaponSet: g.weaponSet, supports: (g.subSkills ?? []).map(s => s.gemSlug) })) }));
   ```
 
   Each variant's `id` is the tab's `activeVariantId`, and joining on it gives the tab title — join by
@@ -66,6 +68,12 @@ is one stage list.
   tree version ("0.5.5" → `"0_5"`). That gives the same tree block as `parse_pob_code`, so trees
   compare id-to-id like a PoB guide. The state is Mobalytics' internal shape and can change: if a
   key is missing, say so, fall back to the tab text, and treat tree comparison as name-based.
+
+  Gems come back as Mobalytics slugs, not names. Translate them to display names before showing the
+  player (`supportfarcombatplayertwo` → Far Combat II: drop `support`/`player`, a trailing `two` /
+  `three` is the support's tier — "Elemental Armament II", not a gem level); a support slug that is an active skill (`iceshotplayer`) is a
+  gem socketed into a skill like Mirage Archer. `weaponSet` is `"set1"` / `"set2"`, or `null` for
+  gems that aren't tied to a weapon set (spirit gems like Herald of Ice).
 - **PoB codes** often hold every stage as separate tree specs, skill sets, and item sets.
   `parse_pob_code` parses the active ones and lists all three in `sets` (position, title, active).
   Read `sets` first to map stages, then call again with `tree_spec` / `skill_set` / `item_set` set

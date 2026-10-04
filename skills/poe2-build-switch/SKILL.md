@@ -79,9 +79,11 @@ Where it doesn't, reason from what the main skill needs; say it's your judgment.
 ## 4. Cost the switch
 
 - **Missing uniques** → `price_unique`. **Missing rares** → `poe2-price-check`'s trade flow.
-- **Respec** — passive refunds cost gold, and nothing here reads gold. Estimate the number of points
-  that change (compare `tree` blocks if both sides are PoB) and **ask** whether the player can cover
-  it; don't guess their gold.
+- **Respec** — passive refunds cost gold, and nothing here reads gold. When both sides have a `tree`
+  block (PoB or `summarize_tree`), **count** the refunds: nodes in the character's tree that the
+  target stage doesn't have. Ascendancy nodes are refunded separately (next bullet). Without two
+  tree blocks, estimate and say so. Then **ask** whether the player can cover it; don't guess their
+  gold.
 - **Ascendancy change** (same class, different Ascendancy) — refund the ascendancy points for gold
   (5× a passive-point refund), then re-run a Trial that grants the points held and re-ascend into
   the new one. Name both costs: the gold, and the Trial run (hand off to `poe2-trials-advisor`).
