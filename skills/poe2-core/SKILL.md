@@ -37,6 +37,14 @@ explain things to newcomers consistently.
    retry blindly: tell the player a league rotation happened, pass `league=` explicitly (from the
    available list, or the character's stored league) to keep going, and tell them to update
    `POE2_LEAGUE` in `.mcp.json` and restart the server so the default follows.
+6. **Offer choices for closed questions.** When a question has a known set of answers — a league, a
+   patch, trade or SSF, how to read gear, yes/no — present them as choices (the client's structured
+   question prompt when it has one, e.g. `AskUserQuestion`; otherwise a short numbered list), with a
+   recommended option first when there is one. Free text only for open answers like a character name.
+7. **Talk like a product, not a dev log.** The player sees answers, not the repo. Don't mention files,
+   config keys, tool names, machines, or "verify this" notes unless the player has to act on them —
+   and then say the action in player terms ("restart Claude to finish switching leagues"). When a step
+   found nothing to change, say so in a line, or skip it.
 
 ## Player & character state (shared model)
 
