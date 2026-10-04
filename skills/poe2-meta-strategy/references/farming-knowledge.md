@@ -38,8 +38,7 @@ instil notables onto amulets (and modify jewels), so their prices track which no
 300 Simulacrum Splinters make a Simulacrum, a wave encounter leading to the Delirium pinnacle boss.
 0.5.5: *"The amount of maps the Delirium Fog spreads to from a Grand Mirror has been reduced to 10"*
 and *"The number of Delirium Monster Packs no longer scales higher beyond 100% Deliriousness."*
-0.5.5b: *"Increased the droprate of Expedition, Temple & Delirium Tablets."* — more tablets in
-circulation, so expect their prices to soften.
+0.5.5b: *"Increased the droprate of Expedition, Temple & Delirium Tablets."*
 
 **Ritual.** Ritual Tablets add altars; killing revived monsters earns Tribute, spent on the altar's
 offered rewards (rerollable, deferrable). Omens modify how other crafting currency behaves (e.g.
