@@ -15,10 +15,10 @@ Vision can misread a stack count or a look-alike icon, so the rule is **confirm 
 
 Currency is pooled by **league and trade mode**: every trade character in a league shares one pool, and
 every SSF character in it shares another — in-game they're separate stashes (see the shared model in
-`poe2-core`). Persist in memory keyed by both:
+`poe2-core`). Saved state (`update_state`) keys it by both:
 
 ```
-currency[league, trade_mode] = {
+currency[league][trade_mode] = {
   tabs: {
     "<tab name>": {              # e.g. "currency", "crafting", "essences"
       items: [ { name, count, confidence } ],   # name = canonical (glossary-normalized)
@@ -33,11 +33,12 @@ currency[league, trade_mode] = {
 
 **Which pool** — the one matching the character being worked on: its `league` and `trade_mode`. If
 there's no active character, or its `trade_mode` is unset, ask before saving — a screenshot saved to
-the wrong pool silently corrupts both. An entry keyed by league alone (saved before trade mode existed)
-is the trade pool.
+the wrong pool silently corrupts both.
 
 **Totals** = per-name sum across all tabs, plus any `adjustments`. Keep tabs separate so re-sending one
-tab replaces just that bucket instead of double-counting.
+tab replaces just that bucket instead of double-counting: patch only that tab, e.g.
+`{"currency": {"<league>": {"trade": {"tabs": {"currency": {...}}}}}}`. `adjustments` is an array, so
+a patch replaces it whole — send the full list.
 
 ## Reading a screenshot
 

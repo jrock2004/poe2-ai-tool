@@ -124,7 +124,7 @@ you'd need to free ~20 Spirit"), and reject outright any option that makes gear/
 
 This is a loop, not a one-shot. The player pastes back what the search returned or bought; critique it
 ("those are overpriced because the crit filter is too tight — drop it and the floor halves") and refine
-the filter. Keep the last search in active trade context so "cheaper" / "loosen it" continues without
+the filter. Keep the last search in this conversation so "cheaper" / "loosen it" continues without
 re-stating everything. If a search returns nothing, widen it (per `poe2-price-check`) rather than
 reporting a shaky result.
 

@@ -1,8 +1,9 @@
 """Per-user persistent state owned by the server: one folder outside the install, so it survives
 plugin updates and is shared by every Claude client on the machine. File I/O only -- no network.
 
-Today it holds config.json ({"league": ...}, written by the set_league tool). Set POE2_DATA_DIR to
-point it elsewhere (tests do).
+It holds config.json ({"league": ...}, written by set_league), state.json (the player's roster and
+currency -- state.py) and knowledge/ (local refreshes -- knowledge.py). Set POE2_DATA_DIR to point it
+elsewhere (tests do).
 """
 from __future__ import annotations
 
@@ -36,28 +37,37 @@ def data_dir() -> Path:
     return base / APP_NAME
 
 
-def read_config(root: Path) -> dict[str, Any]:
-    """root/config.json, or {} if missing. Corrupt JSON raises, naming the path; never silently resets."""
-    path = root / CONFIG_FILE
+def read_json(path: Path) -> dict[str, Any]:
+    """The JSON object at path, or {} if missing. Corrupt JSON raises, naming the path; never silently
+    resets."""
     try:
         text = path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return {}
     try:
-        config = json.loads(text)
+        obj = json.loads(text)
     except json.JSONDecodeError as e:
         raise RuntimeError(f"{path} is not valid JSON ({e}); fix or delete it") from e
-    if not isinstance(config, dict):
+    if not isinstance(obj, dict):
         raise RuntimeError(f"{path} must hold a JSON object; fix or delete it")
-    return config
+    return obj
+
+
+def write_json(path: Path, obj: dict[str, Any]) -> None:
+    """Creates the parent dir; writes utf-8, newline="\\n", via temp file + os.replace (never half-written)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(obj, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    os.replace(tmp, path)
+
+
+def read_config(root: Path) -> dict[str, Any]:
+    """root/config.json, or {} if missing (see read_json)."""
+    return read_json(root / CONFIG_FILE)
 
 
 def write_config(root: Path, config: dict[str, Any]) -> None:
-    """Creates root; writes utf-8, newline="\\n", via temp file + os.replace (no half-written config)."""
-    root.mkdir(parents=True, exist_ok=True)
-    path = root / CONFIG_FILE
-    tmp = path.with_name(path.name + ".tmp")
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-    os.replace(tmp, path)
+    """Write root/config.json (see write_json)."""
+    write_json(root / CONFIG_FILE, config)

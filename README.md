@@ -34,8 +34,8 @@ You (in Claude)
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
    │
-   └── Persistent state (Claude memory)
-         your characters, currency inventory, active trade context
+   └── Persistent state (saved by the MCP server, per user)
+         your characters, currency inventory, league records, knowledge refreshes
 ```
 
 ## Data sources & the reuse-vs-build decision

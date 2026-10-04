@@ -33,7 +33,7 @@ Then find the **patch** the league launched with — `get_leagues` doesn't repor
 2. Confirm it as a choice: **"<version> (from the patch notes)"** first, and "Other" for the player to
    type one. If nothing turned up, ask for it directly, still offering "skip".
 
-Store it as the league's `patch` (see the shared model in `poe2-core`); it's what tree lookups fall
+Store it with `update_state` as `leagues["<league>"].patch` (see the shared model in `poe2-core`); it's what tree lookups fall
 back to when a guide doesn't say which patch it's for. Keep the patch notes you found — step 3 reads
 them, along with any hotfix notes posted since.
 

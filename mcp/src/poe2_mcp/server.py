@@ -16,7 +16,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from . import knowledge, store
+from . import knowledge, state, store
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
@@ -131,6 +131,28 @@ async def save_knowledge(topic: str, text: str) -> dict[str, Any]:
     that ships newer knowledge takes over from it automatically.
     """
     return _knowledge_fields(knowledge.save(topic, text, store.data_dir()))
+
+
+@mcp.tool()
+async def get_state() -> dict[str, Any]:
+    """Get the player's saved state: `player` (profile), `characters` (roster, keyed by name),
+    `currency` (inventory as currency[league][trade_mode]), and `leagues` (per-league records such as
+    the patch). Shared by every Claude client on this machine; the poe2-core skill defines the shapes.
+    """
+    return state.load(store.data_dir())
+
+
+@mcp.tool()
+async def update_state(patch: dict[str, Any]) -> dict[str, Any]:
+    """Change the player's saved state with a JSON Merge Patch (RFC 7396) and return the new state.
+
+    Send only what changes: objects merge, `null` deletes a key, arrays and plain values replace.
+    e.g. {"characters": {"Mandy__Chaos": {"goal": "mapping"}}} changes one field;
+    {"characters": {"Old": null}} removes a character. Top-level keys must be player, characters,
+    currency, or leagues. Setting `active: true` on a character clears it on all others.
+    A rejected patch raises and changes nothing.
+    """
+    return state.update(store.data_dir(), patch)
 
 
 @mcp.tool()

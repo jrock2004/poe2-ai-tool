@@ -11,13 +11,12 @@ do. Switching the active character is a state update here, **not** a separate sk
 
 ## State model
 
-Two things live in memory (see the shared model in `poe2-core`):
+Two sections of saved state (`get_state` / `update_state`; see the shared model in `poe2-core`):
 
 ```
 player = { experience_level }            # account-level; tunes verbosity (poe2-core §7). Set once.
 
-characters = [ {
-  name,                 # character name (the id)
+characters = { "<name>": {               # keyed by character name (the id)
   league,              # which league they're in (the trade league's name, even for SSF)
   trade_mode,          # "trade" | "ssf" -> with league, picks the currency pool (poe2-core)
   clazz, ascendancy,   # e.g. Ranger / Deadeye
@@ -28,7 +27,7 @@ characters = [ {
   build_snapshot,      # optional: the last screenshot read / pasted build, for gear-upgrade/build-review
   active,              # exactly one character is active at a time
   created_at, updated_at
-} ]
+} }
 ```
 
 Currency is **pooled by league + trade mode, not by character** — all trade characters in a league
@@ -103,7 +102,8 @@ registration reopens, this upgrades transparently (see `docs/ggg-oauth-applicati
 - **Goal past leveling** — when a character with `goal: leveling` has clearly finished the campaign
   (maps, endgame gear, a build-switch question), ask once as a choice — bossing, mapping, or something
   else — and store it.
-- **Set active** — a one-line state update ("work on my Deadeye now"). Exactly one active at a time.
+- **Set active** — a one-line state update ("work on my Deadeye now"): `{"characters": {"<name>":
+  {"active": true}}}`. The server clears the old one, so exactly one stays active.
 - **Per-request override** — "check my *minion build's* boots" names a character inline for that one
   answer **without** changing the default active. This plus a default active is the whole of "switching"
   — deliberately not its own skill.

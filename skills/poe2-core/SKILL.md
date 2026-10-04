@@ -48,16 +48,22 @@ explain things to newcomers consistently.
 
 ## Player & character state (shared model)
 
-Skills read and write a small persistent state (in Claude memory):
+Skills read and write a small persistent state through the `poe2` server — not Claude memory, so it's
+the same in every Claude client and folder. `get_state` returns the whole document; `update_state`
+changes it with a JSON Merge Patch: send only what changes, objects merge, `null` deletes a key,
+arrays replace. Four sections:
 
-- **characters[]** — each with name, class/ascendancy, build archetype, goal, guide link, league,
-  `trade_mode`, and an `active` flag.
-- **currency inventory** — per **league + trade mode**, shared by every character in that pool,
-  populated from screenshots (see `poe2-currency-tracker`). An SSF character has its own stash, so its
-  currency never mixes with a trade character's in the same league.
-- **active trade context** — the last search + results, for the iterative trade-filter loop.
-- **leagues** — per league, the `patch` it launched with (e.g. `"0.6.0"`), set by `poe2-new-league`.
-  A league with no record (started before this existed): ask the player once, then store it.
+- **player** — `experience_level` (tunes verbosity, §2).
+- **characters** — keyed by name; each with class/ascendancy, build archetype, goal, guide link,
+  league, `trade_mode`, and an `active` flag (`poe2-character`). Setting one `active` clears the rest.
+- **currency** — `currency[league][trade_mode]`, shared by every character in that pool, populated
+  from screenshots (see `poe2-currency-tracker`). An SSF character has its own stash, so its currency
+  never mixes with a trade character's in the same league.
+- **leagues** — `leagues[league].patch`, the patch it launched with (e.g. `"0.6.0"`), set by
+  `poe2-new-league`. A league with no record (started before this existed): ask the player once, then
+  store it.
+
+The last trade search isn't saved: the "cheaper / loosen it" loop lives in the conversation.
 
 **Trade or SSF** — `trade_mode` is `"trade"` or `"ssf"`, per character. Any skill whose advice depends
 on whether the player can trade reads it from the character it's working on; skills point here rather

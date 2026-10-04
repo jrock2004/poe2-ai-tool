@@ -76,6 +76,9 @@ Implemented (Phase 1):
 - `get_knowledge(topic)` / `save_knowledge(topic, text)` — per-patch game knowledge (`trials`,
   `farming`, `crafting`). Returns the newer of the shipped copy and the player's saved refresh, by the
   file's `patch`/`refreshed` header. Offline.
+- `get_state()` / `update_state(patch)` — the player's saved state (profile, roster, currency, league
+  records) as one JSON document in the per-user data dir, changed by RFC 7396 merge patch. Rejects
+  unknown sections; setting one character `active` clears the rest. Offline.
 - `get_currency_prices(category, search, league?)` — currency prices in exalted + divine.
 - `price_unique(name, league?)` — unique/currency reference price, with close-name suggestions.
 - `value_currency(holdings, league?)` — value an inventory of {name, count} at current prices, in

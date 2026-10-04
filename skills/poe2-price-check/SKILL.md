@@ -65,7 +65,7 @@ Narrate it plainly: *"Nothing matched at 80 life + 30% MS; I dropped movement sp
 The player acts, never the tool. Output is a **link + the exact filters** (and per-listing whisper
 text to copy) — never an auto-purchase or whisper. After a search, invite the loop: the player pastes
 back what they saw or bought, and you critique and refine ("those are overpriced because the crit
-filter is too tight — drop it and the floor halves"). Keep the last search in active trade context so
+filter is too tight — drop it and the floor halves"). Keep the last search in this conversation so
 "search again, cheaper" continues without re-stating everything.
 
 ## SSF characters
