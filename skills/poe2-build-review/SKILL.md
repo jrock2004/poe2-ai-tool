@@ -19,8 +19,11 @@ result honestly — it won't scrape around a block:
 
 - **`fetched: true`** → use the text. If **`partial: true`**, some detail (gem/gear tables) loaded
   client-side and may be missing — say so, and offer to fill gaps from a pasted PoB code.
-- **`route: "browser"`** (e.g. Mobalytics/Cloudflare) → the page can't be server-fetched; offer to read
-  it in the player's own browser, or ask for the PoB code.
+- **`route: "browser"`** (e.g. Mobalytics/Cloudflare) → the page can't be server-fetched. Open it
+  yourself in the browser you have (the client's built-in browser, Playwright, or Chrome) and read it
+  there — the player doesn't need it open. If the page shows a bot check (CAPTCHA, "verify you are
+  human"), **don't solve it**: ask the player to open the guide in their own browser, then read it
+  from there, or take its PoB code.
 - **`route: "paste"`** (e.g. Maxroll — its license prohibits automated use) → ask the player to paste
   the guide's PoB code or its text. Don't try to fetch it another way.
 
@@ -114,6 +117,8 @@ prose guide, or ids only (`tree.note` set), is Medium at best; mismatched `treeV
 ## Guardrails
 
 - **Never conflate "deviated" with "behind."** Behind-on-gearing is normal progress, not a mistake.
-- **Respect the guide-fetch routes.** If `fetch_guide` says paste/browser, ask — don't scrape around it.
+- **Respect the guide-fetch routes.** "browser" means reading the page as a visitor would, in a real
+  browser — never solving a bot check or working around one. "paste" means ask; don't fetch it any
+  other way.
 - Survivability before damage in the fix list; one priority at a time.
 - Never buy, list, or whisper. Output is a diff + advice + trade links the player acts on.
