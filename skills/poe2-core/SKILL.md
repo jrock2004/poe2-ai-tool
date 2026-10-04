@@ -17,6 +17,9 @@ explain things to newcomers consistently.
   (in exalted vs. divine). Used to normalize what the player types.
 - **`references/how-to.md`** — step-by-step "how do I get that for you?" instructions (export a PoB
   code, copy an item in game, screenshot a currency tab, find a build guide).
+- **`references/guide-structure.md`** — how to turn any build guide (linked guides, level or gear
+  tabs, prose) into ordered stages with entry conditions. Used by `poe2-build-review` and
+  `poe2-build-switch`.
 
 ## Rules every skill inherits
 
