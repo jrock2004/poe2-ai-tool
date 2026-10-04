@@ -99,7 +99,8 @@ one from step 1). The rest of the character questions are asked there.
 ## Guardrails
 
 - The only files this skill writes are `.mcp.json` (only `POE2_LEAGUE` in it) and the knowledge files
-  in step 3. It never stages or commits; the tree snapshot is left to `CONTRIBUTING.md`.
+  in step 3. It never stages or commits, and doesn't suggest `git` commands; the tree snapshot is left
+  to `CONTRIBUTING.md`.
 - Read-only toward GGG, like every poe2 skill.
 - Beginner-friendly: if the player asks what a step means ("what's an MCP server?"), answer in a line
   and move on.

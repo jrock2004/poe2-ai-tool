@@ -47,6 +47,10 @@ to it. Say what to look for and where; don't restate the diff in prose.
 When a slice is ready, hand over the commit as **separate blocks** — `git add <files>` in one,
 `git commit -m '...'` in another — with a **single-quoted** message.
 
+This loop is for **development work** on the repo. Files a `poe2-*` skill writes while running for the
+player (e.g. `/poe2-new-league` refreshing knowledge files) are not a slice: no review handoff, no `git`
+commands. They become one only when John asks for them to be reviewed as a change.
+
 ## Project
 
 Personal Path of Exile 2 decision assistant. Two parts:
