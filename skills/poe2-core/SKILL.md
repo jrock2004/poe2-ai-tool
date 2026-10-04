@@ -48,6 +48,8 @@ Skills read and write a small persistent state (in Claude memory):
   populated from screenshots (see `poe2-currency-tracker`). An SSF character has its own stash, so its
   currency never mixes with a trade character's in the same league.
 - **active trade context** — the last search + results, for the iterative trade-filter loop.
+- **leagues** — per league, the `patch` it launched with (e.g. `"0.6.0"`), set by `poe2-new-league`.
+  A league with no record (started before this existed): ask the player once, then store it.
 
 **Trade or SSF** — `trade_mode` is `"trade"` or `"ssf"`, per character. Any skill whose advice depends
 on whether the player can trade reads it from the character it's working on; skills point here rather

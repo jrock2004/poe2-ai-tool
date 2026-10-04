@@ -65,7 +65,10 @@ is one stage list.
 
   Each variant's `id` is the tab's `activeVariantId`, and joining on it gives the tab title — join by
   `id`, not position. Pass each variant's lists to `summarize_tree` with the guide's patch as the
-  tree version ("0.5.5" → `"0_5"`). That gives the same tree block as `parse_pob_code`, so trees
+  tree version ("0.5.5" → `"0_5"`). If the guide doesn't say which patch it's for, use the stored
+  `patch` of the character's league (see the shared model in `poe2-core`) and say the version was
+  assumed — never a snapshot version just because it exists. If the guide's patch is older than the
+  league's, say the guide may predate this patch's tree changes. That gives the same tree block as `parse_pob_code`, so trees
   compare id-to-id like a PoB guide. The state is Mobalytics' internal shape and can change: if a
   key is missing, say so, fall back to the tab text, and treat tree comparison as name-based.
 

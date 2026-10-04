@@ -24,6 +24,10 @@ part of the league name they choose; SSF is **not** asked here — it's per char
 
 Store the exact `league` value they choose, not the short name.
 
+Then ask which **patch** the league launched with — the version in the patch notes' title, e.g.
+`0.6.0`. `get_leagues` doesn't report it. Store it as the league's `patch` (see the shared model in
+`poe2-core`); it's what tree lookups fall back to when a guide doesn't say which patch it's for.
+
 ## 2. Point `POE2_LEAGUE` at it
 
 `.mcp.json` sits at the repo root. It is git-ignored and machine-local: it holds this machine's absolute
