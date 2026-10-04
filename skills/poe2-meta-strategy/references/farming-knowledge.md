@@ -5,7 +5,7 @@
 > player sees something different in game, trust the game and lower confidence.
 >
 > **Sources:** official 0.5.5 patch notes (pathofexile.com forum thread 4000864 — quoted lines below
-> are verbatim); poe2db.tw mechanic pages (Breach, Delirium, Ritual, Expedition, Abyss). Item
+> are verbatim) and its hotfixes through 0.5.5d (checked 2026-10-04); poe2db.tw mechanic pages (Breach, Delirium, Ritual, Expedition, Abyss). Item
 > families come from **poe2scout's live category lists**, not from memory. Not used: poe2wiki
 > (bot-challenge wall), game8 (blocks AI crawlers), Maxroll (license forbids AI use), and the
 > currency-seller "guide" sites that dominate search results.
@@ -38,6 +38,8 @@ instil notables onto amulets (and modify jewels), so their prices track which no
 300 Simulacrum Splinters make a Simulacrum, a wave encounter leading to the Delirium pinnacle boss.
 0.5.5: *"The amount of maps the Delirium Fog spreads to from a Grand Mirror has been reduced to 10"*
 and *"The number of Delirium Monster Packs no longer scales higher beyond 100% Deliriousness."*
+0.5.5b: *"Increased the droprate of Expedition, Temple & Delirium Tablets."* — more tablets in
+circulation, so expect their prices to soften.
 
 **Ritual.** Ritual Tablets add altars; killing revived monsters earns Tribute, spent on the altar's
 offered rewards (rerollable, deferrable). Omens modify how other crafting currency behaves (e.g.
@@ -48,7 +50,8 @@ own Tribute in 0.5.5.
 **Expedition.** Core (not league-only) since 0.5.5: *"Expedition Tablets can now be found in
 Standard and in the new Forbidden Rites League."* Tablets add expeditions to maps; Logbooks open
 larger Grand Expeditions; Sagas modify Grand Expeditions. Artifacts are traded to the Expedition
-NPCs for items.
+NPCs for items. 0.5.5b: *"Fixed a bug where Expedition could not spawn naturally in Endgame."* and
+raised the Expedition Tablet drop rate (see Delirium).
 
 **Abyss.** Abyss Tablets add Abysses. 0.5.5: *"Large Abyssal Ravines can now appear throughout the
 Atlas. Maps found on these ravine are guaranteed to contain Abysses."* — so Abyss can be targeted by
