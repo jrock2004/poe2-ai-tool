@@ -153,13 +153,12 @@ def test_between_matches_exactly_its_range():
 
 
 
-@pytest.mark.parametrize("lo, hi", [
-    *((lo, hi) for lo in range(100, 1000, 37) for hi in range(lo, 1000, 41)),
-    (100, 100), (100, 999), (199, 200), (100, 214), (150, 174), (999, 999),
-])
-def test_fixed_matches_exactly_its_three_digit_range(lo, hi):
-    rx = re.compile("|".join(_fixed(lo, hi, 3)))
-    assert [v for v in range(1000) if rx.fullmatch(str(v))] == list(range(lo, hi + 1))
+def test_fixed_matches_exactly_its_three_digit_range():
+    ranges = [*((lo, hi) for lo in range(100, 1000, 37) for hi in range(lo, 1000, 41)),
+              (100, 100), (100, 999), (199, 200), (100, 214), (150, 174), (999, 999)]
+    for lo, hi in ranges:
+        rx = re.compile("|".join(_fixed(lo, hi, 3)))
+        assert [v for v in range(1000) if rx.fullmatch(str(v))] == list(range(lo, hi + 1)), (lo, hi, rx.pattern)
 
 
 @pytest.mark.parametrize("item_level, yes, no", [
