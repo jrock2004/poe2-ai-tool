@@ -45,8 +45,21 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 
 ## Build creators
 
-*Not filled in yet.* Until it is, don't call any creator trusted or untrusted — judge a guide only by
-what it contains and how current its patch is.
+Creators whose guides we trust, chosen by the player. To use it:
 
-| Creator | Good for | Publishes on | Last verified (league / patch) | Notes |
+- **Match the guide to a creator** by finding its URL on the creator's "Build list" page — that page
+  lists every guide they've made. The guide's own URL doesn't name the creator (Mobalytics guides are
+  `/poe-2/builds/<slug>`), so don't match on it. If the build list can't be read, fall back to the
+  author shown on the guide page. No match → the creator is unknown, not untrusted: judge the guide
+  only by what it contains and how current its patch is.
+- **Trust covers "Good for" only.** A minion creator's bow guide is an unknown.
+- **Check the stamp.** If the live patch is newer than "Last verified", say the creator's track record
+  is from an older patch.
+- Never call a creator untrusted unless they're listed as such here.
+
+| Creator | Good for | Build list | Last verified (league / patch) | Notes |
 |---|---|---|---|---|
+| GhazzyTV | Minion builds, for every class that has them | poe-vault.com/poe2 — site root, not his list yet (match by author); YouTube @GhazzyTV | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
+| Fubgun | Bow builds | mobalytics.gg/poe-2/profile/fubgun/builds; YouTube @Fubgun | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
+| deadrabb1t | Plant builds; Energy Drain + Contagion builds | mobalytics.gg/poe-2/profile/deadrabb1t/builds; YouTube @DEADR4BB1T | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variant is usually in the same guide. Some guides are twink builds. |
+| misoxshiru | Monk builds | mobalytics.gg/poe-2/profile/misoxshiru/builds; YouTube @MisoxShiru | The Forbidden Rites / 0.5.5 | |
