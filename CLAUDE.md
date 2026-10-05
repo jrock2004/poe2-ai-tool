@@ -83,8 +83,9 @@ Design rules that hold across both:
   to it, never restate numbers.
 - **Judge market moves in divine, not exalted.** Prices are quoted in exalted, so when exalted
   drifts every raw change moves together. Trends and movers use `changePctVsDivine`.
-- **Source rules and the per-patch refresh** (tree snapshot, trials/farming knowledge, how-tos,
-  league) live in `CONTRIBUTING.md` — follow them; don't duplicate them here.
+- **Source rules** (where to look things up, what to avoid, trusted build creators) live **only** in
+  `skills/poe2-core/references/sources.md`. **The per-patch refresh** (tree snapshot, trials/farming
+  knowledge, how-tos, league) lives in `CONTRIBUTING.md`. Follow them; don't duplicate them here.
 
 ## Platforms
 
