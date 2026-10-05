@@ -51,8 +51,13 @@ node ids only and `tree.note` says so.
 
 ### 2. Trials knowledge
 
-**Needed when** patch notes touch the Trial of the Sekhemas or Trial of Chaos.
-Update `mcp/src/poe2_mcp/knowledge/trials.md` and re-stamp its date and sources.
+**Needed when** patch notes touch the Trial of the Sekhemas or Trial of Chaos — and re-check the Trial
+of Chaos modifiers every patch anyway: 0.5.5 reworked them without saying so in the notes.
+Update `mcp/src/poe2_mcp/knowledge/trials.md`:
+
+- Take Trial of Chaos modifier text from poe2db's `Ultimatum` page (its *Modifiers* list is game data
+  and matches the in-game tooltips), not from guide sites — they lag a patch or more.
+- Quote modifier text verbatim, with every version's values; re-stamp the date, patch, and sources.
 
 ### 3. Farming knowledge
 
