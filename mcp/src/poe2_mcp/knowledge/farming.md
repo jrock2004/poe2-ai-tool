@@ -1,6 +1,6 @@
 ---
-patch: 0.5.5d
-refreshed: 2026-10-04
+patch: 0.5.5e
+refreshed: 2026-10-05
 ---
 # Farming knowledge (patch-dependent — verify against the live game)
 
@@ -9,7 +9,7 @@ refreshed: 2026-10-04
 > player sees something different in game, trust the game and lower confidence.
 >
 > **Sources:** official 0.5.5 patch notes (pathofexile.com forum thread 4000864 — quoted lines below
-> are verbatim) and its hotfixes through 0.5.5d (checked 2026-10-04); poe2db.tw mechanic pages (Breach, Delirium, Ritual, Expedition, Abyss). Item
+> are verbatim) and its hotfixes through 0.5.5e (thread 4009785; checked 2026-10-05); poe2db.tw mechanic pages (Breach, Delirium, Ritual, Expedition, Abyss). Item
 > families come from **poe2scout's live category lists**, not from memory. Not used: poe2wiki
 > (bot-challenge wall), game8 (blocks AI crawlers), Maxroll (license forbids AI use), and the
 > currency-seller "guide" sites that dominate search results.
@@ -48,7 +48,8 @@ and *"The number of Delirium Monster Packs no longer scales higher beyond 100% D
 offered rewards (rerollable, deferrable). Omens modify how other crafting currency behaves (e.g.
 which side Chaos/Regal/Exalted Orbs act on), so omen prices track the crafting meta. Forbidden Rites
 is a Ritual-themed league: every campaign area has a Ritual encounter, and party members earn their
-own Tribute in 0.5.5.
+own Tribute in 0.5.5. 0.5.5e: *"Fixed a bug where killing some specific bosses would prevent Ritual
+encounters from starting."*
 
 **Expedition.** Core (not league-only) since 0.5.5: *"Expedition Tablets can now be found in
 Standard and in the new Forbidden Rites League."* Tablets add expeditions to maps; Logbooks open
