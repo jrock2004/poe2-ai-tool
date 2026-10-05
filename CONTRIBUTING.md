@@ -88,6 +88,18 @@ Update `skills/poe2-core/references/how-to.md`.
 which saves the league in their own data dir (`set_league`). Ship the step 2–4 knowledge refreshes so
 players who skip their own refresh still get them on update.
 
+### 7. Vendor regex data
+
+**Needed when** patch notes change mod tiers, their item levels, or mod wording.
+In `mcp/src/poe2_mcp/vendor_regex.py`:
+
+- **`TIERS`** — re-pull each mod's (item level, highest value) pairs from the poe2db item-class pages
+  named in its source comment. As with crafting, the tier data is embedded in the page's HTML. Use regular
+  tiers only, and take the highest value across slots. Re-stamp the patch in the comment.
+- **Stat-list fixture** — regenerate `mcp/tests/trade2_stat_texts.json` from trade2 `/data/stats`
+  (Explicit + Implicit `text`s, sorted, deduplicated), then run the tests: a renamed mod fails
+  `test_targets_and_traps_still_exist`, and a fragment that now catches the wrong mod fails its traps.
+
 ## Pull requests
 
 - Say what patch or change prompted it, and link the patch notes.

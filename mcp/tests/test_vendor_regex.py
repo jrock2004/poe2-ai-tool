@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from poe2_mcp import server
-from poe2_mcp.vendor_regex import LIMIT, MODS, VendorRegex, Want, _between, build_vendor_regex
+from poe2_mcp.vendor_regex import LIMIT, MODS, TIERS, VendorRegex, Want, _between, build_vendor_regex
 
 _GROUP = re.compile(r'"(!?)([^"]*)"')
 
@@ -158,6 +158,56 @@ def test_movement_speed_stops_at_its_highest_roll():
     with pytest.raises(ValueError):
         build_vendor_regex(want=[Want("movement_speed", min_value=40)])     # nothing rolls that high
 
+
+# --- Item level: what the vendor's items can roll --------------------------------------------------------
+
+
+def test_tiers_ascend():
+    for key, tiers in TIERS.items():
+        levels, values = zip(*tiers)
+        assert list(levels) == sorted(set(levels)) and list(values) == sorted(set(values)), key
+        assert "{n}" in MODS[key], key
+
+
+def test_item_level_caps_the_pattern():
+    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=50).regex
+    assert "\\d{3}" not in rx                                   # life tops out at 99 below item level 54
+    for v, lit in [(40, True), (99, True), (39, False)]:
+        assert highlights(rx, f"+{v} to maximum Life") is lit, v
+
+
+def test_item_level_past_100_still_matches_three_digits():
+    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=60).regex
+    assert highlights(rx, "+145 to maximum Life")
+
+
+def test_unreachable_wants_are_left_out():
+    out = build_vendor_regex(want=[Want("movement_speed", min_value=30), Want("spirit")], item_level=60)
+    assert out.unreachable == ("movement_speed",)
+    assert out.dropped == ()
+    assert not highlights(out.regex, "30% increased Movement Speed")
+    assert highlights(out.regex, "+30 to Spirit")
+
+
+def test_reachable_at_its_tier():
+    out = build_vendor_regex(want=[Want("movement_speed", min_value=25)], item_level=65)
+    assert out.unreachable == ()
+    for v, lit in [(25, True), (30, True), (20, False)]:
+        assert highlights(out.regex, f"{v}% increased Movement Speed") is lit, v
+
+
+@pytest.mark.parametrize("level", [0, -5])
+def test_item_level_must_be_positive(level):
+    with pytest.raises(ValueError):
+        build_vendor_regex(want=[Want("spirit")], item_level=level)
+
+
+def test_tool_passes_item_level_through():
+    out = asyncio.run(server.build_vendor_regex(
+        want=[{"key": "movement_speed", "min_value": 30}, {"key": "spirit"}], item_level=60))
+    assert out["valid"] and out["unreachable"] == ["movement_speed"]
+
+
 # A spectre build that wants flask charges on any base, but never a flask that drains life or mana.
 FLASKS = dict(
     want=[Want("charges_per_second", any_base=True), Want("resistance")],
@@ -254,7 +304,8 @@ def test_tool_matches_the_pure_builder():
     ))
     pure = build_vendor_regex(want=[Want("movement_speed", 25, any_base=True), Want("resistance")],
                               slot_classes=["ring"], avoid=["flask_removes_recovery"])
-    assert out == {"valid": True, "regex": pure.regex, "length": pure.length, "limit": LIMIT, "dropped": []}
+    assert out == {"valid": True, "regex": pure.regex, "length": pure.length, "limit": LIMIT, "dropped": [],
+                   "unreachable": []}
 
 
 @pytest.mark.parametrize("want", [

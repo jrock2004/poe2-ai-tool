@@ -589,6 +589,9 @@ want: list of {{key, min_value?, any_base?}}, highest priority first. `min_value
 want_classes: item classes to light up on any roll (e.g. every sceptre for a minion build).
 hide_classes: item classes never to light up.
 avoid: mod keys that rule an item out whatever else it rolls (e.g. flask_removes_recovery).
+item_level: the "Item Level" of the vendor's items (ask the player to hover one). Caps each (n) mod at
+  its highest roll there; a want whose min_value can't roll at that level is left out and listed in
+  `unreachable`.
 slot_classes / slot_defences: the gate -- an item lights only if it is one of these classes or bases,
   or carries an any_base mod. Omit both for no gate.
 
@@ -608,6 +611,7 @@ async def build_vendor_regex(
     slot_classes: list[str] | None = None,
     slot_defences: list[str] | None = None,
     avoid: list[str] | None = None,
+    item_level: int | None = None,
 ) -> dict[str, Any]:
     try:
         wants = [
@@ -621,6 +625,7 @@ async def build_vendor_regex(
             slot_classes=slot_classes or (),
             slot_defences=slot_defences or (),
             avoid=avoid or (),
+            item_level=item_level,
         )
     except (KeyError, TypeError) as e:
         return {"valid": False, "error": f"each want needs a 'key': {e!r}"}
@@ -632,6 +637,7 @@ async def build_vendor_regex(
         "length": out.length,
         "limit": vendor_regex.LIMIT,
         "dropped": list(out.dropped),
+        "unreachable": list(out.unreachable),
     }
 
 

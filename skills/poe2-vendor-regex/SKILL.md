@@ -21,6 +21,9 @@ Vendors sell for gold, so trade and SSF characters use this the same way.
   its *targets*"**, then rank the gaps as in **"Diagnose the weak slots"** — survivability first.
 - Know the character's **level** (from the PoB, or ask). Vendor items carry a level requirement; when
   you explain the result, remind the player that anything above their level can't be worn yet.
+- Ask for the vendor's **item level**: "hover any item at the vendor and tell me its *Item Level*."
+  It decides which mod tiers the vendor can stock, so the string only asks for rolls that can appear.
+  If the player doesn't know it, build the string without it and say so.
 
 ## 2. Turn the build into the tool's inputs
 
@@ -40,7 +43,8 @@ The tool description lists the valid keys. Map the build onto them:
     `increased_energy_shield` for the build's defence;
   - boots without good movement speed → `movement_speed`; Spirit or minion levels for minion builds.
   - **`min_value`** (only for mods marked `(n)`): set it just above what the player already wears, so
-    only real upgrades light up — boots with 15% movement speed → `min_value: 20`.
+    only real upgrades light up — boots with 15% movement speed → `min_value: 20`. Pass the vendor's
+    **`item_level`** too.
   - **`any_base: true`** only for must-haves worth taking on any base the build can use (movement speed,
     +skill levels for the build's skills). Every `any_base` mod appears twice in the string, so use it
     sparingly.
@@ -54,7 +58,9 @@ The tool description lists the valid keys. Map the build onto them:
 
 Call `build_vendor_regex`. On `valid: false`, fix the input (the error names the bad key) and call
 again — don't fall back to writing a string by hand. If `dropped` is not empty, tell the player which
-wants didn't fit and offer a second string for them.
+wants didn't fit and offer a second string for them. If `unreachable` is not empty, tell the player
+those rolls can't appear at these vendors yet (their item level is too low) — that's an answer, not a
+failure: e.g. "30% movement speed boots don't show up at this vendor level, so I left them out".
 
 ## 4. Answer
 
@@ -71,8 +77,8 @@ wants didn't fit and offer a second string for them.
 
 - **High** — gear read from a PoB, build targets from a guide or the PoB, nothing dropped, defence gate
   used.
-- **Medium** — gear from a screenshot or the player's description, some wants dropped, or no defence
-  gate (other defence types light up too).
+- **Medium** — gear from a screenshot or the player's description, some wants dropped, no defence
+  gate (other defence types light up too), or no vendor item level.
 - **Low** — the build or its gaps are guessed. Say what would raise it (a PoB code, or the guide link).
 
 ## Guardrails
