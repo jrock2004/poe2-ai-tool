@@ -38,6 +38,7 @@ from .trade2 import (
     listing_price_stats,
     summarize_listing,
 )
+from . import vendor_regex
 
 mcp = FastMCP("poe2-mcp")
 _scout = Poe2ScoutClient()
@@ -574,6 +575,61 @@ async def summarize_tree(
     Offline; no network.
     """
     return _summarize_tree(main, tree_version, weapon_set_1, weapon_set_2, ascendancy)
+
+
+_VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())
+_VENDOR_REGEX_DOC = f"""Build a Path of Exile 2 vendor search-box regex from what the build wants.
+
+Pure and offline. Paste the returned `regex` into a vendor's search box (Ctrl+F); matching items light
+up. It is up to three ANDed groups: hidden classes, wanted mods/classes, and a slot gate.
+
+want: list of {{key, min_value?, any_base?}}, highest priority first. `min_value` is only for mods
+  marked (n) below. `any_base: true` lets that mod light up on any base the hide list allows, not just
+  the gated slots -- use it for must-haves like movement speed or +minion skill levels.
+want_classes: item classes to light up on any roll (e.g. every sceptre for a minion build).
+hide_classes: item classes never to light up.
+slot_classes / slot_defences: the gate -- an item lights only if it is one of these classes or bases,
+  or carries an any_base mod. Omit both for no gate.
+
+Over {vendor_regex.LIMIT} characters, the lowest-priority wants are dropped; `dropped` lists them.
+
+Mods: {_VENDOR_MODS}
+Classes: {", ".join(vendor_regex.CLASSES)}
+Defences: {", ".join(vendor_regex.DEFENCES)}
+"""
+
+
+@mcp.tool(description=_VENDOR_REGEX_DOC)
+async def build_vendor_regex(
+    want: list[dict[str, Any]],
+    want_classes: list[str] | None = None,
+    hide_classes: list[str] | None = None,
+    slot_classes: list[str] | None = None,
+    slot_defences: list[str] | None = None,
+) -> dict[str, Any]:
+    try:
+        wants = [
+            vendor_regex.Want(key=w["key"], min_value=w.get("min_value"), any_base=bool(w.get("any_base")))
+            for w in want
+        ]
+        out = vendor_regex.build_vendor_regex(
+            want=wants,
+            want_classes=want_classes or (),
+            hide_classes=hide_classes or (),
+            slot_classes=slot_classes or (),
+            slot_defences=slot_defences or (),
+        )
+    except (KeyError, TypeError) as e:
+        return {"valid": False, "error": f"each want needs a 'key': {e!r}"}
+    except ValueError as e:
+        return {"valid": False, "error": str(e)}
+    return {
+        "valid": True,
+        "regex": out.regex,
+        "length": out.length,
+        "limit": vendor_regex.LIMIT,
+        "dropped": list(out.dropped),
+    }
 
 
 def main() -> None:

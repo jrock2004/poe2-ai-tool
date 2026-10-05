@@ -100,6 +100,10 @@ Implemented (Phase 1):
   block as `parse_pob_code` (names, keystones/notables, ascendancy choices, point counts), from bare
   node ids. For guides with no PoB whose pages carry node ids (Mobalytics). Lists may be disjoint or
   overlap; no `jewels`. Offline.
+- `build_vendor_regex(want, want_classes?, hide_classes?, slot_classes?, slot_defences?)` — a vendor
+  search-box string (≤250 chars) from a curated fragment table (`vendor_regex.py`): hidden classes AND
+  wanted mods/classes AND a slot gate. Drops the lowest-priority wants to fit and lists them in
+  `dropped`. The valid keys are listed in the tool description. Offline. Powers `poe2-vendor-regex`.
 
 Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strategy` data.
 

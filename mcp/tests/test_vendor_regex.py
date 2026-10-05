@@ -3,12 +3,14 @@
 Tests don't pin exact strings -- fragment choices will change. They run the composed regex through
 `highlights`, a model of the in-game search box, against item texts, and check what lights up.
 """
+import asyncio
 import json
 import re
 from pathlib import Path
 
 import pytest
 
+from poe2_mcp import server
 from poe2_mcp.vendor_regex import LIMIT, MODS, VendorRegex, Want, build_vendor_regex
 
 _GROUP = re.compile(r'"(!?)([^"]*)"')
@@ -189,3 +191,32 @@ def test_targets_and_traps_still_exist():
 def test_fragment_hits_targets_and_misses_traps(key):
     assert [t for t in TARGETS[key] if not _lights(key, t)] == []
     assert [t for t in TRAPS.get(key, []) if _lights(key, t)] == []
+
+
+# --- The MCP tool: JSON in, the same string out, errors as {valid: False} -----------------------------------
+
+
+def test_tool_matches_the_pure_builder():
+    out = asyncio.run(server.build_vendor_regex(
+        want=[{"key": "movement_speed", "min_value": 25, "any_base": True}, {"key": "resistance"}],
+        slot_classes=["ring"],
+    ))
+    pure = build_vendor_regex(want=[Want("movement_speed", 25, any_base=True), Want("resistance")],
+                              slot_classes=["ring"])
+    assert out == {"valid": True, "regex": pure.regex, "length": pure.length, "limit": LIMIT, "dropped": []}
+
+
+@pytest.mark.parametrize("want", [
+    [{"key": "not_a_mod"}],
+    [{"min_value": 25}],          # no key
+    ["spirit"],                   # not an object
+])
+def test_tool_reports_bad_input(want):
+    out = asyncio.run(server.build_vendor_regex(want=want))
+    assert out["valid"] is False and out["error"]
+
+
+def test_tool_description_lists_every_key():
+    tool = next(t for t in asyncio.run(server.mcp.list_tools()) if t.name == "build_vendor_regex")
+    for key in (*MODS, "sceptre", "energy_shield"):
+        assert key in tool.description
