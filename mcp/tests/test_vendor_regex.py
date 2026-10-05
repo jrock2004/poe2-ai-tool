@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from poe2_mcp import server
-from poe2_mcp.vendor_regex import LIMIT, MODS, VendorRegex, Want, build_vendor_regex
+from poe2_mcp.vendor_regex import LIMIT, MODS, VendorRegex, Want, _between, build_vendor_regex
 
 _GROUP = re.compile(r'"(!?)([^"]*)"')
 
@@ -133,10 +133,57 @@ def test_classes_alone_over_limit_raise():
     dict(want=[Want("spirit", min_value=10)]),       # spirit's fragment has no {n}
     dict(want=[], hide_classes=["not_a_class"]),
     dict(want=[], slot_defences=["not_a_defence"]),
+    dict(want=[], avoid=["not_a_mod"]),
 ])
 def test_unknown_keys_raise(kwargs):
     with pytest.raises(ValueError):
         build_vendor_regex(**kwargs)
+
+
+
+
+def test_between_matches_exactly_its_range():
+    for lo in range(100):
+        for hi in range(lo, 100):
+            rx = re.compile(_between(lo, hi))
+            got = [v for v in range(100) if rx.fullmatch(str(v))]
+            assert got == list(range(lo, hi + 1)), (lo, hi, rx.pattern)
+
+
+def test_movement_speed_stops_at_its_highest_roll():
+    rx = build_vendor_regex(want=[Want("movement_speed", min_value=25)]).regex
+    assert "\\d{3}" not in rx
+    for v, lit in [(25, True), (30, True), (35, True), (24, False), (20, False)]:
+        assert highlights(rx, f"{v}% increased Movement Speed") is lit, v
+    with pytest.raises(ValueError):
+        build_vendor_regex(want=[Want("movement_speed", min_value=40)])     # nothing rolls that high
+
+# A spectre build that wants flask charges on any base, but never a flask that drains life or mana.
+FLASKS = dict(
+    want=[Want("charges_per_second", any_base=True), Want("resistance")],
+    hide_classes=["quiver"],
+    slot_classes=["ring"],
+    avoid=["flask_removes_recovery"],
+)
+
+
+@pytest.mark.parametrize("text, lit", [
+    (item("Life Flasks", "Gains 0.17 Charges per Second"), True),               # any_base passes the gate
+    (item("Life Flasks", "Gains 0.17 Charges per Second",
+          "Removes 15% of Mana Recovered from Life when used"), False),          # avoided mod rules it out
+    (item("Mana Flasks", "Removes 15% of Life Recovered from Mana when used"), False),
+    (item("Life Flasks", "20% increased Charges per use"), False),               # a downside, not charges/sec
+    (item("Rings", "+12% to Fire Resistance"), True),                            # avoid doesn't touch the rest
+])
+def test_flask_wants_and_avoids(text, lit):
+    assert highlights(build_vendor_regex(**FLASKS).regex, text) is lit
+
+
+def test_avoid_is_never_dropped():
+    out = build_vendor_regex(**{**FLASKS, "limit": len(build_vendor_regex(**FLASKS).regex) - 1})
+    assert out.dropped == ("resistance",)
+    assert not highlights(out.regex, item("Life Flasks", "Gains 0.17 Charges per Second",
+                                          "Removes 15% of Mana Recovered from Life when used"))
 
 
 # --- Fragments against the trade stat list ---------------------------------------------------------------
@@ -160,13 +207,17 @@ TARGETS = {
     "max_life": ["# to maximum Life"],
     "minion_life_recovery": ["Grants #% of Life Recovery to Minions"],
     "charges_per_second": ["Gains # Charges per Second"],
+    "flask_removes_recovery": ["Removes #% of Life Recovered from Mana when used",
+                               "Removes #% of Mana Recovered from Life when used"],
 }
 
 TRAPS = {
     "resistance": ["# to Stun Threshold"],                                   # "Th-res-hold"
     "increased_energy_shield": ["#% increased Damage against Immobilised Enemies",
                                 "#% increased Endurance Charge Duration"],    # "sed en"
-    "charges_per_second": ["# to all Attributes per Level"],                 # "es per"
+    "charges_per_second": ["# to all Attributes per Level",                  # "es per"
+                           "#% increased Charges per use"],                   # "ges per"
+    "flask_removes_recovery": ["Remnants can be collected from #% further away"],  # "^rem"
     "max_life": ["Regenerate #% of maximum Life per second"],                # "\d.*m life"
     "movement_speed": ["#% less Movement Speed"],
 }
@@ -174,7 +225,7 @@ TRAPS = {
 
 def _lights(key: str, stat_text: str) -> bool:
     rx = build_vendor_regex(want=[Want(key, min_value=1 if "{n}" in MODS[key] else None)]).regex
-    return highlights(rx, stat_text.replace("#", "50"))
+    return highlights(rx, stat_text.replace("#", "30"))   # a value every mod can roll
 
 
 def test_every_mod_has_a_target():
@@ -199,10 +250,10 @@ def test_fragment_hits_targets_and_misses_traps(key):
 def test_tool_matches_the_pure_builder():
     out = asyncio.run(server.build_vendor_regex(
         want=[{"key": "movement_speed", "min_value": 25, "any_base": True}, {"key": "resistance"}],
-        slot_classes=["ring"],
+        slot_classes=["ring"], avoid=["flask_removes_recovery"],
     ))
     pure = build_vendor_regex(want=[Want("movement_speed", 25, any_base=True), Want("resistance")],
-                              slot_classes=["ring"])
+                              slot_classes=["ring"], avoid=["flask_removes_recovery"])
     assert out == {"valid": True, "regex": pure.regex, "length": pure.length, "limit": LIMIT, "dropped": []}
 
 

@@ -7,7 +7,7 @@ group; at most 250 characters, quotes and spaces included.
 
 The composed string is up to three ANDed groups, in this order:
 
-    "!<hide>"   -- never highlight these item classes
+    "!<hide>"   -- never highlight these item classes, or an item carrying an avoided mod
     "<want>"    -- a wanted mod, or a class wanted on any roll (e.g. every sceptre)
     "<gate>"    -- the item is in a slot the build uses, has a wanted defence, or has an any-base mod
 
@@ -55,7 +55,16 @@ MODS: dict[str, str] = {
     "resistance": "% to.*res",
     "max_life": "{n} to m.*m life",
     "minion_life_recovery": "y to min",
-    "charges_per_second": "ges per",
+    "charges_per_second": "ges per s",
+    "flask_removes_recovery": "^removes",   # a flask downside -- meant for `avoid`
+}
+
+# "{n}" mod -> the highest value it can roll on vendor gear. Below 100 it caps the min_value pattern, which
+# keeps it short; a mod not listed (or reaching 100+) also matches any 3-digit number.
+# Source: poe2db.tw (us/Boots_int), patch 0.5.5 -- movement speed tiers are fixed 10/15/20/25/30/35%
+# (35% needs item level 82); the desecrated hybrid rolls 24-32%. Max life reaches +149, so it isn't capped.
+MAX_ROLL: dict[str, int] = {
+    "movement_speed": 35,
 }
 
 
@@ -80,6 +89,7 @@ def build_vendor_regex(
     hide_classes: Sequence[str] = (),
     slot_classes: Sequence[str] = (),
     slot_defences: Sequence[str] = (),
+    avoid: Sequence[str] = (),
     limit: int = LIMIT,
 ) -> VendorRegex:
     """Compose the search string. Pure.
@@ -87,23 +97,25 @@ def build_vendor_regex(
     `want` is highest priority first; when the string is over `limit`, wants are dropped from the end
     (from both the want and gate groups) until it fits. Classes, defences and the hide group are never
     dropped -- if they alone exceed the limit, raise ValueError. With no slot_classes and no
-    slot_defences there is no gate group. Unknown keys, or a min_value on a mod without "{n}", raise
-    ValueError.
+    slot_defences there is no gate group. `avoid` (MODS keys, any value) joins the hide group, so an
+    item with an avoided mod never lights; like classes, it is never dropped. Unknown keys, or a
+    min_value on a mod without "{n}", raise ValueError.
     """
     _check(want_classes, CLASSES, "item class")
     _check(hide_classes, CLASSES, "item class")
     _check(slot_classes, CLASSES, "item class")
     _check(slot_defences, DEFENCES, "defence")
     fragments = [_mod_fragment(w) for w in want]
+    avoided = [_mod_fragment(Want(key)) for key in avoid]
 
     wants = list(zip(want, fragments))
     dropped: list[str] = []
     while True:
-        regex = _compose(wants, want_classes, hide_classes, slot_classes, slot_defences)
+        regex = _compose(wants, want_classes, hide_classes, avoided, slot_classes, slot_defences)
         if len(regex) <= limit:
             return VendorRegex(regex=regex, length=len(regex), dropped=tuple(dropped))
         if not wants:
-            raise ValueError(f"classes and defences alone are {len(regex)} characters, over the {limit} limit")
+            raise ValueError(f"classes, defences and avoided mods alone are {len(regex)} characters, over the {limit} limit")
         dropped.append(wants.pop()[0].key)
 
 
@@ -120,16 +132,22 @@ def _mod_fragment(w: Want) -> str:
         if w.min_value is not None:
             raise ValueError(f'"{w.key}" takes no min_value')
         return fragment
-    return fragment.replace("{n}", _at_least(w.min_value or 0))
+    return fragment.replace("{n}", _at_least(w.min_value or 0, MAX_ROLL.get(w.key)))
 
 
-def _at_least(n: int) -> str:
+def _at_least(n: int, top: int | None = None) -> str:
     """A pattern for an integer >= n, searched for anywhere in a line. Pure.
 
     Unanchored, so a smaller number can't match by containing a qualifying substring: every 1-2 digit
-    pattern needs the whole number, and any 3+ digit number (all >= 100 > n) matches via \\d{3}."""
+    pattern needs the whole number, and any 3+ digit number (all >= 100 > n) matches via \\d{3}.
+    `top` is the highest value the mod can roll; below 100 the pattern stops there (n..top) and drops
+    \\d{3}. It shortens the pattern -- it doesn't exclude values above top, which can't occur."""
     if not 0 <= n <= 99:
         raise ValueError(f"min_value {n} is outside 0-99")
+    if top is not None and top <= 99:
+        if n > top:
+            raise ValueError(f"min_value {n} is above the highest roll, {top}")
+        return _between(n, top)
     if n <= 1:
         return "\\d"
     tens, ones = divmod(n, 10)
@@ -140,6 +158,31 @@ def _at_least(n: int) -> str:
         alts.append(f"{_digits(tens + 1)}\\d")
     alts.append("\\d{3}")
     return f"({'|'.join(alts)})"
+
+
+def _between(lo: int, hi: int) -> str:
+    """A pattern for an integer in lo..hi (both 0-99), one alternative per tens digit; whole tens in the
+    middle collapse into one ("[3-5]\\d")."""
+    alts: list[str] = []
+    full: list[int] = []   # a run of tens digits whose ones go 0-9
+    for tens in range(lo // 10, hi // 10 + 1):
+        a = lo % 10 if tens == lo // 10 else 0
+        b = hi % 10 if tens == hi // 10 else 9
+        if tens and (a, b) == (0, 9):
+            full.append(tens)
+            continue
+        if full:
+            alts.append(f"{_span(full[0], full[-1])}\\d")
+            full = []
+        alts.append(f"{tens or ''}{_span(a, b)}")
+    if full:
+        alts.append(f"{_span(full[0], full[-1])}\\d")
+    return alts[0] if len(alts) == 1 else f"({'|'.join(alts)})"
+
+
+def _span(a: int, b: int) -> str:
+    """A character class for one digit in a..b."""
+    return str(a) if a == b else ("\\d" if (a, b) == (0, 9) else f"[{a}-{b}]")
 
 
 def _digits(low: int) -> str:
@@ -165,11 +208,12 @@ def _compose(
     wants: list[tuple[Want, str]],
     want_classes: Sequence[str],
     hide_classes: Sequence[str],
+    avoided: list[str],
     slot_classes: Sequence[str],
     slot_defences: Sequence[str],
 ) -> str:
     groups = [
-        _group([_classes(hide_classes)], negate=True),
+        _group([_classes(hide_classes), *avoided], negate=True),
         _group([_classes(want_classes), *(f for _, f in wants)]),
     ]
     if slot_classes or slot_defences:

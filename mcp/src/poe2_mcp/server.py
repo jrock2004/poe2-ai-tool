@@ -588,6 +588,7 @@ want: list of {{key, min_value?, any_base?}}, highest priority first. `min_value
   the gated slots -- use it for must-haves like movement speed or +minion skill levels.
 want_classes: item classes to light up on any roll (e.g. every sceptre for a minion build).
 hide_classes: item classes never to light up.
+avoid: mod keys that rule an item out whatever else it rolls (e.g. flask_removes_recovery).
 slot_classes / slot_defences: the gate -- an item lights only if it is one of these classes or bases,
   or carries an any_base mod. Omit both for no gate.
 
@@ -606,6 +607,7 @@ async def build_vendor_regex(
     hide_classes: list[str] | None = None,
     slot_classes: list[str] | None = None,
     slot_defences: list[str] | None = None,
+    avoid: list[str] | None = None,
 ) -> dict[str, Any]:
     try:
         wants = [
@@ -618,6 +620,7 @@ async def build_vendor_regex(
             hide_classes=hide_classes or (),
             slot_classes=slot_classes or (),
             slot_defences=slot_defences or (),
+            avoid=avoid or (),
         )
     except (KeyError, TypeError) as e:
         return {"valid": False, "error": f"each want needs a 'key': {e!r}"}

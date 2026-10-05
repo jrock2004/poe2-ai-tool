@@ -44,6 +44,11 @@ The tool description lists the valid keys. Map the build onto them:
   - **`any_base: true`** only for must-haves worth taking on any base the build can use (movement speed,
     +skill levels for the build's skills). Every `any_base` mod appears twice in the string, so use it
     sparingly.
+- **Flasks and charms** — by default, want `charges_per_second` with `any_base: true` (that's how flasks
+  and charms pass the gate) and put `flask_removes_recovery` in **`avoid`**: a flask that removes life or
+  mana when used is never worth buying. **If the build's guide asks for different flask mods, follow the
+  guide** and say so.
+- **`avoid`** — mods that rule an item out whatever else it rolls. Avoided mods are never dropped.
 
 ## 3. Build it
 
