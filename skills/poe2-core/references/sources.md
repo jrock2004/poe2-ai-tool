@@ -47,11 +47,18 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 
 Creators whose guides we trust, chosen by the maintainer and shipped with the plugin. To use it:
 
-- **Match the guide to a creator** by finding its URL on the creator's "Build list" page — that page
-  lists every guide they've made. The guide's own URL doesn't name the creator (Mobalytics guides are
-  `/poe-2/builds/<slug>`), so don't match on it. If the build list can't be read, fall back to the
-  author shown on the guide page. No match → the creator is unknown, not untrusted: judge the guide
-  only by what it contains and how current its patch is.
+- **Match the guide to a creator**, strongest first. The guide's own URL doesn't name the creator
+  (Mobalytics guides are `/poe-2/builds/<slug>`), so never match on it.
+  1. **Author link** — the guide page links its author's profile, and that link is a listed
+     "Build list" URL (Mobalytics: "By <name>" → `/poe-2/profile/<name>/builds`). Confirmed; nothing
+     else to open.
+  2. **Build list** — no author link, but the author shown on the page is a listed creator: confirm
+     the guide's URL is on their build list.
+  3. **Author name** — only if the build list can't be read (e.g. poe-vault, where the byline is plain
+     text and there's no per-author list).
+
+  No match → the creator is unknown, not untrusted: judge the guide only by what it contains and how
+  current its patch is.
 - **Trust covers "Good for" only.** A minion creator's bow guide is an unknown.
 - **Check the stamp.** If the live patch is newer than "Last verified", say the creator's track record
   is from an older patch.

@@ -32,9 +32,9 @@ Best fidelity always comes from the guide's **exported PoB code** — prefer it 
 ### Who wrote it
 
 Check the guide against `poe2-core/references/sources.md` → "Build creators", following its rules.
-Take the candidate from the author shown on the guide page; if it's a listed creator, confirm the
-guide's URL is on their build list (open it in the browser if `fetch_guide` routes it there). Don't
-open every creator's list looking for a match. A bare PoB code or pasted text with no author is
+Match from the guide page you already have — an author link to a listed build list confirms it.
+Open a creator's build list only when the page has no author link but names a listed creator (in the
+browser if `fetch_guide` routes it there). Don't open every creator's list looking for a match. A bare PoB code or pasted text with no author is
 unknown unless the player says who made it.
 
 Say it in one line at the top of the review, then move on:
