@@ -1,0 +1,191 @@
+"""Unit tests for the vendor regex composer.
+
+Tests don't pin exact strings -- fragment choices will change. They run the composed regex through
+`highlights`, a model of the in-game search box, against item texts, and check what lights up.
+"""
+import json
+import re
+from pathlib import Path
+
+import pytest
+
+from poe2_mcp.vendor_regex import LIMIT, MODS, VendorRegex, Want, build_vendor_regex
+
+_GROUP = re.compile(r'"(!?)([^"]*)"')
+
+
+def highlights(search: str, item_text: str) -> bool:
+    """The search box: every quoted group must hold (AND); a group holds when its pattern matches some
+    line of the item, case-insensitively -- or, for a `!` group, when it matches none."""
+    groups = _GROUP.findall(search)
+    assert groups and _GROUP.sub("", search).strip() == "", f"not a sequence of quoted groups: {search!r}"
+    lines = item_text.splitlines()
+    for negated, pattern in groups:
+        hit = any(re.search(pattern, line, re.IGNORECASE) for line in lines)
+        if hit == bool(negated):
+            return False
+    return True
+
+
+def item(item_class: str, *lines: str) -> str:
+    return "\n".join([f"Item Class: {item_class}", "Rarity: Magic", *lines])
+
+
+# John's minion build: sceptres and ES gear; never martial weapons or quivers.
+MINION = dict(
+    want=[
+        Want("movement_speed", min_value=25, any_base=True),
+        Want("spirit", any_base=True),
+        Want("minion_skills", any_base=True),
+        Want("charges_per_second", any_base=True),
+        Want("minion_life_recovery", any_base=True),
+        Want("max_energy_shield"),
+        Want("increased_energy_shield"),
+        Want("resistance"),
+        Want("max_life", min_value=40),
+    ],
+    want_classes=["sceptre"],
+    hide_classes=["one_hand_mace", "two_hand_mace", "staff", "spear", "crossbow", "bow", "quiver", "wand",
+                  "quarterstaff"],
+    slot_classes=["sceptre", "amulet", "ring", "belt"],
+    slot_defences=["energy_shield"],
+)
+
+ES_GLOVES = ("Gloves", "Energy Shield: 20")
+ARMOUR_GLOVES = ("Gloves", "Armour: 40")
+
+
+@pytest.mark.parametrize("text, lit", [
+    (item("Sceptres", "Spirit: 100"), True),                                  # wanted class, no mods needed
+    (item(*ES_GLOVES, "+12% to Fire Resistance"), True),                     # wanted mod on an ES base
+    (item(*ARMOUR_GLOVES, "+12% to Fire Resistance"), False),                # wanted mod, wrong base
+    (item(*ARMOUR_GLOVES, "+1 to Level of all Minion Skills"), True),        # any-base mod passes the gate
+    (item("Boots", "Armour: 40", "25% increased Movement Speed"), True),
+    (item("Boots", "Armour: 40", "20% increased Movement Speed"), False),   # under min_value
+    (item("Rings", "+45 to maximum Life"), True),
+    (item("Rings", "+39 to maximum Life"), False),
+    (item("Rings", "+12 to Stun Threshold"), False),                        # "Th-res-hold" isn't a resistance
+    (item("Quivers", "+1 to Level of all Minion Skills"), False),            # hidden class beats any wanted mod
+    (item("Bows", "+30 to Spirit"), False),
+    (item(*ES_GLOVES), False),                                                # right base, nothing wanted
+])
+def test_minion_build_highlights(text, lit):
+    assert highlights(build_vendor_regex(**MINION).regex, text) is lit
+
+
+def test_fits_and_reports_its_length():
+    out = build_vendor_regex(**MINION)
+    assert isinstance(out, VendorRegex)
+    assert out.length == len(out.regex) <= LIMIT
+    assert out.dropped == ()
+
+
+def test_drops_lowest_priority_wants_to_fit():
+    full = build_vendor_regex(**MINION)
+    out = build_vendor_regex(**MINION, limit=full.length - 1)
+    assert out.length <= full.length - 1
+    assert out.dropped[0] == "max_life"
+    # what survives still works; what was dropped no longer lights
+    assert highlights(out.regex, item("Sceptres"))
+    assert not highlights(out.regex, item("Rings", "+45 to maximum Life"))
+
+
+def test_any_base_want_is_dropped_from_both_groups():
+    without = build_vendor_regex(want=[Want("resistance")], slot_classes=["ring"])
+    out = build_vendor_regex(
+        want=[Want("resistance"), Want("spirit", any_base=True)], slot_classes=["ring"], limit=without.length,
+    )
+    assert out.dropped == ("spirit",)
+    assert not highlights(out.regex, item("Rings", "+30 to Spirit"))                       # want group
+    assert not highlights(out.regex, item(*ARMOUR_GLOVES, "+30 to Spirit", "+10% to Fire Resistance"))  # gate
+
+
+@pytest.mark.parametrize("n, yes, no", [
+    (0, ["0", "7"], []),
+    (5, ["5", "9", "10", "123"], ["4"]),
+    (40, ["40", "99", "100", "139", "140"], ["39", "9"]),
+    (25, ["25", "29", "30", "35"], ["24", "20", "5"]),
+    (90, ["90", "99", "100"], ["89"]),
+    (95, ["95", "100"], ["94"]),
+])
+def test_min_value_matches_whole_numbers(n, yes, no):
+    rx = build_vendor_regex(want=[Want("max_life", min_value=n)]).regex
+    for v in yes:
+        assert highlights(rx, f"+{v} to maximum Life"), v
+    for v in no:
+        assert not highlights(rx, f"+{v} to maximum Life"), v
+
+
+def test_no_gate_without_slots():
+    out = build_vendor_regex(want=[Want("spirit")])
+    assert highlights(out.regex, item("Body Armours", "Armour: 100", "+30 to Spirit"))
+
+
+def test_classes_alone_over_limit_raise():
+    with pytest.raises(ValueError):
+        build_vendor_regex(want=[], hide_classes=["quiver", "bow"], limit=5)
+
+
+@pytest.mark.parametrize("kwargs", [
+    dict(want=[Want("not_a_mod")]),
+    dict(want=[Want("spirit", min_value=10)]),       # spirit's fragment has no {n}
+    dict(want=[], hide_classes=["not_a_class"]),
+    dict(want=[], slot_defences=["not_a_defence"]),
+])
+def test_unknown_keys_raise(kwargs):
+    with pytest.raises(ValueError):
+        build_vendor_regex(**kwargs)
+
+
+# --- Fragments against the trade stat list ---------------------------------------------------------------
+#
+# trade2_stat_texts.json holds the Explicit + Implicit entry texts from trade2 /data/stats. It is broader
+# than vendor gear (jewel radius, uniques, monster and map mods), so a fragment isn't required to match
+# only its target. Instead: it must match every TARGET, and miss every TRAP -- mods that do roll on gear and
+# a looser fragment once caught. Refresh the fixture per patch from /data/stats (Explicit + Implicit
+# `text`s, sorted, deduplicated), then rerun: a renamed mod fails test_targets_and_traps_still_exist.
+
+STAT_TEXTS = json.loads((Path(__file__).parent / "trade2_stat_texts.json").read_text(encoding="utf-8"))["texts"]
+
+TARGETS = {
+    "movement_speed": ["#% increased Movement Speed"],
+    "spirit": ["# to Spirit"],
+    "minion_skills": ["# to Level of all Minion Skills"],
+    "max_energy_shield": ["# to maximum Energy Shield"],
+    "increased_energy_shield": ["#% increased Energy Shield", "#% increased Evasion and Energy Shield"],
+    "resistance": ["#% to Fire Resistance", "#% to Cold Resistance", "#% to Lightning Resistance",
+                   "#% to Chaos Resistance", "#% to all Elemental Resistances"],
+    "max_life": ["# to maximum Life"],
+    "minion_life_recovery": ["Grants #% of Life Recovery to Minions"],
+    "charges_per_second": ["Gains # Charges per Second"],
+}
+
+TRAPS = {
+    "resistance": ["# to Stun Threshold"],                                   # "Th-res-hold"
+    "increased_energy_shield": ["#% increased Damage against Immobilised Enemies",
+                                "#% increased Endurance Charge Duration"],    # "sed en"
+    "charges_per_second": ["# to all Attributes per Level"],                 # "es per"
+    "max_life": ["Regenerate #% of maximum Life per second"],                # "\d.*m life"
+    "movement_speed": ["#% less Movement Speed"],
+}
+
+
+def _lights(key: str, stat_text: str) -> bool:
+    rx = build_vendor_regex(want=[Want(key, min_value=1 if "{n}" in MODS[key] else None)]).regex
+    return highlights(rx, stat_text.replace("#", "50"))
+
+
+def test_every_mod_has_a_target():
+    assert set(TARGETS) == set(MODS)
+
+
+def test_targets_and_traps_still_exist():
+    known = set(STAT_TEXTS)
+    missing = [t for texts in (*TARGETS.values(), *TRAPS.values()) for t in texts if t not in known]
+    assert not missing, f"not in the stat list any more (renamed this patch?): {missing}"
+
+
+@pytest.mark.parametrize("key", sorted(MODS))
+def test_fragment_hits_targets_and_misses_traps(key):
+    assert [t for t in TARGETS[key] if not _lights(key, t)] == []
+    assert [t for t in TRAPS.get(key, []) if _lights(key, t)] == []
