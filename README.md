@@ -97,6 +97,12 @@ the Claude Code CLI and in the Claude desktop app's **Code** tab (they share the
 ### Prerequisites
 
 - **Claude Code** — the CLI, or the desktop app's Code tab.
+- **Git**, which Claude Code uses to fetch the plugin from GitHub.
+  - **Windows:** `winget install --id Git.Git -e` (keep the installer defaults). GitHub Desktop's
+    bundled Git doesn't count — it isn't on your PATH.
+  - **macOS:** usually already there; if not, `xcode-select --install`.
+
+  Check with `git --version`, in a new terminal after installing.
 - **uv**, which runs the server and fetches Python for it if needed — no separate Python install.
   - **Windows:** `winget install --id=astral-sh.uv -e`
   - **macOS:** `brew install uv`
