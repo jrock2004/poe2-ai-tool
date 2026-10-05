@@ -29,6 +29,30 @@ result honestly — it won't scrape around a block:
 
 Best fidelity always comes from the guide's **exported PoB code** — prefer it when offered.
 
+### Who wrote it
+
+Check the guide against `poe2-core/references/sources.md` → "Build creators", following its rules.
+Take the candidate from the author shown on the guide page; if it's a listed creator, confirm the
+guide's URL is on their build list (open it in the browser if `fetch_guide` routes it there). Don't
+open every creator's list looking for a match. A bare PoB code or pasted text with no author is
+unknown unless the player says who made it.
+
+Say it in one line at the top of the review, then move on:
+
+- **Trusted, in scope** — "Guide by Fubgun — a trusted creator for bow builds."
+- **Trusted, out of scope** — "Fubgun is trusted for bow builds; this isn't one, so it's judged like
+  any other guide."
+- **Unknown** — "Not from a trusted creator — judging it on its own."
+- If the live patch is newer than the creator's "Last verified", add that their track record is from
+  that patch.
+
+Use the creator's **Notes** where they apply: e.g. "endgame variants are separate guides" means §3's
+endgame hand-off should look for that guide on their build list, not inside this one; a twink build
+assumes gear a fresh character won't have — say so before calling the player "behind".
+
+Creator trust is about whether the guide is worth following, not how well this review matches the
+character to it — it doesn't change the confidence band below.
+
 ## 2. Structure the guide into stages (the §5.1 model)
 
 A guide is **not** one blob — it's an ordered progression. Structure it per

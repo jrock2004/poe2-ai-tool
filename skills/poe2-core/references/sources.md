@@ -45,7 +45,7 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 
 ## Build creators
 
-Creators whose guides we trust, chosen by the player. To use it:
+Creators whose guides we trust, chosen by the maintainer and shipped with the plugin. To use it:
 
 - **Match the guide to a creator** by finding its URL on the creator's "Build list" page — that page
   lists every guide they've made. The guide's own URL doesn't name the creator (Mobalytics guides are
