@@ -64,7 +64,7 @@ Personal Path of Exile 2 decision assistant. Two parts:
   - `treedata.py` + `data/tree_<version>.json` — the passive-tree name snapshot. The JSON is
     **generated, never hand-edited**: regenerate it with `python -m poe2_mcp.treedata` (see
     `CONTRIBUTING.md`).
-- `skills/` — one folder per skill (eleven). The judgment lives here, not in the server.
+- `skills/` — one folder per skill (twelve). The judgment lives here, not in the server.
 - `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
 - `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
   install the repo as a plugin; it is not deployed anywhere else.

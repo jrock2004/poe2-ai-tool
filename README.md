@@ -26,13 +26,14 @@ You (in Claude)
    │
    ├── Skills  ── the judgment + confidence
    │     poe2-core, poe2-price-check, poe2-character,
-   │     poe2-gear-upgrade, poe2-crafting,
+   │     poe2-gear-upgrade, poe2-crafting, poe2-vendor-regex,
    │     poe2-build-review, poe2-build-switch,
    │     poe2-trials-advisor, poe2-currency-tracker,
    │     poe2-meta-strategy, poe2-new-league
    │
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
+   │     + vendor search-string builder
    │
    └── Persistent state (saved by the MCP server, per user)
          your characters, currency inventory, league records, knowledge refreshes
@@ -63,6 +64,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-price-check` | Price an item or currency, with confidence. |
 | `poe2-gear-upgrade` | Find your weak slots and rank realistic market upgrades by value-per-currency. |
 | `poe2-crafting` | Say whether a crafting currency can get an item to your goal — and stop you wasting it when it can't. |
+| `poe2-vendor-regex` | A vendor search string that lights up only the items your character is missing, on bases it can use. |
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
 | `poe2-build-switch` | Say whether you're ready to move from a guide's leveling version to its endgame version, and what's in the way. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
@@ -176,6 +178,7 @@ poe2-ai-tools/
     ├── poe2-character/
     ├── poe2-gear-upgrade/
     ├── poe2-crafting/
+    ├── poe2-vendor-regex/
     ├── poe2-build-review/
     ├── poe2-build-switch/
     ├── poe2-trials-advisor/
