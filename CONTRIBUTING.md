@@ -17,9 +17,9 @@ Tests are pure — no network, no live API. Add fixtures under `mcp/tests/` rath
 ## Ground rules
 
 - **Read-only toward GGG.** Nothing may buy, list, or whisper. Tools generate searches and advice.
-- **Respect sources.** Don't fetch from sites that forbid automated/AI use or put up a bot wall:
-  Maxroll (license), poe2wiki (bot challenge), game8 (blocks AI crawlers). Prefer GGG's patch notes
-  and poe2db. Avoid currency-seller "guide" sites — they're SEO content, not references.
+- **Respect sources.** Where to look things up, and what to avoid, is in
+  `skills/poe2-core/references/sources.md` — the only place those rules live. Don't add a site that
+  forbids automated/AI use or puts up a bot wall; put it under "Avoid" with the reason.
 - **Ground every claim.** Confidence comes from data (see
   `skills/poe2-core/references/confidence.md`). Knowledge files carry a freshness stamp and their
   sources; if you can't confirm something, mark it "not researched" instead of guessing.

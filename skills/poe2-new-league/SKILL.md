@@ -31,9 +31,9 @@ Store the exact `league` value they choose, not the short name.
 
 Then find the **patch** the league launched with — `get_leagues` doesn't report it, so look it up:
 
-1. Find the official PoE2 patch notes on pathofexile.com (the forum's patch-notes section) for the
-   content update that launched this league. If the server fetch is blocked, open it in the browser; if
-   that's blocked too, use poe2db's patch-notes page. The version is in the title, e.g. `0.6.0` — take
+1. Find the patch notes for the content update that launched this league, from the sources in
+   `poe2-core/references/sources.md` → "Patch / hotfix notes". If the server fetch of the primary is
+   blocked, open it in the browser; if that's blocked too, use the fallback. The version is in the title, e.g. `0.6.0` — take
    the launch patch, not a later hotfix.
 2. Confirm it as a choice: **"<version> (from the patch notes)"** first, and "Other" for the player to
    type one. If nothing turned up, ask for it directly, still offering "skip".
@@ -51,8 +51,8 @@ choice in step 1.
 ## 3. Refresh what the patch made stale
 
 Use the patch notes from step 1, plus any hotfix notes posted since. Each item follows its section of
-`CONTRIBUTING.md` → "Per-patch refresh" — its sources and rules (quote patch notes verbatim, no Maxroll,
-no odds or drop rates) apply here as written.
+`CONTRIBUTING.md` → "Per-patch refresh" — its rules (quote patch notes verbatim, no odds or drop rates)
+apply here as written, and `poe2-core/references/sources.md` says where to look.
 
 - **Knowledge.** Call `get_knowledge` for each topic and read its `patch`/`refreshed`:
   - `trials` (CONTRIBUTING step 2)

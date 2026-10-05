@@ -20,6 +20,8 @@ explain things to newcomers consistently.
 - **`references/guide-structure.md`** — how to turn any build guide (linked guides, level or gear
   tabs, prose) into ordered stages with entry conditions. Used by `poe2-build-review` and
   `poe2-build-switch`.
+- **`references/sources.md`** — where to look things up, per topic: which tool or site, the domains to
+  search, sites to avoid, and build creators to trust.
 
 ## Rules every skill inherits
 
@@ -46,6 +48,9 @@ explain things to newcomers consistently.
    config keys, tool names, machines, or "verify this" notes unless the player has to act on them —
    and then say the action in player terms ("restart Claude to load the update"). When a step
    found nothing to change, say so in a line, or skip it.
+8. **Look things up only where `references/sources.md` says.** Tools and knowledge files first; on the
+   web, only the listed domains for that topic. If they don't have it, say "not researched" rather
+   than searching wider or answering from memory.
 
 ## Player & character state (shared model)
 
