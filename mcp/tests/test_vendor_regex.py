@@ -11,7 +11,9 @@ from pathlib import Path
 import pytest
 
 from poe2_mcp import server
-from poe2_mcp.vendor_regex import LIMIT, MODS, TIERS, VendorRegex, Want, _between, build_vendor_regex
+from poe2_mcp.vendor_regex import (
+    LIMIT, MODS, TIERS, VendorRegex, Want, _between, _fixed, build_vendor_regex,
+)
 
 _GROUP = re.compile(r'"(!?)([^"]*)"')
 
@@ -148,6 +150,41 @@ def test_between_matches_exactly_its_range():
             rx = re.compile(_between(lo, hi))
             got = [v for v in range(100) if rx.fullmatch(str(v))]
             assert got == list(range(lo, hi + 1)), (lo, hi, rx.pattern)
+
+
+
+@pytest.mark.parametrize("lo, hi", [
+    *((lo, hi) for lo in range(100, 1000, 37) for hi in range(lo, 1000, 41)),
+    (100, 100), (100, 999), (199, 200), (100, 214), (150, 174), (999, 999),
+])
+def test_fixed_matches_exactly_its_three_digit_range(lo, hi):
+    rx = re.compile("|".join(_fixed(lo, hi, 3)))
+    assert [v for v in range(1000) if rx.fullmatch(str(v))] == list(range(lo, hi + 1))
+
+
+@pytest.mark.parametrize("item_level, yes, no", [
+    (None, [100, 149, 214], [99, 50]),
+    (60, [100, 149], [99, 50]),          # life tops out at 149 here
+    (80, [120, 214], [119, 12]),
+])
+def test_life_100_and_up(item_level, yes, no):
+    min_value = 120 if item_level == 80 else 100
+    out = build_vendor_regex(want=[Want("max_life", min_value=min_value)], item_level=item_level)
+    assert out.unreachable == ()
+    for v in yes:
+        assert highlights(out.regex, f"+{v} to maximum Life"), v
+    for v in no:
+        assert not highlights(out.regex, f"+{v} to maximum Life"), v
+
+
+def test_life_100_is_unreachable_below_its_tier():
+    assert build_vendor_regex(want=[Want("max_life", min_value=100)], item_level=50).unreachable == ("max_life",)
+
+
+@pytest.mark.parametrize("min_value", [215, 1000])
+def test_life_above_its_highest_roll_raises(min_value):
+    with pytest.raises(ValueError):
+        build_vendor_regex(want=[Want("max_life", min_value=min_value)])
 
 
 def test_movement_speed_stops_at_its_highest_roll():

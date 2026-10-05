@@ -172,14 +172,19 @@ def _at_least(n: int, top: int | None = None) -> str:
 
     Unanchored, so a smaller number can't match by containing a qualifying substring: every 1-2 digit
     pattern needs the whole number, and any 3+ digit number (all >= 100 > n) matches via \\d{3}.
-    `top` is the highest value the mod can roll; below 100 the pattern stops there (n..top) and drops
-    \\d{3}. It shortens the pattern -- it doesn't exclude values above top, which can't occur."""
-    if not 0 <= n <= 99:
-        raise ValueError(f"min_value {n} is outside 0-99")
+    From 100 up, n is 3 digits and so is every match (n..top, or n..999 with no top) -- a shorter number
+    can't contain one. `top` is the highest value the mod can roll; below 100 the pattern stops there
+    (n..top) and drops \\d{3}. It shortens the pattern -- it doesn't exclude values above top, which
+    can't occur."""
+    if not 0 <= n <= 999:
+        raise ValueError(f"min_value {n} is outside 0-999")
+    if top is not None and n > top:
+        raise ValueError(f"min_value {n} is above the highest roll, {top}")
     if top is not None and top <= 99:
-        if n > top:
-            raise ValueError(f"min_value {n} is above the highest roll, {top}")
         return _between(n, top)
+    if n >= 100:
+        alts = _fixed(n, min(top, 999) if top is not None else 999, 3)
+        return alts[0] if len(alts) == 1 else f"({'|'.join(alts)})"
     if n <= 1:
         return "\\d"
     tens, ones = divmod(n, 10)
@@ -210,6 +215,28 @@ def _between(lo: int, hi: int) -> str:
     if full:
         alts.append(f"{_span(full[0], full[-1])}\\d")
     return alts[0] if len(alts) == 1 else f"({'|'.join(alts)})"
+
+
+def _fixed(lo: int, hi: int, width: int) -> list[str]:
+    """Alternatives matching exactly the `width`-digit numbers lo..hi (zero-padded below the top digit).
+    Splits on the leading digit: a partial first and last run, and the whole runs between as one class
+    ("1[2-9]\\d", "[2-4]\\d\\d", "5[0-3]\\d")."""
+    if width == 1:
+        return [_span(lo, hi)]
+    unit = 10 ** (width - 1)
+    first, last = lo // unit, hi // unit
+    if first == last:
+        return [f"{first}{alt}" for alt in _fixed(lo % unit, hi % unit, width - 1)]
+    alts: list[str] = []
+    if lo % unit:
+        alts += [f"{first}{alt}" for alt in _fixed(lo % unit, unit - 1, width - 1)]
+        first += 1
+    tail = hi % unit != unit - 1
+    if first <= last - tail:
+        alts.append(_span(first, last - tail) + "\\d" * (width - 1))
+    if tail:
+        alts += [f"{last}{alt}" for alt in _fixed(0, hi % unit, width - 1)]
+    return alts
 
 
 def _span(a: int, b: int) -> str:
