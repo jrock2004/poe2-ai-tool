@@ -68,7 +68,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
 | `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
-| `poe2-new-league` | `/poe2-new-league` at league start: pick the league, save it as the default, refresh what the patch made stale, onboard the first character. |
+| `poe2-new-league` | `/poe2:poe2-new-league` at league start: pick the league, save it as the default, refresh what the patch made stale, onboard the first character. |
 
 Design notes that shape all of them:
 
@@ -116,6 +116,9 @@ Then start (or restart) Claude Code, from any folder. The first start takes a fe
 uv sets up the server. On your first question, `poe2-character` onboards your character and saves your
 league.
 
+Plugin skills are namespaced, so their commands read `/poe2:<skill>` — e.g. `/poe2:poe2-new-league`, or
+`/poe2:poe2-character new` for another character. Typing the bare name (`/poe2-new-league`) works too.
+
 ### Updates
 
 ```bash
@@ -124,7 +127,7 @@ claude plugin update poe2@poe2-ai-tool
 
 Updates bring new skills, fixes and refreshed game knowledge (trials, farming, crafting). Your own data
 — characters, currency, saved league, any knowledge you refreshed — lives outside the install, so
-updates never touch it. When a new league starts, run `/poe2-new-league`.
+updates never touch it. When a new league starts, run `/poe2:poe2-new-league`.
 
 **Where your data lives:** `%APPDATA%\poe2-ai-tools` (Windows), `~/Library/Application Support/poe2-ai-tools`
 (macOS), `~/.local/share/poe2-ai-tools` (Linux). Set `POE2_DATA_DIR` to move it.
