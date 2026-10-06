@@ -1,11 +1,11 @@
 ---
 name: poe2-currency-tracker
-description: Track the player's Path of Exile 2 currency by reading screenshots of their currency/crafting tabs into a remembered inventory, and answer affordability and net-worth questions. Use when the player shares a currency-tab screenshot or asks "what can I afford", "what's my net worth", or "how much currency do I have".
+description: Track the player's Path of Exile 2 currency by reading screenshots of their currency, essence, ritual, and other special stash tabs into a remembered inventory, and answer affordability and net-worth questions. Use when the player shares a stash-tab screenshot or asks "what can I afford", "what's my net worth", or "how much currency do I have".
 ---
 # poe2-currency-tracker
 
 Load `poe2-core` first. There is **no PoE2 stash API**, so the inventory can't be read from the game —
-the player sends **screenshots** of their currency/crafting tabs and this skill reads them (vision)
+the player sends **screenshots** of their special stash tabs and this skill reads them (vision)
 into a remembered inventory per league and trade mode, then values it and answers "can I afford this?".
 
 Vision can misread a stack count or a look-alike icon, so the rule is **confirm before saving** and
@@ -20,7 +20,7 @@ every SSF character in it shares another — in-game they're separate stashes (s
 ```
 currency[league][trade_mode] = {
   tabs: {
-    "<tab name>": {              # e.g. "currency", "crafting", "essences"
+    "<tab>": {                   # get_stash_layout's tab name, e.g. "currency", "essence"
       items: [ { name, count, confidence } ],   # name = canonical (glossary-normalized)
       captured_at: <when the screenshot was read>,
       source: "screenshot"
@@ -42,18 +42,56 @@ a patch replaces it whole — send the full list.
 
 ## Reading a screenshot
 
-1. **Identify the tab.** Ask which tab it is if it's ambiguous ("is this your currency tab or a
-   crafting tab?"). One screenshot → one named tab.
-2. **Parse icon → canonical name + printed stack count.** Normalize names via
-   `poe2-core/references/currency-glossary.md` (so "Divine Orb", not "div" or a guess). PoE2 stacks
-   print the count on the icon; read it exactly.
-3. **Score each line's confidence** from the image, per `poe2-core/references/confidence.md`: a crisp,
-   full-resolution tab reads **High**; a compressed, cropped, or partially-hovered image reads **Low**
-   and gets flagged. Don't average it away — flag the specific lines you're unsure of.
-4. **Show what you read and ask to confirm** before saving:
-   > Read from your **currency** tab: Exalted ×342, Divine ×11, Chaos ×80, Annul ×3 *(Annul count
-   > blurry — Low)*. Save this? Correct anything that's off.
-5. **On confirm, save** (replace that tab). On a correction, apply it and save the corrected value.
+The special stash tabs are **fixed layouts**: each slot always holds the same item, held or not. So
+**name every item from its slot, never from its icon art** — look-alikes (Lesser Jeweller's vs.
+Artificer's, Chance vs. Divine, Gemcutter's vs. Glassblower's, the essence tiers) misread easily.
+Read only the **count** from the image. `get_stash_layout(tab)` says which item is in which slot.
+
+1. **Detect the tab.** Use the highlighted tab name at the top of the screenshot and the shape of the
+   grid, then call `get_stash_layout` for it. It covers: abyss, breach, currency, delirium, essence,
+   expedition, fragment, ritual, socketable. Confirm with the player only when:
+   - the tab name is unreadable and the grid could fit more than one tab;
+   - the screenshot doesn't fit the returned rows (a block missing or shifted, a different slot
+     count) — stop and ask which tab it is; don't force the layout onto it;
+   - it's an ordinary tab (not in that list) — slots there aren't fixed, so ask the player to name
+     the items they want tracked rather than guessing from icons.
+   One screenshot → one tab, saved under the tool's tab name.
+2. **Walk the rows.** `rows` is in reading order: top to bottom, each row left to right across the
+   whole tab, every slot counted — so a row's Nth slot on screen is its Nth entry. Rows are grouped
+   by height within half a slot, so a block set a little lower (Currency's Etcher / Scrap /
+   Whetstone) belongs to the row beside it. Tabs with pages (fragment, expedition, socketable) give
+   each row a `subTab`; read only the rows for the page shown, and ask if you can't tell which.
+3. **Read each slot:**
+   - **Dim or silhouetted → 0.** It's a known item the player has none of. Leave it out of the save.
+   - **Lit → the printed count, top-left.** Read it exactly. A lit slot with no legible count is a
+     Low line — flag it; don't assume 1.
+   - **II / III, bottom-right, is the tier mark**, not part of the count. Use it only to cross-check
+     that the slot's item is a Greater / Perfect tier.
+   - **`item` null is an open slot** — it holds whatever the player put there. If one is lit, its
+     name comes from the icon alone: say so, mark that line Low, and ask the player to hover it.
+   - **`label`** (Ritual) is the small currency icon above a group of omens. It labels the group; it
+     isn't a slot and has no count.
+   - **`craftingSlot`** — the tall slot in the middle. Never read it.
+4. **Handle what the rows can't place:**
+   - A slot outside every row (e.g. Ritual's strip down the left edge) is one of `onlyWhenHeld`.
+     If exactly one candidate fits, use it; otherwise ask the player to hover it.
+   - A slot named in `overlaps` sits on the same spot as another in the data — ask which item it
+     is (e.g. Ritual's top row: Head of the King vs. Petition Splinter).
+5. **Score each line's confidence** per `poe2-core/references/confidence.md`. A name read from its
+   slot on a crisp screenshot is High. Lower it when:
+   - the count is blurry, cropped, or partly hovered over;
+   - the name came from an open slot's icon (Low);
+   - **the layout's `patch` is older than the live patch** — Knowledge recency: the slot map may
+     have moved. Say the layout hasn't been checked for this patch and ask the player to confirm
+     any line that looks off.
+   Flag the specific uncertain lines; don't average them away.
+6. **Show what you read and ask to confirm** before saving:
+   > Read from your **currency** tab: Exalted ×20, Divine ×4, Chaos ×2, Vaal ×12, Scroll of Wisdom
+   > ×334 *(Wisdom count partly covered — Low)*. Save this? Correct anything that's off.
+7. **On confirm, save** (replace that tab). On a correction, apply it and save the corrected value.
+
+Names from `get_stash_layout` are the game's own names, so they price as-is through
+`value_currency`; use `poe2-core/references/currency-glossary.md` only for names the player types.
 
 ## Answering questions
 
