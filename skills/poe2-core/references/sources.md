@@ -28,6 +28,7 @@ PoE1 pages mix in under the same names. So:
 | Trial of Chaos modifiers | `get_knowledge('trials')` | poe2db.tw — `Ultimatum` (Modifiers list) | Re-check every patch; changes aren't always in the notes. |
 | Trial of the Sekhemas | `get_knowledge('trials')` | poe2db.tw | |
 | Farming — what a mechanic drops | `get_knowledge('farming')` | poe2scout categories (via the tools) | No yields, drop rates, or "X per hour" from anywhere. |
+| Stash-tab layouts (which item is in which slot) | `get_stash_layout` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv` | Snapshot is generated; see `CONTRIBUTING.md`. Column names there are guesses — trust `_COLUMNS` in `stashlayout.py`, not the headers. No license; the data is GGG's. |
 | Game / PoB UI steps | `references/how-to.md` | *not set* | |
 | Build guides | the player's link or PoB code, via `fetch_guide` | — | Follow its `route`. See "Build creators" for whose guides to trust. |
 

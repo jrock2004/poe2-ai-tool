@@ -64,6 +64,9 @@ Personal Path of Exile 2 decision assistant. Two parts:
   - `treedata.py` + `data/tree_<version>.json` — the passive-tree name snapshot. The JSON is
     **generated, never hand-edited**: regenerate it with `python -m poe2_mcp.treedata` (see
     `CONTRIBUTING.md`).
+  - `stashlayout.py` + `data/stash_layouts_<version>.json` — which item sits in each special stash-tab
+    slot, served by `get_stash_layout` so the currency tracker names items from their slot. Also
+    **generated, never hand-edited**: `python -m poe2_mcp.stashlayout` (see `CONTRIBUTING.md`).
 - `skills/` — one folder per skill (twelve). The judgment lives here, not in the server.
 - `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
 - `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
@@ -84,8 +87,9 @@ Design rules that hold across both:
 - **Judge market moves in divine, not exalted.** Prices are quoted in exalted, so when exalted
   drifts every raw change moves together. Trends and movers use `changePctVsDivine`.
 - **Source rules** (where to look things up, what to avoid, trusted build creators) live **only** in
-  `skills/poe2-core/references/sources.md`. **The per-patch refresh** (tree snapshot, trials/farming
-  knowledge, how-tos, league) lives in `CONTRIBUTING.md`. Follow them; don't duplicate them here.
+  `skills/poe2-core/references/sources.md`. **The per-patch refresh** (tree snapshot, stash layouts,
+  trials/farming knowledge, how-tos, league) lives in `CONTRIBUTING.md`. Follow them; don't duplicate
+  them here.
 
 ## Platforms
 

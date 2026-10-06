@@ -105,6 +105,39 @@ In `mcp/src/poe2_mcp/vendor_regex.py`:
   (Explicit + Implicit `text`s, sorted, deduplicated), then run the tests: a renamed mod fails
   `test_targets_and_traps_still_exist`, and a fragment that now catches the wrong mod fails its traps.
 
+### 8. Stash-tab layouts
+
+**Needed every patch** — a patch can add, move, or remove a slot without saying so in the notes.
+`get_stash_layout` serves the newest `mcp/src/poe2_mcp/data/stash_layouts_<version>.json`; the
+currency tracker names items from it.
+
+1. In [repoe-fork/dat-export](https://github.com/repoe-fork/dat-export) (`develop`), find the commit
+   whose message names the new game version, e.g. `export data at version 3.29.3.3 / 4.5.5.2`. The
+   second number is PoE2's: `4.5.5.2` is patch 0.5.5, so the snapshot version is `0_5_5`. Note the
+   commit.
+2. From that commit's `current/poe2/heuristics/csv/`, download `BaseItemTypes.csv` and the nine
+   `<Tab>StashTabLayout.csv` files (Abyss, Breach, Currency, Delirium, Essence, Expedition, Fragment,
+   Ritual, Socketable) into one folder.
+3. From `mcp/`, generate the snapshot. The command writes the file itself — **don't redirect with
+   `>`**:
+   ```bash
+   .venv/bin/python -m poe2_mcp.stashlayout path/to/csv <version> "repoe-fork/dat-export@<commit> (game <4.x.y.z>), current/poe2/heuristics/csv -- data is GGG's" src/poe2_mcp/data/stash_layouts_<version>.json
+   ```
+   Then delete the previous snapshot — only the newest is served.
+4. If it fails:
+   - **A missing column** — the export renamed one; its headers are guesses and change between runs.
+     Find the new name, update `_COLUMNS` in `stashlayout.py`, and update the matching fixture rows in
+     `mcp/tests/test_stashlayout.py`.
+   - **A value out of range** — the table changed shape. Look at the rows before widening `_RANGES`.
+5. Check it:
+   - Run the tests.
+   - Read the per-tab summary the command prints. Its overlap counts are raw: Delirium's stacked map
+     slots always show hundreds, and `get_stash_layout` drops those. Any **other** new overlap is a
+     slot to hover in game.
+   - Call `get_stash_layout("currency")` and compare its rows with an in-game screenshot, slot by slot.
+6. **Restart the MCP server** — snapshots are cached per version, so a running server keeps serving
+   the old one.
+
 ## Pull requests
 
 - Say what patch or change prompted it, and link the patch notes.
