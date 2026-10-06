@@ -15,11 +15,15 @@ Build-time only: nothing here touches the network, and runtime reads only the co
 from __future__ import annotations
 
 import csv
+import functools
 import json
 import os
+import re
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from importlib import resources
+from typing import Any
 
 TABS = ("abyss", "breach", "currency", "delirium", "essence", "expedition", "fragment", "ritual", "socketable")
 
@@ -45,6 +49,9 @@ _COLUMNS: dict[str, dict[str, str]] = {
 }
 _RANGES = {"x": (0, 1000), "y": (0, 1000), "w": (1, 4), "h": (1, 4), "size": (40, 120)}
 _LABEL_PREFIX = "RitualStashIcon"
+_CRAFTING_SLOT = "CraftingSlot"
+_SNAPSHOT_PREFIX = "stash_layouts_"
+_VERSION_RE = re.compile(r"\d+_\d+_\d+")
 
 
 @dataclass(frozen=True)
@@ -136,6 +143,116 @@ def overlaps(slots: Sequence[Slot]) -> list[tuple[Slot, Slot]]:
             if ax0 < bx1 and bx0 < ax1 and ay0 < by1 and by0 < ay1:
                 pairs.append((a, b))
     return pairs
+
+
+def reading_view(slots: Sequence[Slot]) -> dict[str, Any]:
+    """How a screenshot of the tab reads, for naming each slot by position.
+
+    - `rows`: the always-shown slots in reading order -- by sub-tab, then top to bottom, each row left
+      to right. A slot joins the current row when its top is within half a slot of the row's first
+      slot; otherwise it starts a new row. Open slots stay in (item null) so positions add up. Each
+      slot is {key, item}, plus w/h when over 1 and label when set.
+    - `onlyWhenHeld`: hidden-when-empty slots -- {key, item, subTab} -- which appear only while held.
+    - `craftingSlot`: whether the tab has one; it is left out of `rows` (never stash, never read).
+    - `overlaps`: [keyA, keyB] pairs from `overlaps`, minus pairs where both slots are hidden-when-
+      empty with no fixed item (Delirium's stacked map slots).
+    Pure.
+    """
+    shown = sorted(
+        (s for s in slots if not s.hidden_when_empty and s.key != _CRAFTING_SLOT),
+        key=lambda s: (_page(s), s.y, s.x),
+    )
+    rows: list[list[Slot]] = []
+    for s in shown:
+        first = rows[-1][0] if rows else None
+        if first is not None and first.sub_tab == s.sub_tab and s.y - first.y <= first.size / 2:
+            rows[-1].append(s)
+        else:
+            rows.append([s])
+
+    return {
+        "rows": [
+            {"subTab": row[0].sub_tab, "slots": [_view_slot(s) for s in sorted(row, key=lambda s: s.x)]}
+            for row in rows
+        ],
+        "onlyWhenHeld": [
+            {"key": s.key, "item": s.item, "subTab": s.sub_tab} for s in slots if s.hidden_when_empty
+        ],
+        "craftingSlot": any(s.key == _CRAFTING_SLOT for s in slots),
+        "overlaps": [[a.key, b.key] for a, b in overlaps(slots) if not (_stacked(a) and _stacked(b))],
+    }
+
+
+def _page(s: Slot) -> int:
+    return -1 if s.sub_tab is None else s.sub_tab
+
+
+def _stacked(s: Slot) -> bool:
+    """A slot the game fills on demand: shown only while held, with no fixed item."""
+    return s.hidden_when_empty and s.item is None
+
+
+def _view_slot(s: Slot) -> dict[str, Any]:
+    out: dict[str, Any] = {"key": s.key, "item": s.item}
+    if s.w > 1 or s.h > 1:
+        out["w"], out["h"] = s.w, s.h
+    if s.label:
+        out["label"] = s.label
+    return out
+
+
+@functools.lru_cache(maxsize=None)
+def load_snapshot(version: str) -> dict[str, Any] | None:
+    """The committed snapshot for a version like '0_5_5', or None if none (or the version is malformed)."""
+    if not _VERSION_RE.fullmatch(version):
+        return None
+    path = _data_dir().joinpath(f"{_SNAPSHOT_PREFIX}{version}.json")  # one argument: 3.10-safe
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def latest_version() -> str | None:
+    """The newest committed snapshot's version, e.g. '0_5_5', or None if there are none."""
+    versions = [
+        name[len(_SNAPSHOT_PREFIX):-len(".json")]
+        for name in (p.name for p in _data_dir().iterdir())
+        if name.startswith(_SNAPSHOT_PREFIX) and name.endswith(".json")
+    ]
+    versions = [v for v in versions if _VERSION_RE.fullmatch(v)]
+    return max(versions, key=lambda v: tuple(int(n) for n in v.split("_")), default=None)
+
+
+def stash_layout(tab: str) -> dict[str, Any]:
+    """`reading_view` of `tab` from the newest snapshot, plus tab, version, patch ('0.5.5'), and source.
+
+    An unknown tab or no snapshot returns {"valid": False, "error", "note"}, like parse_pob_code.
+    """
+    if tab not in TABS:
+        return {"valid": False, "error": f"unknown stash tab {tab!r}", "note": f"Use one of: {', '.join(TABS)}."}
+    version = latest_version()
+    snapshot = load_snapshot(version) if version else None
+    if snapshot is None:
+        return {"valid": False, "error": "no stash-layout snapshot is installed",
+                "note": "Regenerate one with `python -m poe2_mcp.stashlayout` (see CONTRIBUTING.md)."}
+    return {
+        "tab": tab,
+        "version": version,
+        "patch": version.replace("_", "."),
+        "source": snapshot["source"],
+        **reading_view([_slot_from_json(d) for d in snapshot["tabs"][tab]]),
+    }
+
+
+def _data_dir():
+    return resources.files("poe2_mcp").joinpath("data")
+
+
+def _slot_from_json(d: Mapping[str, Any]) -> Slot:
+    return Slot(
+        key=d["key"], item=d["item"], x=d["x"], y=d["y"], w=d["w"], h=d["h"], size=d["size"],
+        hidden_when_empty=d["hiddenWhenEmpty"], sub_tab=d["subTab"], group=d["group"], label=d["label"],
+    )
 
 
 def _slot_json(s: Slot) -> dict[str, object]:

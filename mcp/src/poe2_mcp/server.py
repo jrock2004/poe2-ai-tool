@@ -16,7 +16,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from . import knowledge, state, store
+from . import knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
@@ -575,6 +575,25 @@ async def summarize_tree(
     Offline; no network.
     """
     return _summarize_tree(main, tree_version, weapon_set_1, weapon_set_2, ascendancy)
+
+
+@mcp.tool()
+async def get_stash_layout(tab: str) -> dict[str, Any]:
+    """Which item sits in each slot of a Path of Exile 2 special stash tab, for reading a screenshot.
+
+    The special tabs are fixed layouts: a slot always holds the same item, held or not -- so name an
+    item from its slot, and read only the count from the image. `tab` is one of: abyss, breach,
+    currency, delirium, essence, expedition, fragment, ritual, socketable.
+
+    Returns `rows` in reading order (by `subTab` page, then top to bottom, each row left to right),
+    each slot {key, item} plus w/h when wider or taller than one slot and `label` for a Ritual group
+    icon; `item` null is an open slot that can hold anything. `onlyWhenHeld` lists slots that appear
+    only while the player has the item. `craftingSlot` says the tab has one (it's left out of rows
+    and never read). `overlaps` names slot pairs the data puts on the same spot -- confirm those
+    in game. `patch` is the snapshot's patch; if the league's is newer, the layout may be stale.
+    Offline; no network.
+    """
+    return stashlayout.stash_layout(tab)
 
 
 _VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())
