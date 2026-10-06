@@ -6,10 +6,11 @@ column names are guesses and the tests pin which guess means what.
 """
 import csv
 import io
+import json
 
 import pytest
 
-from poe2_mcp.stashlayout import TABS, Slot, normalize, overlaps
+from poe2_mcp.stashlayout import TABS, Slot, main, normalize, overlaps, render_snapshot
 
 # BaseItemTypes rownum -> Name, for just the items the rows below reference.
 NAMES = {
@@ -196,3 +197,41 @@ def test_different_sub_tabs_do_not_overlap():
     a = Slot(key="a", item=None, x=0, y=0, w=1, h=1, size=78,
              hidden_when_empty=False, sub_tab=0, group=None, label=None)
     assert overlaps([a, Slot(**{**a.__dict__, "key": "b", "sub_tab": 1})]) == []
+
+
+def all_tabs() -> dict[str, list[Slot]]:
+    return {tab: normalize(tab, rows(tab), NAMES) for tab in TABS}
+
+
+def test_render_snapshot_is_valid_json_with_one_slot_per_line():
+    text = render_snapshot(all_tabs(), "0_5_5", "fixture")
+    snap = json.loads(text)
+    assert (snap["version"], snap["source"]) == ("0_5_5", "fixture")
+    assert list(snap["tabs"]) == list(TABS)
+    assert snap["tabs"]["ritual"][2] == {
+        "key": "OmenOnExaltAddPrefixes", "item": "Omen of Sinistral Exaltation",
+        "x": 139, "y": 320, "w": 1, "h": 1, "size": 78,
+        "hiddenWhenEmpty": False, "subTab": None, "group": None, "label": "Exalted",
+    }
+    slot_lines = [line for line in text.splitlines() if line.startswith('    {"key"')]
+    assert len(slot_lines) == sum(len(rows(tab)) for tab in TABS)
+    assert text.endswith("}\n")
+
+
+def test_main_reads_the_csv_folder_and_writes_utf8_lf(tmp_path, capsys):
+    for tab in TABS:
+        (tmp_path / f"{tab.capitalize()}StashTabLayout.csv").write_text(CSV[tab], encoding="utf-8")
+    (tmp_path / "BaseItemTypes.csv").write_text(
+        '"rownum","Name"\n' + "".join(f'{k},"{v}"\n' for k, v in NAMES.items()), encoding="utf-8")
+    out = tmp_path / "stash_layouts_0_5_5.json"
+    main([str(tmp_path), "0_5_5", "fixture", str(out)])
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf")  # no BOM
+    assert b"\r\n" not in raw
+    assert json.loads(raw.decode("utf-8"))["tabs"]["currency"][1]["item"] == "Blacksmith's Whetstone"
+    assert "ritual: 5 slots, 1 overlapping pairs" in capsys.readouterr().out
+
+
+def test_main_requires_an_output_path(tmp_path):
+    with pytest.raises(SystemExit):
+        main([str(tmp_path), "0_5_5", "fixture"])

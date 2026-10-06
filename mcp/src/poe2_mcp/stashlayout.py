@@ -6,10 +6,18 @@ them from repoe-fork/dat-export's CSV export (the data is GGG's). That export na
 heuristic, and some guesses are wrong or missing, so the per-tab column map here is the verified
 reading -- and a rename fails loudly rather than misreading.
 
+Regenerate per patch from a local checkout (or download) of the export's CSV folder:
+
+    python -m poe2_mcp.stashlayout path/to/current/poe2/heuristics/csv 0_5_5 "<source note>" src/poe2_mcp/data/stash_layouts_0_5_5.json
+
 Build-time only: nothing here touches the network, and runtime reads only the committed JSON.
 """
 from __future__ import annotations
 
+import csv
+import json
+import os
+import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
@@ -128,3 +136,58 @@ def overlaps(slots: Sequence[Slot]) -> list[tuple[Slot, Slot]]:
             if ax0 < bx1 and bx0 < ax1 and ay0 < by1 and by0 < ay1:
                 pairs.append((a, b))
     return pairs
+
+
+def _slot_json(s: Slot) -> dict[str, object]:
+    return {
+        "key": s.key, "item": s.item, "x": s.x, "y": s.y, "w": s.w, "h": s.h, "size": s.size,
+        "hiddenWhenEmpty": s.hidden_when_empty, "subTab": s.sub_tab, "group": s.group, "label": s.label,
+    }
+
+
+def render_snapshot(tabs: Mapping[str, Sequence[Slot]], version: str, source: str) -> str:
+    """The snapshot JSON text: version, source, then each tab's slots one per line, tabs in TABS
+    order (so a per-patch regeneration reads as a small diff). Pure; ends with a newline.
+    """
+    blocks = []
+    for tab in TABS:
+        lines = [f"    {json.dumps(_slot_json(s), ensure_ascii=False)}" for s in tabs[tab]]
+        blocks.append(f"  {json.dumps(tab)}: [\n" + ",\n".join(lines) + "\n  ]")
+    return (
+        "{\n"
+        f'"version": {json.dumps(version)},\n'
+        f'"source": {json.dumps(source)},\n'
+        '"tabs": {\n' + ",\n".join(blocks) + "\n}\n}\n"
+    )
+
+
+def _read_csv(path: str) -> list[dict[str, str]]:
+    with open(path, encoding="utf-8", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def main(argv: list[str]) -> None:
+    """CLI: stashlayout <csv dir> <version> <source note> <out.json> -- writes the snapshot file.
+
+    Reads `<Tab>StashTabLayout.csv` for each of TABS plus `BaseItemTypes.csv` from the export's CSV
+    folder. Writes the file itself (UTF-8, no BOM, LF) instead of printing for a shell redirect:
+    Windows PowerShell 5.1's `>` would write UTF-16. Prints a per-tab summary, overlaps included,
+    for the person regenerating to check.
+    """
+    if len(argv) != 4:
+        sys.exit("usage: python -m poe2_mcp.stashlayout <csv dir> <version> <source note> <out.json>")
+    folder, version, source, out = argv
+    names = {int(r["rownum"]): r["Name"] for r in _read_csv(os.path.join(folder, "BaseItemTypes.csv"))}
+    tabs = {
+        tab: normalize(tab, _read_csv(os.path.join(folder, f"{tab.capitalize()}StashTabLayout.csv")), names)
+        for tab in TABS
+    }
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(render_snapshot(tabs, version, source))
+    for tab, slots in tabs.items():
+        pairs = overlaps(slots)
+        print(f"{tab}: {len(slots)} slots, {len(pairs)} overlapping pairs")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
