@@ -474,7 +474,8 @@ def test_render_items_is_json_with_one_mod_and_one_text_per_line():
 
 COMMIT = "0123abcd"
 REPO = f"/repoe-fork/poe2/{COMMIT}"
-EXPORT = {"mods_by_base": MODS_BY_BASE, "mods": MODS, "base_items": BASE_ITEMS, "game_version": "4.5.5.2"}
+EXPORT = {"mods_by_base": MODS_BY_BASE, "mods": MODS, "base_items": BASE_ITEMS, "augments": AUGMENTS,
+          "game_version": "4.5.5.2"}
 EXCHANGE_COMMIT = "4567cdef"
 TABLES = f"/repoe-fork/dat-export/{EXCHANGE_COMMIT}/current/poe2/heuristics/csv"
 # Shaped like repoe-fork/dat-export's CurrencyExchange.csv and BaseItemTypes.csv (game 4.5.5.2), trimmed: real
@@ -498,7 +499,8 @@ BASE_ITEM_TYPES_CSV = (
 def _transport(calls: list[str], status: int = 200) -> httpx.MockTransport:
     """GitHub's raw file host, serving both fixture exports at their commits; records each URL asked for."""
     served = {f"{REPO}/data/mods_by_base.json": MODS_BY_BASE, f"{REPO}/data/mods.json": MODS,
-              f"{REPO}/data/base_items.json": BASE_ITEMS, f"{REPO}/version.txt": "4.5.5.2\n",
+              f"{REPO}/data/base_items.json": BASE_ITEMS, f"{REPO}/data/augments.json": AUGMENTS,
+              f"{REPO}/version.txt": "4.5.5.2\n",
               f"{TABLES}/CurrencyExchange.csv": EXCHANGE_CSV, f"{TABLES}/BaseItemTypes.csv": BASE_ITEM_TYPES_CSV}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -511,11 +513,11 @@ def _transport(calls: list[str], status: int = 200) -> httpx.MockTransport:
     return httpx.MockTransport(handler)
 
 
-def test_fetch_export_reads_the_three_files_and_the_game_version_at_the_commit():
+def test_fetch_export_reads_its_files_and_the_game_version_at_the_commit():
     calls: list[str] = []
     assert fetch_export(COMMIT, transport=_transport(calls)) == EXPORT
     assert sorted(calls) == sorted(f"https://raw.githubusercontent.com{REPO}/{path}" for path in (
-        "data/mods_by_base.json", "data/mods.json", "data/base_items.json", "version.txt"))
+        "data/mods_by_base.json", "data/mods.json", "data/base_items.json", "data/augments.json", "version.txt"))
 
 
 def _rows(csv_text):
@@ -605,6 +607,9 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
         f"repoe-fork/poe2@{COMMIT} (game 4.5.5.2), repoe-fork/dat-export@{EXCHANGE_COMMIT} ")
     assert "Rusted Greathelm" in snapshot["bases"] and "Chaos Orb" in snapshot["texts"]
     assert snapshot["texts"]["Greater Essence of the Body"]["adds"] == BODY_ADDS
+    # Every augment gets its entry, traded or not: the exchange trades neither of these.
+    assert snapshot["texts"]["Lesser Robust Rune"]["adds"] == ROBUST_ADDS
+    assert snapshot["texts"]["Guatelitzi's Thesis"]["limit"] == "1 Ancient Augment"
 
 
 @pytest.mark.parametrize("argv", [

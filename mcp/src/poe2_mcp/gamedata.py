@@ -5,10 +5,11 @@ Mod tiers, bases and their requirements come from repoe-fork/poe2 (`data/mods_by
 the in-game text of what PoE2's Currency Exchange trades (currency, omens, essences, runes...). Which items
 those are comes from repoe-fork/dat-export's `CurrencyExchange` table -- the game files still carry PoE1
 items, and nothing in their records tells the two apart -- and what each essence adds from its essence
-tables. This module turns them into one compact snapshot per patch (`data/items_<patch>.json`) that the
+tables. Runes, soul cores and idols come from repoe-fork/poe2's `augments.json`, traded or not: PoE1 has
+none. This module turns them into one compact snapshot per patch (`data/items_<patch>.json`) that the
 tools read at runtime: which mods each base can roll, each tier's name, side, item-level gate and text,
-each traded item's text, and what each essence adds. Regenerate per patch, from each export's commit for
-that game version:
+each item's text, and what each essence and augment adds. Regenerate per patch, from each export's
+commit for that game version:
 
     python -m poe2_mcp.gamedata items <poe2-commit> <dat-export-commit> 0.5.5 src/poe2_mcp/data/items_0_5_5.json
 
@@ -43,7 +44,7 @@ PLAYER_CLASSES = (
 _SIDES = ("prefix", "suffix")
 RAW_HOST = "https://raw.githubusercontent.com"
 EXPORT_REPO = "repoe-fork/poe2"
-EXPORT_FILES = ("mods_by_base", "mods", "base_items")
+EXPORT_FILES = ("mods_by_base", "mods", "base_items", "augments")
 TABLES_REPO = "repoe-fork/dat-export"
 TABLES_DIR = "current/poe2/heuristics/csv"
 # The dat-export tables the snapshot reads: what the Currency Exchange trades, and what each essence adds.
@@ -411,9 +412,9 @@ def _fetch_files(repo: str, commit: str, paths: list[str],
 
 
 def fetch_export(commit: str, transport: httpx.BaseTransport | None = None) -> dict[str, Any]:
-    """Download repoe-fork/poe2's export at `commit`: {"mods_by_base", "mods", "base_items" (parsed),
-    "game_version"}. Build-time only -- the command line runs it, the tools never do. A commit hash only;
-    an HTTP error raises RuntimeError (see `_fetch_files`).
+    """Download repoe-fork/poe2's export at `commit`: {"mods_by_base", "mods", "base_items", "augments"
+    (parsed), "game_version"}. Build-time only -- the command line runs it, the tools never do. A commit
+    hash only; an HTTP error raises RuntimeError (see `_fetch_files`).
     """
     *files, version = _fetch_files(
         EXPORT_REPO, commit, [*(f"data/{name}.json" for name in EXPORT_FILES), "version.txt"], transport)
@@ -466,7 +467,10 @@ def main(argv: list[str]) -> None:
     export = fetch_export(commit)
     tables = fetch_tables(tables_commit, TABLE_NAMES)
     items = build_items(export["mods_by_base"], export["mods"], export["base_items"])
-    items["texts"] = build_texts(export["base_items"], exchange_ids(tables), build_essences(tables, export["mods"]))
+    # Every augment gets an entry, traded or not; the exchange decides only for everything else.
+    augments = build_augments(export["augments"])
+    extras = {**build_essences(tables, export["mods"]), **augments}
+    items["texts"] = build_texts(export["base_items"], exchange_ids(tables) | set(augments), extras)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
