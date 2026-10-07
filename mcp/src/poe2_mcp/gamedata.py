@@ -47,9 +47,11 @@ EXPORT_REPO = "repoe-fork/poe2"
 EXPORT_FILES = ("mods_by_base", "mods", "base_items", "augments")
 TABLES_REPO = "repoe-fork/dat-export"
 TABLES_DIR = "current/poe2/heuristics/csv"
-# The dat-export tables the snapshot reads: what the Currency Exchange trades, and what each essence adds.
+# The dat-export tables the snapshot reads: what the Currency Exchange trades, what each essence adds, and
+# the two trials' pools.
 TABLE_NAMES = ("CurrencyExchange", "BaseItemTypes", "Essences", "EssenceMods", "EssenceTargetItemCategories",
-               "Mods")
+               "Mods", "UltimatumModifiers", "UltimatumModifierTypes", "SanctumPersistentEffects",
+               "SanctumPersistentEffectCategories")
 USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
@@ -349,8 +351,9 @@ def _game_text(raw: str | None) -> str:
 
 
 def render_items(items: dict[str, Any], patch: str, source: str) -> str:
-    """The snapshot JSON text: patch, source, then one pool, base, tier and item text per line, so a
-    per-patch regeneration reads as a small diff. Pure; ends with a newline."""
+    """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier
+    and Sekhemas effect per line, so a per-patch regeneration reads as a small diff. Pure; ends with a
+    newline."""
 
     def rows(pairs: Any) -> str:
         return ",\n".join(f"  {key}{json.dumps(value, ensure_ascii=False)}" for key, value in pairs)
@@ -362,7 +365,9 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"groups": [\n' + rows(("", g) for g in items["groups"]) + "\n],\n"
         '"bases": {\n' + rows((f"{json.dumps(n)}: ", v) for n, v in items["bases"].items()) + "\n},\n"
         '"mods": {\n' + rows((f"{json.dumps(t)}: ", m) for t, m in items["mods"].items()) + "\n},\n"
-        '"texts": {\n' + rows((f"{json.dumps(n)}: ", t) for n, t in items["texts"].items()) + "\n}\n"
+        '"texts": {\n' + rows((f"{json.dumps(n)}: ", t) for n, t in items["texts"].items()) + "\n},\n"
+        '"chaos": [\n' + rows(("", c) for c in items["chaos"]) + "\n],\n"
+        '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n]\n"
         "}\n"
     )
 
@@ -579,6 +584,8 @@ def main(argv: list[str]) -> None:
     augments = build_augments(export["augments"])
     extras = {**build_essences(tables, export["mods"]), **augments}
     items["texts"] = build_texts(export["base_items"], exchange_ids(tables) | set(augments), extras)
+    items["chaos"] = build_chaos(tables)
+    items["sekhemas"] = build_sekhemas(tables)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:

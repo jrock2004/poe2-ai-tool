@@ -601,14 +601,18 @@ def test_build_sekhemas_refuses_a_row_it_cant_resolve(table, rownum):
         build_sekhemas(tables)
 
 
-def test_render_items_is_json_with_one_mod_and_one_text_per_line():
-    items = {**_items(), "texts": _texts()}
+def test_render_items_is_json_with_one_entry_per_line():
+    items = {**_items(), "texts": _texts(), "chaos": build_chaos(CHAOS_TABLES),
+             "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
     text = render_items(items, "0.5.5", "repoe-fork/poe2@abc123 (game 4.5.5.2)")
     snapshot = json.loads(text)
     assert snapshot["patch"] == "0.5.5" and snapshot["source"] == "repoe-fork/poe2@abc123 (game 4.5.5.2)"
-    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts")} == items
-    assert sum('"side":' in line for line in text.splitlines()) == len(snapshot["mods"])
-    assert sum('"use":' in line for line in text.splitlines()) == len(snapshot["texts"])
+    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas")} == items
+    lines = text.splitlines()
+    assert sum('"side":' in line for line in lines) == len(snapshot["mods"])
+    assert sum('"use":' in line for line in lines) == len(snapshot["texts"])
+    assert sum('"versions":' in line for line in lines) == len(snapshot["chaos"])  # a modifier and its versions
+    assert sum('"category":' in line for line in lines) == len(snapshot["sekhemas"])
     assert text.endswith("\n")
 
 
@@ -717,6 +721,8 @@ def test_each_fetch_raises_on_an_http_error(fetch):
 MAIN_EXPORT = {**EXPORT, "mods": {**MODS, **ESSENCE_MODS}}
 MAIN_TABLES = {
     **ESSENCE_TABLES,
+    **CHAOS_TABLES,
+    **SEKHEMAS_TABLES,
     "BaseItemTypes": [*ESSENCE_TABLES["BaseItemTypes"],
                       {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"}],
     "CurrencyExchange": [{"rownum": "12", "Item": "3"}, {"rownum": "76", "Item": "111"}],
@@ -750,6 +756,10 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
     # Every augment gets its entry, traded or not: the exchange trades neither of these.
     assert snapshot["texts"]["Lesser Robust Rune"]["adds"] == ROBUST_ADDS
     assert snapshot["texts"]["Guatelitzi's Thesis"]["limit"] == "1 Ancient Augment"
+    # Both trials' pools, from the same tables fetch.
+    assert snapshot["chaos"][0] == TIME_PARADOX
+    assert [e["name"] for e in snapshot["sekhemas"]] == [
+        "Earned Honour", "Ghastly Scythe", "Iron Manacles", "Pledge to the Powerful"]
 
 
 @pytest.mark.parametrize("argv", [

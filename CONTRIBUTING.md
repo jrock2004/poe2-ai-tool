@@ -158,9 +158,9 @@ currency tracker names items from it.
 `version.txt` changes. That follows a patch, and sometimes a lettered patch that changed the game's
 files; a server-side fix doesn't. `src/poe2_mcp/data/items_<patch>.json` holds which mods each base can
 roll and every tier's name, side, item level and text, plus the in-game text of everything PoE2's
-Currency Exchange trades, what each essence adds, and what each rune, soul core and idol does (from
-repoe-fork/poe2's `augments.json`, traded or not); its `source` names both export commits and the game
-version.
+Currency Exchange trades, what each essence adds, what each rune, soul core and idol does (from
+repoe-fork/poe2's `augments.json`, traded or not), and the Trial of Chaos and Trial of the Sekhemas pools;
+its `source` names both export commits and the game version.
 
 1. Take the commit hash of repoe-fork/poe2 (`master`) whose `version.txt` is the new game version — a
    commit, not `master`: the command refuses a branch, so the snapshot names exactly what it came from.
