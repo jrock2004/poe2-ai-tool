@@ -48,3 +48,12 @@ hover.
 Paste a link from Mobalytics or poe-vault, or the build's PoB code. For Maxroll, paste the guide's PoB
 code — Maxroll doesn't allow AI tools to read its pages. If a guide won't load, its PoB code always
 works.
+
+## Use a loot filter
+A loot filter hides junk drops and makes the good ones stand out. The popular ones are free.
+1. On **pathofexile.com**, sign in, open **Item Filters → Popular**, and set **Game Type** to **PoE2**
+   (it starts on PoE1).
+2. Pick one — the most-followed are at the top. Stricter filters hide more: start with a regular or
+   semi-strict one, and go stricter when drops get noisy.
+3. Click its name, then **Follow**.
+4. In game, open **Options → Gameplay** and choose the filter you followed.
