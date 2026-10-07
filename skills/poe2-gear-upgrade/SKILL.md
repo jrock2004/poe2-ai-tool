@@ -71,7 +71,9 @@ For each priority slot:
    Resistance").
 2. **Build the filter** with the slot's category and a realistic `min` — set it a bit *below* an
    ideal roll so you get real comparables, and combine the 1–2 mods that actually matter for that slot
-   (e.g. boots: movement speed + the missing resist). Set `max_price` from the player's budget.
+   (e.g. boots: movement speed + the missing resist). Set `max_price` from the player's budget, and
+   `max_level` to the character's level (from the PoB code, or ask) so every result can be worn now —
+   or to the level they're planning for, if they ask ahead ("what should I buy at 65?").
 3. **Search** with `search_trade` and read the cheapest matches. Its `priceStats.medianExalted` is the
    slot's realistic cost — use it (not the single cheapest listing) for ranking and affordability.
 
