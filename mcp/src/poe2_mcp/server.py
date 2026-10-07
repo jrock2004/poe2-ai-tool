@@ -682,16 +682,20 @@ async def mod_tiers(base: str, search: str | None = None, item_level: int | None
 @mcp.tool()
 async def item_text(search: str) -> dict[str, Any]:
     """What a Path of Exile 2 currency item does, in the game's own words: anything the Currency Exchange
-    trades -- orbs, omens, essences, alloys, catalysts, liquid emotions, runes, shards.
+    trades -- orbs, omens, essences, alloys, catalysts, liquid emotions, shards -- and every rune, soul
+    core and idol (augments).
 
     search: an item's name, or words from what it does, in any case. 'Chaos Orb' finds the orb and the
     omens that change it; 'instil' finds what Instils amulets; 'maximum life' finds the essences that add
     it. Each match gives `text` (what it does) and `use` (how it's used, and on what) -- quote them,
-    don't paraphrase. An essence or alloy also has `adds`: for each kind of item (`on`), the modifier it
-    adds (`text`) and whether that's a prefix or suffix (`side`). A rune's text doesn't say which
-    modifier it adds. An exact name comes first. Up to 20 matches; `total` counts them all -- if it's
-    more, narrow the search. No match returns `suggestions`. `patch` is the game patch the data is from;
-    if the league's is newer, it may be stale. Offline.
+    don't paraphrase. An essence, alloy or augment also has `adds`: for each kind of item it fits (`on`),
+    what it adds there (`text`). An essence's or alloy's row says whether that's a prefix or suffix
+    (`side`). An augment's row may have `bonded`: a Bonded modifier, which the game gives only to a Shaman
+    who allocated Wisdom of the Maji (`text` is empty where that's all it has). An augment's `limit` caps
+    how many can be socketed ("1 Ancient Augment": one at a time); `level` is its level requirement. An
+    exact name comes first. Up to 20 matches; `total` counts them all -- if it's more, narrow the search.
+    No match returns `suggestions`. `patch` is the game patch the data is from; if the league's is newer,
+    it may be stale. Offline.
     """
     items = load_items()
     if items is None:
