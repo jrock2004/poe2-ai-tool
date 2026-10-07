@@ -58,3 +58,14 @@ A loot filter hides junk drops and makes the good ones stand out. The popular on
 3. Click its name, then **Follow**.
 4. In game, open **Options**, go to the **Game** tab, and under **Guidance** set **Item Filter** to the
    filter you followed.
+
+## Follow a build guide in game (Build Planner)
+PoE2's Build Planner shows a guide's plan inside the game, on your passive tree. You can't make a plan
+there — you load one from a guide that offers it:
+- **Subscribe:** if the guide has a Build Planner version on pathofexile2.com, sign in and subscribe. It
+  shows up in game on PC and console, and updates when the author updates the guide.
+- **A `.build` file** (PC): unzip it if needed and put it in this folder; the game picks it up while
+  running: `Documents\My Games\Path of Exile 2\BuildPlanner`
+
+To see it: press **P** to open the passive tree, click the **Build Planner** icon in the top-left
+corner, and pick the plan from its list.
