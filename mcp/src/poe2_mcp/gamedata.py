@@ -58,6 +58,7 @@ _TEXT_MATCHES = 20
 # The game's display markup: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
 _DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
 _DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
+_NUMBER_RE = re.compile(r"\d+")
 
 
 def clean_text(line: str) -> str:
@@ -317,6 +318,26 @@ def mod_tiers(
                 families.append({"family": family, "side": side, "tiers": rows})
         variants.append({"class": variant["class"], "requirements": variant["requirements"], "families": families})
     return {"base": name, "patch": items["patch"], "variants": variants}
+
+
+def top_rolls(items: dict[str, Any], family: str) -> tuple[tuple[int, int], ...]:
+    """The highest value a mod family can roll as the item level goes up, from a loaded snapshot: ((item
+    level, highest value), ...), ascending -- only the levels where it goes up. Pure.
+
+    Across every base the family rolls on (the snapshot's tiers are only those some base rolls). A tier's
+    highest value is the last number in its text ("+(10-19) to maximum Life" -> 19), which fits
+    single-stat families; a tier with no number is left out. A family no base rolls gives ().
+    """
+    best: dict[int, int] = {}
+    for tier in items["mods"].values():
+        numbers = _NUMBER_RE.findall(tier["text"]) if tier["family"] == family else []
+        if numbers:
+            best[tier["level"]] = max(best.get(tier["level"], 0), int(numbers[-1]))
+    steps: list[tuple[int, int]] = []
+    for level in sorted(best):
+        if not steps or best[level] > steps[-1][1]:
+            steps.append((level, best[level]))
+    return tuple(steps)
 
 
 def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:

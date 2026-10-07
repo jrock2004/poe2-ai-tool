@@ -22,6 +22,7 @@ from poe2_mcp.gamedata import (
     mod_tiers,
     newest_snapshot,
     render_items,
+    top_rolls,
 )
 
 HELM = "Metadata/Items/Armours/Helmets/"
@@ -702,8 +703,31 @@ def test_mod_tiers_rejects_an_item_level_below_1(level):
         mod_tiers(SNAPSHOT, "Rusted Greathelm", item_level=level)
 
 
+def test_top_rolls_gives_the_highest_value_each_item_level_unlocks():
+    # Across every base the family rolls on: a tier's highest value is the last number in its text.
+    assert top_rolls(SNAPSHOT, "IncreasedLife") == ((1, 19), (6, 29))
+    assert top_rolls(SNAPSHOT, "FireResistance") == ((1, 10), (82, 45))
+
+
+def test_top_rolls_keeps_only_the_levels_where_the_highest_roll_goes_up():
+    # Real boots and jewel tiers, plus two made up: one tops out below what a lower level already gives (it
+    # never raises the cap), one has no number to roll.
+    tiers = {"JewelMovementSpeed": (1, "(1-2)% increased Movement Speed"),
+             "MovementVelocity1": (1, "10% increased Movement Speed"),
+             "MovementVelocity2": (16, "15% increased Movement Speed"),
+             "MadeUpLowTier": (20, "(3-5)% increased Movement Speed"),
+             "MadeUpNoNumber": (30, "Movement Speed cannot be slowed")}
+    snapshot = {"mods": {tier: {"family": "MovementVelocity", "level": level, "text": text}
+                         for tier, (level, text) in tiers.items()}}
+    assert top_rolls(snapshot, "MovementVelocity") == ((1, 10), (16, 15))
+
+
+def test_top_rolls_is_empty_for_a_family_no_base_rolls():
+    assert top_rolls(SNAPSHOT, "MinionLife") == ()
+
+
 # Rows of the committed snapshot's texts (game 4.5.5.2).
-OMEN_USE = "Right click this item in your inventory to set it to be active. This item is consumed when triggered."
+OMEN_USE ="Right click this item in your inventory to set it to be active. This item is consumed when triggered."
 TEXTS = {
     "Chaos Orb": {
         "class": "StackableCurrency",
