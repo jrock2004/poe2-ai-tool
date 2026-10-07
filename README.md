@@ -16,8 +16,12 @@ patch — with a stated confidence level on every answer.
 - **Two parts:** a thin **MCP server** that fetches live data, and a set of **skills** that hold the
   decision-making logic. Fetching data is a solved problem; the value is the judgment, so most of the
   work lives in the skills.
-- **Not:** an auto-trader. It never buys, sells, or whispers on your behalf. It generates searches and
-  advice; you act. This keeps your account safe and stays on the right side of GGG's rules.
+- **Not:** an auto-trader. It never buys, sells, or whispers on your behalf, and it never signs in to
+  your account. It generates searches and advice; you act.
+- **One exception to GGG's documented API:** live rare-item search uses the trade site's own search
+  endpoints, which GGG doesn't document. GGG's developer docs say reverse-engineering undocumented
+  endpoints is against its Terms of Use (section 7i). The calls are read-only, signed out, cached and
+  rate-limited, but they aren't sanctioned. See [Data sources](#data-sources--the-reuse-vs-build-decision).
 
 ## Architecture
 
@@ -46,7 +50,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | Source | Use it for | Notes |
 |---|---|---|
 | **poe2scout** (`api.poe2scout.com`) | currency rates, unique-item prices, 7-day price history, net worth, market movers | **Reuse.** Its API is a price *reference* for currencies + uniques. **No rare-item-by-affix search** — the `/Items` route returns a flat priced list, no stat filters. |
-| **GGG `/trade2`** (unofficial) | rare-gear search, trade-filter generation | **Build a thin adapter.** This is the only source that can search rares by mods. Unofficial + rate-limited → cache hard, read-only, never auto-buy. |
+| **GGG `/trade2`** (undocumented) | rare-gear search, trade-filter generation | **Build a thin adapter.** This is the only source that can search rares by mods. It's the trade site's internal API, not part of GGG's documented one, and GGG's developer docs say using undocumented endpoints is against its Terms of Use (7i). Kept anyway, read-only: signed out, cached hard, rate limits honored, never auto-buy. |
 | **Path of Building** (export codes) | your character's and a guide's gear, gems, passive tree | **Build a parser.** Decodes a pasted PoB2 code offline; passive-tree names come from a committed snapshot of PoB2's tree data. |
 | **Build guides** (Mobalytics/Maxroll/poe-vault) | build targets, leveling/endgame plans | Tiered: PoB code > static fetch > browser-assisted read > paste. poe-vault fetches; Mobalytics bot-blocks server fetches (browser/paste); Maxroll's license forbids automated/AI use, so it's refused (paste). |
 | ~~GGG Character API~~ (OAuth) | your characters' gear/skills/passives | **Blocked** — GGG isn't issuing new API clients. Builds are read from PoB codes or screenshots instead. |
@@ -203,9 +207,12 @@ This project's code is MIT-licensed — see [`LICENSE`](LICENSE).
 
 **Third-party data.** `mcp/src/poe2_mcp/data/tree_*.json` is derived from the passive-tree data in
 [Path of Building Community (PoE2)](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)
-(`src/TreeData/<version>/tree.lua`), used under its MIT License: Copyright (c) 2016 David Gowor. The
-underlying game data belongs to Grinding Gear Games.
+(`src/TreeData/<version>/tree.lua`), used under its MIT License: Copyright (c) 2016 David Gowor.
+`mcp/src/poe2_mcp/data/stash_layouts_*.json` is derived from
+[repoe-fork/dat-export](https://github.com/repoe-fork/dat-export), an export of the game's data files
+that states no license. The underlying game data belongs to Grinding Gear Games.
 
 **Not affiliated with Grinding Gear Games.** Path of Exile is a trademark of Grinding Gear Games;
 this project is not endorsed by or affiliated with GGG. It reads community price data (poe2scout)
-under its terms and the unofficial trade endpoint read-only and rate-limited. No automated trading.
+under its terms, and the trade site's undocumented search endpoint read-only and rate-limited (see
+[Data sources](#data-sources--the-reuse-vs-build-decision)). No automated trading.
