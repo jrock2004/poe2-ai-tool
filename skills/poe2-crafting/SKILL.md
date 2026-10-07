@@ -9,14 +9,14 @@ goal, and is it the best way to spend it?** The answer is often "no — that orb
 mod," and saying so before any cost talk is the skill's main value.
 
 Mod tiers and their item-level gates come **only** from `mod_tiers` (the game's own data, per base);
-what a currency or omen does **only** from `item_text` (the game's own text); affix limits and the
-rules around them **only** from `get_knowledge('crafting')`. If what you need isn't in any of them, say
-"not researched — check poe2db" and lower confidence. Never fill in a tier, item-level gate, currency
-effect, or odds from memory.
+what a currency, omen or essence does **only** from `item_text` (the game's own text); affix limits and
+the rules around them **only** from `get_knowledge('crafting')`. If what you need isn't in any of them,
+say "not researched — check poe2db" and lower confidence. Never fill in a tier, item-level gate,
+currency effect, or odds from memory.
 
-Scope: single-currency decisions and short paths (a few orbs, or an omen steering one of them). Not
-full multi-step craft plans, and not Desecrated mods or the bench — those are "not researched". An
-essence's text says what it does, but not which modifier it adds — that's not researched either.
+Scope: single-currency decisions and short paths (a few orbs, an essence, or an omen steering one of
+them). Not full multi-step craft plans, and not Desecrated mods or the bench — those are "not
+researched".
 
 ## 1. Read the item
 
@@ -75,6 +75,11 @@ List the 1–3 paths that can actually reach the goal, cheapest first:
 - **Steer it with an omen** — search `item_text` for the currency's name: an omen whose text names it
   can narrow what it does (Omen of Sinistral Erasure: the next Chaos Orb removes only prefixes). Its
   `use` says how to activate it; it's used up when it triggers.
+- **Use an essence** — search `item_text` for the target mod (e.g. "movement speed"): an essence (or
+  alloy) whose `adds` has it `on` this kind of item adds exactly that modifier, in the range shown. Its
+  `text` says which rarity it takes — some turn a Magic item Rare, others remove a random modifier from
+  a Rare first (name that risk, as for Chaos). Its `side` needs room; what happens when that side is
+  full is not researched.
 - **Buy it** (trade leagues only — see §5).
 
 On a corrupted item, the only paths are the currencies made for corrupted items, or a new item. Say
