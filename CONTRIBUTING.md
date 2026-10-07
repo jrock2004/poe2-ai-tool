@@ -150,6 +150,37 @@ currency tracker names items from it.
 6. **Restart the MCP server** — snapshots are cached per version, so a running server keeps serving
    the old one.
 
+## Releasing and sharing
+
+**Every push to `main` is a release.** `.claude-plugin/plugin.json` has no `version` on purpose: without
+one, Claude Code versions the plugin by commit. Players who turned on auto-update (README → Updates) get
+a push in the background at their next session; everyone else when they run `claude plugin update`. So
+keep `main` working where players run it: the `tests` workflow runs the suite on Windows and macOS, on
+Python 3.10 and 3.14, for every push — fix a red run before anything else.
+
+**Don't add `version` on its own.** It keeps players on that string however many commits land, until it
+changes. Your own install — a local marketplace, loaded in place — ignores it, so a forgotten bump only
+shows up as players quietly stuck on an old copy. Add it only together with bumping it on every release.
+
+**If you want a release gate later,** use a branch rather than version strings: players add the
+marketplace as `jrock2004/poe2-ai-tool#stable`, and you release by pushing `main` to `stable` once CI is
+green (`git push origin main:stable`). `main` keeps taking every slice; players see only `stable`.
+
+### Before sharing more widely
+
+- **Contact in requests.** The poe2scout, trade2 and guide clients' default User-Agents carry the
+  maintainer's email, so every player's requests would too. Keep it as the maintainer contact, or use the
+  repo URL as the exchange client does. Commits also carry the author's email; GitHub's private
+  noreply address covers future commits.
+- **README framing.** It still reads as a one-player tool ("For: one player (me)").
+- **The trade-search caveat** (README → "One exception to GGG's documented API") should be visible
+  wherever you announce it.
+- **Anthropic's plugin directory**, if you list it there: the listing reads `icon`, `documentationUrl`,
+  `supportUrl`, `privacyPolicyUrl` and `termsOfServiceUrl` from `plugin.json`.
+- **Keep the repository public.** Installing and auto-updating from a private repo needs each player's
+  own git credentials (updates fail quietly without them), and a private repo's CI draws on a limited
+  Actions allowance, while public repos run it free.
+
 ## Pull requests
 
 - Say what patch or change prompted it, and link the patch notes.
