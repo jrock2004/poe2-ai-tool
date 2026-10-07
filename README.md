@@ -134,6 +134,17 @@ Plugin skills are namespaced, so their commands read `/poe2:<skill>` — e.g. `/
 
 ### Updates
 
+Turn on auto-update once, and new versions arrive on their own:
+
+- In a Claude Code terminal session, run `/plugin`, open **Marketplaces**, select **poe2-ai-tool**, and
+  choose **Enable auto-update**.
+- Or, in `~/.claude/settings.json` (on Windows, `.claude\settings.json` in your user folder), add
+  `"autoUpdate": true` to the `poe2-ai-tool` entry under `extraKnownMarketplaces` — adding the
+  marketplace created that entry.
+
+Claude Code then checks in the background after your first message in a session; an update loads the
+next time you start it, or straight away with `/reload-plugins`. Without auto-update, update by hand:
+
 ```bash
 claude plugin update poe2@poe2-ai-tool
 ```
