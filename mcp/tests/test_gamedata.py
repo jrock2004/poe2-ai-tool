@@ -991,4 +991,5 @@ def test_load_items_reads_the_committed_snapshot_once():
     assert "Chaos Orb" in items["texts"] and "Orb of Scouring" not in items["texts"]  # a PoE1 leftover
     assert items["texts"]["Greater Essence of the Body"]["adds"]
     assert items["texts"]["Lesser Robust Rune"]["adds"]
+    assert items["chaos"] and items["sekhemas"]
     assert load_items() is items
