@@ -39,6 +39,16 @@ Rank problems by severity, not by what's easiest to shop for:
 1. **Uncapped elemental resistances.** Fire/Cold/Lightning cap at **75%**. Anything below cap is the
    top priority — it's the difference between surviving a hit and not. Chaos res is often negative and
    harder to fix; note it but don't obsess unless the build is chaos-fragile.
+
+   **Free resistance first.** Before shopping for a missing resistance, check the campaign's permanent
+   ones with `campaign_rewards('resistance')`: each says where it is (`part`, `area`), what gives it
+   (`from`), and how much. The character's own numbers — a character-import PoB code or the in-game
+   panel — already count the rewards it took, so never add these on top. They don't say *which* were
+   taken, though, so for each reward whose `areaLevel` the character has passed, ask: "Did you take
+   Beira's +10% cold resistance in Clearfell (Act 1)? It's free and permanent." A pick-one reward
+   (`options`) gave the resistance only if they chose it. Seven Pillars' last option *lowers* every
+   resistance (it's the experience trade), so never suggest it. A missed reward is the cheapest fix there
+   is: put it ahead of any purchase.
 2. **Low life / energy shield** for the character's level and goal (bossing wants more than mapping).
 3. **Unmet attribute or requirement gaps** (str/dex/int to equip/use skills), and **Spirit** for
    minion/aura builds (it gates how much they can run).
