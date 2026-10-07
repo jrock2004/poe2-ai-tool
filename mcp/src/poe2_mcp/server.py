@@ -19,7 +19,9 @@ from mcp.server.fastmcp import FastMCP
 
 from . import knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
-from .gamedata import item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls
+from .gamedata import (
+    item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
+)
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
@@ -701,6 +703,25 @@ async def item_text(search: str) -> dict[str, Any]:
     if items is None:
         return {**_NO_ITEM_SNAPSHOT}
     return _item_text(items, search)
+
+
+@mcp.tool()
+async def trial_pool(trial: str, search: str | None = None) -> dict[str, Any]:
+    """What a Path of Exile 2 Ascendancy trial can throw at you, from the game's own data.
+
+    trial: 'chaos' -- the Trial of Chaos modifiers, each with every version (`name`, `tier` 1-5, `text`) and
+    its `kind`: a 'modifier', a room 'hazard', or a 'wager'. Or 'sekhemas' -- the Trial of the Sekhemas
+    afflictions, boons and pledges, each with its `category` ('Minor Afflictions', 'Major Boons',
+    'Pledges'...) and `text`; a pledge also has a `cost`. search: optional; part of a name, a text, or a
+    kind or category ('hazard', 'wager', 'pledges'), any case -- without it, the whole pool. Quote the
+    texts, don't paraphrase. A text with {0} gets its number in the game, which the data doesn't show:
+    quote it as-is and never state a number from `values`. No match returns `suggestions`. `patch` is the
+    game patch the data is from; if the league's is newer, it may be stale. Offline.
+    """
+    items = load_items()
+    if items is None:
+        return {**_NO_ITEM_SNAPSHOT}
+    return _trial_pool(items, trial, search)
 
 
 _VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())

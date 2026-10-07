@@ -206,3 +206,25 @@ def test_item_text_says_when_no_snapshot_is_installed(monkeypatch):
     monkeypatch.setattr(server, "load_items", lambda: None)
     out = asyncio.run(server.item_text("orb of annulment"))
     assert out["valid"] is False and out["error"] == "no item snapshot is installed"
+
+
+# A loaded snapshot, trimmed to one real entry of each trial's pool.
+TRIAL_SNAPSHOT = {
+    "patch": "0.5.5",
+    "chaos": [{"name": "Time Paradox", "kind": "modifier", "versions": [
+        {"name": "Time Paradox", "tier": 1,
+         "text": "Buffs on you expire 50% faster and Debuffs on you expire 25% slower"}]}],
+    "sekhemas": [{"name": "Iron Manacles", "category": "Minor Afflictions", "text": "You have no Evasion"}],
+}
+
+
+def test_trial_pool_looks_the_search_up_in_the_installed_snapshot(monkeypatch):
+    monkeypatch.setattr(server, "load_items", lambda: TRIAL_SNAPSHOT)
+    out = asyncio.run(server.trial_pool("sekhemas", "evasion"))
+    assert out == gamedata.trial_pool(TRIAL_SNAPSHOT, "sekhemas", "evasion") and out["total"] == 1
+
+
+def test_trial_pool_says_when_no_snapshot_is_installed(monkeypatch):
+    monkeypatch.setattr(server, "load_items", lambda: None)
+    out = asyncio.run(server.trial_pool("chaos"))
+    assert out["valid"] is False and out["error"] == "no item snapshot is installed"
