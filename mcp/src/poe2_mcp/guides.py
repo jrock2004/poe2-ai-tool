@@ -4,9 +4,10 @@ The value here is *not* brute scraping -- it's a gate that decides, per URL, whe
 is permitted, and only then fetches and cleans the page. Current reality (re-verified Sep 2026, which
 overturns the plan's older spike):
 
-* **Mobalytics** -- Cloudflare-blocks server fetches (403) even with a browser UA -> browser-assisted
-  read (the assistant opens it in a real browser; the player's own only if a bot check appears) or a
-  pasted PoB code.
+* **Mobalytics** -- in Sep 2026 Cloudflare blocked server fetches (403) even with a browser UA. On
+  2026-10-07 this fetcher read a profile build list and a guide page, while a plain curl to the list
+  still got 403: the block depends on the client. When it blocks -> browser-assisted read (the assistant
+  opens it in a real browser; the player's own only if a bot check appears) or a pasted PoB code.
 * **poe-vault** -- static and readable -> fetch works.
 * **Maxroll** -- reachable, but its robots.txt (Ziff Davis) explicitly prohibits automated/AI use of
   the content. We respect that and refuse -> paste the PoB code / content instead.
