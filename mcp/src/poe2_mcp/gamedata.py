@@ -3,11 +3,12 @@
 Mod tiers, bases and their requirements come from repoe-fork/poe2 (`data/mods_by_base.json`,
 `mods.json`, `base_items.json`), which is processed from GGG's game files; the data remains GGG's. So does
 the in-game text of what PoE2's Currency Exchange trades (currency, omens, essences, runes...). Which items
-those are comes from repoe-fork/dat-export's `CurrencyExchange` table: the game files still carry PoE1
-items, and nothing in their records tells the two apart. This module turns them into one compact snapshot
-per patch (`data/items_<patch>.json`) that the tools read at runtime: which mods each base can roll, each
-tier's name, side, item-level gate and text, and each traded item's text. Regenerate per patch, from each
-export's commit for that game version:
+those are comes from repoe-fork/dat-export's `CurrencyExchange` table -- the game files still carry PoE1
+items, and nothing in their records tells the two apart -- and what each essence adds from its essence
+tables. This module turns them into one compact snapshot per patch (`data/items_<patch>.json`) that the
+tools read at runtime: which mods each base can roll, each tier's name, side, item-level gate and text,
+each traded item's text, and what each essence adds. Regenerate per patch, from each export's commit for
+that game version:
 
     python -m poe2_mcp.gamedata items <poe2-commit> <dat-export-commit> 0.5.5 src/poe2_mcp/data/items_0_5_5.json
 
@@ -23,6 +24,7 @@ import io
 import json
 import re
 import sys
+from collections.abc import Sequence
 from importlib import resources
 from typing import Any
 
@@ -44,6 +46,9 @@ EXPORT_REPO = "repoe-fork/poe2"
 EXPORT_FILES = ("mods_by_base", "mods", "base_items")
 TABLES_REPO = "repoe-fork/dat-export"
 TABLES_DIR = "current/poe2/heuristics/csv"
+# The dat-export tables the snapshot reads: what the Currency Exchange trades, and what each essence adds.
+TABLE_NAMES = ("CurrencyExchange", "BaseItemTypes", "Essences", "EssenceMods", "EssenceTargetItemCategories",
+               "Mods")
 USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
@@ -137,7 +142,7 @@ def build_texts(
     """The game's text for each item PoE2's Currency Exchange trades: name -> {"class", "text", "use"},
     by name, plus "adds" for an item `adds` has (`build_essences`: what an essence adds). Pure.
 
-    `traded` is the base ids the exchange lists (`fetch_exchange`). text is the item's description, use
+    `traded` is the base ids the exchange lists (`exchange_ids`). text is the item's description, use
     its directions ("Right click this item then left click a rare item to apply it."), each as a player
     reads it (`_game_text`), or "" if it has none. An item with neither is left out. A traded id that
     base_items doesn't have raises ValueError -- the two exports came from different game versions -- and
@@ -387,29 +392,38 @@ def fetch_export(commit: str, transport: httpx.BaseTransport | None = None) -> d
     return export
 
 
-def fetch_exchange(commit: str, transport: httpx.BaseTransport | None = None) -> set[str]:
-    """The base item ids PoE2's Currency Exchange trades, from repoe-fork/dat-export at `commit`: its
-    `CurrencyExchange` table, each row's Item a `BaseItemTypes` row. Build-time only, like `fetch_export`.
+def fetch_tables(
+    commit: str, names: Sequence[str], transport: httpx.BaseTransport | None = None
+) -> dict[str, list[dict[str, str]]]:
+    """The tables `names` from repoe-fork/dat-export at `commit`: name -> its rows, each as `csv.DictReader`
+    reads it (column -> text, "" when empty). Build-time only, like `fetch_export`. A commit hash only; an
+    HTTP error raises RuntimeError (see `_fetch_files`).
+    """
+    files = _fetch_files(TABLES_REPO, commit, [f"{TABLES_DIR}/{name}.csv" for name in names], transport)
+    return {name: list(csv.DictReader(io.StringIO(resp.text))) for name, resp in zip(names, files)}
+
+
+def exchange_ids(tables: dict[str, list[dict[str, str]]]) -> set[str]:
+    """The base item ids PoE2's Currency Exchange trades: each `CurrencyExchange` row's Item, a
+    `BaseItemTypes` row. Pure.
 
     Every row counts, enabled in challenge leagues or not: what Standard trades is in the game. A row
-    naming an item BaseItemTypes doesn't have raises ValueError -- the export changed shape.
+    naming a BaseItemTypes row that isn't there raises ValueError -- the export changed shape.
     """
-    tables = [f"{TABLES_DIR}/{table}.csv" for table in ("CurrencyExchange", "BaseItemTypes")]
-    exchange, item_types = _fetch_files(TABLES_REPO, commit, tables, transport)
-    ids = {row["rownum"]: row["Id"] for row in csv.DictReader(io.StringIO(item_types.text))}
+    ids = {row["rownum"]: row["Id"] for row in tables["BaseItemTypes"]}
     traded = set()
-    for row in csv.DictReader(io.StringIO(exchange.text)):
+    for row in tables["CurrencyExchange"]:
         if row["Item"] not in ids:
-            raise ValueError(
-                f"CurrencyExchange row {row['rownum']} trades item {row['Item']}, which BaseItemTypes doesn't have")
+            raise ValueError(f"CurrencyExchange row {row['rownum']} names BaseItemTypes row {row['Item']}, "
+                             "which the table doesn't have")
         traded.add(ids[row["Item"]])
     return traded
 
 
 def main(argv: list[str]) -> None:
     """CLI: gamedata items <poe2-commit> <dat-export-commit> <patch> <out.json> -- fetch repoe-fork/poe2's
-    export and dat-export's exchange table at their commits, and write the item snapshot for game patch
-    <patch> (e.g. 0.5.5) to <out.json>.
+    export and dat-export's tables (`TABLE_NAMES`) at their commits, and write the item snapshot for game
+    patch <patch> (e.g. 0.5.5) to <out.json>.
 
     Writes the file itself (UTF-8, no BOM, LF) instead of printing for a shell redirect: Windows
     PowerShell 5.1's `>` would write UTF-16, and text mode on Windows would turn LF into CRLF.
@@ -420,10 +434,11 @@ def main(argv: list[str]) -> None:
     if not _PATCH_RE.fullmatch(patch):
         sys.exit(f"patch must be a game patch like 0.5.5 (or a hotfix like 0.5.5e), not {patch!r}")
     export = fetch_export(commit)
+    tables = fetch_tables(tables_commit, TABLE_NAMES)
     items = build_items(export["mods_by_base"], export["mods"], export["base_items"])
-    items["texts"] = build_texts(export["base_items"], fetch_exchange(tables_commit))
+    items["texts"] = build_texts(export["base_items"], exchange_ids(tables), build_essences(tables, export["mods"]))
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
-              f"{TABLES_REPO}@{tables_commit} CurrencyExchange -- data is GGG's")
+              f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(render_items(items, patch, source))
 

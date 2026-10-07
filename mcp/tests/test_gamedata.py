@@ -1,4 +1,6 @@
 """Unit tests for the game-data snapshot generator (no network: the fetch runs over a mock transport)."""
+import csv
+import io
 import json
 
 import httpx
@@ -10,8 +12,9 @@ from poe2_mcp.gamedata import (
     build_items,
     build_texts,
     clean_text,
-    fetch_exchange,
+    exchange_ids,
     fetch_export,
+    fetch_tables,
     item_text,
     load_items,
     main,
@@ -443,26 +446,45 @@ def test_fetch_export_reads_the_three_files_and_the_game_version_at_the_commit()
         "data/mods_by_base.json", "data/mods.json", "data/base_items.json", "version.txt"))
 
 
-def test_fetch_exchange_reads_what_the_currency_exchange_trades_at_the_commit():
+def _rows(csv_text):
+    # A table's rows as csv.DictReader reads them -- what fetch_tables returns for it.
+    return list(csv.DictReader(io.StringIO(csv_text)))
+
+
+EXCHANGE_TABLES = {"CurrencyExchange": _rows(EXCHANGE_CSV), "BaseItemTypes": _rows(BASE_ITEM_TYPES_CSV)}
+
+
+def test_fetch_tables_reads_each_table_at_the_commit_as_rows():
+    calls: list[str] = []
+    tables = fetch_tables(EXCHANGE_COMMIT, ["CurrencyExchange", "BaseItemTypes"], transport=_transport(calls))
+    assert tables == EXCHANGE_TABLES
+    # A row is column -> text, "" when empty.
+    assert tables["CurrencyExchange"][2] == {
+        "rownum": "318", "Item": "4442", "Category": "6", "SubCategory": "41", "EnabledInStandardLeague": "1",
+        "EnabledInChallengeLeague": "", "GoldPurchaseFee": "450", "bool_54": "", "bool_55": "1"}
+    assert sorted(calls) == sorted(f"https://raw.githubusercontent.com{TABLES}/{name}.csv"
+                                   for name in ("CurrencyExchange", "BaseItemTypes"))
+
+
+def test_exchange_ids_are_what_the_currency_exchange_trades():
     # Every row counts: Omen of Corruption's isn't enabled in challenge leagues, but it is in Standard, so
     # the omen is in the game. Orb of Scouring has a BaseItemTypes row but no exchange row.
-    calls: list[str] = []
-    assert fetch_exchange(EXCHANGE_COMMIT, transport=_transport(calls)) == {
+    assert exchange_ids(EXCHANGE_TABLES) == {
         CURRENCY + "CurrencyRerollRare", CURRENCY + "OmenOnChaosPrefix", CURRENCY + "OmenOnVaalRemoveDoNothingOutcome"}
-    assert sorted(calls) == sorted(f"https://raw.githubusercontent.com{TABLES}/{name}"
-                                   for name in ("CurrencyExchange.csv", "BaseItemTypes.csv"))
 
 
-def test_fetch_exchange_refuses_a_row_it_cant_resolve():
+def test_exchange_ids_refuses_a_row_it_cant_resolve():
     # An exchange row naming an item BaseItemTypes doesn't have: the export changed shape.
-    served = {f"{TABLES}/CurrencyExchange.csv": EXCHANGE_CSV + '400,9999,0,0,1,1,10,"",1\n',
-              f"{TABLES}/BaseItemTypes.csv": BASE_ITEM_TYPES_CSV}
-    transport = httpx.MockTransport(lambda request: httpx.Response(200, text=served[request.url.path]))
-    with pytest.raises(ValueError, match="9999"):
-        fetch_exchange(EXCHANGE_COMMIT, transport=transport)
+    rows = [*EXCHANGE_TABLES["CurrencyExchange"], {"rownum": "400", "Item": "9999"}]
+    with pytest.raises(ValueError, match="BaseItemTypes row 9999"):
+        exchange_ids({**EXCHANGE_TABLES, "CurrencyExchange": rows})
 
 
-@pytest.mark.parametrize("fetch", [fetch_export, fetch_exchange])
+def _fetch_two_tables(commit, transport):
+    return fetch_tables(commit, ["CurrencyExchange", "BaseItemTypes"], transport=transport)
+
+
+@pytest.mark.parametrize("fetch", [fetch_export, _fetch_two_tables])
 @pytest.mark.parametrize("ref", ["master", "develop", "v4.5.5", "abc12", ""])
 def test_each_fetch_takes_a_pinned_commit_only(fetch, ref):
     # A branch or tag can move under you; the snapshot has to say exactly which export it came from.
@@ -470,16 +492,32 @@ def test_each_fetch_takes_a_pinned_commit_only(fetch, ref):
         fetch(ref, transport=_transport([]))
 
 
-@pytest.mark.parametrize("fetch", [fetch_export, fetch_exchange])
+@pytest.mark.parametrize("fetch", [fetch_export, _fetch_two_tables])
 def test_each_fetch_raises_on_an_http_error(fetch):
     with pytest.raises(RuntimeError, match="HTTP 404"):
         fetch(COMMIT, transport=_transport([], status=404))
 
 
+# What main reads, made to fit together: the exchange trades Chaos Orb and Greater Essence of the Body
+# (real rows, fewer columns), and the export's mods include the essence tables' modifiers.
+MAIN_EXPORT = {**EXPORT, "mods": {**MODS, **ESSENCE_MODS}}
+MAIN_TABLES = {
+    **ESSENCE_TABLES,
+    "BaseItemTypes": [*ESSENCE_TABLES["BaseItemTypes"],
+                      {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"}],
+    "CurrencyExchange": [{"rownum": "12", "Item": "3"}, {"rownum": "76", "Item": "111"}],
+}
+
+
 def _fake_fetches(monkeypatch):
-    # Each fetch answers only its own commit, so swapped arguments fail.
-    monkeypatch.setattr(gamedata, "fetch_export", {COMMIT: EXPORT}.__getitem__)
-    monkeypatch.setattr(gamedata, "fetch_exchange", {EXCHANGE_COMMIT: TRADED}.__getitem__)
+    # Each fetch answers only its own commit, so swapped arguments fail; fetch_tables gives only the
+    # tables asked for, so a table main forgets to ask for fails too.
+    def fetch_tables(commit, names):
+        assert commit == EXCHANGE_COMMIT
+        return {name: MAIN_TABLES[name] for name in names}
+
+    monkeypatch.setattr(gamedata, "fetch_export", {COMMIT: MAIN_EXPORT}.__getitem__)
+    monkeypatch.setattr(gamedata, "fetch_tables", fetch_tables)
 
 
 def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch, tmp_path):
@@ -494,6 +532,7 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
     assert snapshot["source"].startswith(
         f"repoe-fork/poe2@{COMMIT} (game 4.5.5.2), repoe-fork/dat-export@{EXCHANGE_COMMIT} ")
     assert "Rusted Greathelm" in snapshot["bases"] and "Chaos Orb" in snapshot["texts"]
+    assert snapshot["texts"]["Greater Essence of the Body"]["adds"] == BODY_ADDS
 
 
 @pytest.mark.parametrize("argv", [
