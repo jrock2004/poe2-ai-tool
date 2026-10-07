@@ -56,4 +56,5 @@ A loot filter hides junk drops and makes the good ones stand out. The popular on
 2. Pick one — the most-followed are at the top. Stricter filters hide more: start with a regular or
    semi-strict one, and go stricter when drops get noisy.
 3. Click its name, then **Follow**.
-4. In game, open **Options → Gameplay** and choose the filter you followed.
+4. In game, open **Options**, go to the **Game** tab, and under **Guidance** set **Item Filter** to the
+   filter you followed.
