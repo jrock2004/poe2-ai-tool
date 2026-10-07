@@ -44,8 +44,8 @@ is one stage list.
 - **Tabbed pages** (e.g. Mobalytics) only show the selected tab's gems and tree in the page text. Read
   each tab you need specifically — on Mobalytics each tab has its own URL (`?…=activeVariantId,N`).
 - **Mobalytics trees** aren't in the page text, but every variant's tree is in the page's state, as
-  PoB-compatible node ids. Mobalytics bot-blocks `fetch_guide`, so open it in the browser (the
-  "browser" route in `poe2-build-review` §1). In the page, run:
+  PoB-compatible node ids. `fetch_guide` returns only the page's text, not its state, so read the trees
+  in the browser (as for the "browser" route in `poe2-build-review` §1). In the page, run:
 
   ```js
   const t = [...document.scripts].map(s => s.textContent)

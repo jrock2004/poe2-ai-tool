@@ -44,7 +44,7 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 | poe2wiki.net | Bot challenge. Don't solve it. | `fetch_guide` block detection only |
 | game8.co | Blocks AI crawlers. | robots check only |
 | Currency-seller "guide" sites | SEO content, not references. | nothing — judgment |
-| mobalytics.gg, for game facts | Editorial guides lag patches: a corruption rule taken from one was contradicted by game data. It also bot-blocks server fetches. A guide link the player pastes is fine, through `fetch_guide`. | nothing — judgment |
+| mobalytics.gg, for game facts | Editorial guides lag patches: a corruption rule taken from one was contradicted by game data. A guide link the player pastes is fine, through `fetch_guide`; if Mobalytics blocks the fetch, follow its `route`. | nothing — judgment |
 | PoE1 references (poewiki.net, poedb.tw) | Different game; same item and skill names. Not poe2db.tw. | nothing — judgment |
 | poe.ninja builds and character pages | Its API docs (poe.ninja/docs/api, checked 2026-10-07) say the builds, character and Path of Building data are internal and "not available for third-party use". Give the player the link; for a character they like, they copy its PoB code. Its economy endpoints are separate and public. | nothing — judgment |
 
