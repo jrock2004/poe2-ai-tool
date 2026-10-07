@@ -8,6 +8,7 @@ import pytest
 
 from poe2_mcp import gamedata
 from poe2_mcp.gamedata import (
+    build_augments,
     build_essences,
     build_items,
     build_texts,
@@ -27,6 +28,8 @@ HELM = "Metadata/Items/Armours/Helmets/"
 BODY = "Metadata/Items/Armours/BodyArmours/"
 CURRENCY = "Metadata/Items/Currency/"
 BODY_ESSENCE = CURRENCY + "CurrencyGreaterEssenceLife"
+ROBUST_RUNE = "Metadata/Items/SoulCores/RuneStrengthLesser"
+THESIS = "Metadata/Items/SoulCores/ThesisOfBlood"
 
 
 @pytest.mark.parametrize("raw, clean", [
@@ -149,6 +152,11 @@ BASE_ITEMS = {
         "Greater Essence of the Body", "StackableCurrency",
         "Upgrades a [ItemRarity|Magic] item to a [ItemRarity|Rare] item, adding a guaranteed modifier",
         "Right click this item then left click a Magic item to apply it."),
+    ROBUST_RUNE: _stackable(
+        "Lesser Robust Rune", "SoulCore",
+        "Place into an empty [Augment] Socket in any Equipment to apply its effect to that item. Once socketed "
+        "it cannot be retrieved but can be replaced by other [Augment] items.", ""),
+    THESIS: _stackable("Guatelitzi's Thesis", "SoulCore", None, None),  # the export has no text for it
 }
 # What PoE2's Currency Exchange trades, of those: all but Orb of Scouring.
 TRADED = {
@@ -335,8 +343,9 @@ def _essences():
 
 
 def test_build_essences_gives_each_essence_its_modifier_per_item_type():
-    # By base id, like the exchange; rows in the game's order, markup removed.
-    assert _essences()[BODY_ESSENCE] == BODY_ADDS
+    # By base id, like the exchange: the fields the essence's text entry gets. Rows in the game's order,
+    # markup removed.
+    assert _essences()[BODY_ESSENCE] == {"adds": BODY_ADDS}
 
 
 @pytest.mark.parametrize("essence, adds", [
@@ -351,7 +360,7 @@ def test_build_essences_gives_each_essence_its_modifier_per_item_type():
      {"on": "Equipment", "side": "prefix or suffix", "text": "Mark of the Abyssal Lord"}),
 ])
 def test_build_essences_shows_what_the_game_shows(essence, adds):
-    assert _essences()[CURRENCY + essence] == [adds]
+    assert _essences()[CURRENCY + essence] == {"adds": [adds]}
 
 
 # The rows Greater Essence of the Body's first EssenceMods row leads to.
@@ -387,6 +396,69 @@ def test_build_texts_gives_a_traded_essence_what_it_adds():
     texts = build_texts(BASE_ITEMS, TRADED | {BODY_ESSENCE}, _essences())
     assert texts["Greater Essence of the Body"]["adds"] == BODY_ADDS
     assert "adds" not in texts["Chaos Orb"] and "Essence of Delirium" not in texts
+
+
+# Shaped like repoe-fork/poe2's data/augments.json (export 4.5.5.2), trimmed: real entries, without the stat
+# ids, item classes and type ids. "bonded_stat_text" is a Bonded modifier: the game's keyword says only a
+# Shaman who allocated Wisdom of the Maji gets one.
+AUGMENTS = {
+    ROBUST_RUNE: {"type_name": "[Rune|Rune]", "categories": {
+        "All": {"stat_text": ["+6 to [Strength|Strength]"]},
+        "Armour": {"bonded_stat_text": ["+20 to maximum Life", "+20 to maximum Mana"]},
+        "Martial Weapon": {"bonded_stat_text": ["Adds 6 to 10 [Physical|Physical] Damage to [Attack|Attacks]",
+                                                "Adds 6 to 10 [Fire] damage to [Attack|Attacks]"]},
+        "Wand or Staff": {"bonded_stat_text": ["+100 to [Armour]"]},
+    }},
+    THESIS: {"limit": "1 [Ancient|Ancient Augment]", "required_level": 60, "type_name": "[SoulCore|Soul Core]",
+             "categories": {
+                 "Body Armour": {"stat_text": ["10% of Physical Damage prevented [Recoup|Recouped] as Life"]},
+                 "Boots": {"stat_text": ["Lose 5% of maximum Life per second while Sprinting",
+                                         "25% increased Movement Speed while Sprinting"]},
+                 "Helmet": {"stat_text": [
+                     "Gain [Armour] equal to 35% of Life Lost from [Hit|Hits] in the past 8 seconds"]},
+             }},
+}
+ROBUST_ADDS = [
+    {"on": "All", "text": "+6 to Strength"},
+    {"on": "Armour", "text": "", "bonded": "+20 to maximum Life\n+20 to maximum Mana"},
+    {"on": "Martial Weapon", "text": "",
+     "bonded": "Adds 6 to 10 Physical Damage to Attacks\nAdds 6 to 10 Fire damage to Attacks"},
+    {"on": "Wand or Staff", "text": "", "bonded": "+100 to Armour"},
+]
+
+
+def test_build_augments_gives_each_kind_of_item_its_effect_and_bonded_effect():
+    # A rune fills a socket, not an affix, so no side. "bonded" only where there is one -- and a kind of
+    # item can have only a bonded effect.
+    assert build_augments(AUGMENTS)[ROBUST_RUNE] == {"adds": ROBUST_ADDS}
+
+
+def test_build_augments_keeps_the_limit_the_level_and_every_line_of_an_effect():
+    assert build_augments(AUGMENTS)[THESIS] == {
+        "adds": [
+            {"on": "Body Armour", "text": "10% of Physical Damage prevented Recouped as Life"},
+            {"on": "Boots", "text": "Lose 5% of maximum Life per second while Sprinting\n"
+                                    "25% increased Movement Speed while Sprinting"},
+            {"on": "Helmet", "text": "Gain Armour equal to 35% of Life Lost from Hits in the past 8 seconds"},
+        ],
+        "limit": "1 Ancient Augment",
+        "level": 60,
+    }
+
+
+def test_build_augments_refuses_a_kind_of_item_with_no_effect():
+    # Neither an effect nor a bonded one: the export changed shape.
+    with pytest.raises(ValueError, match="Boots"):
+        build_augments({THESIS: {**AUGMENTS[THESIS], "categories": {"Boots": {}}}})
+
+
+def test_build_texts_keeps_an_item_whose_only_text_is_what_it_adds():
+    # The export has no description or directions for Guatelitzi's Thesis, but its effects are worth
+    # quoting; its limit and level come along.
+    texts = build_texts(BASE_ITEMS, TRADED | {THESIS, ROBUST_RUNE}, build_augments(AUGMENTS))
+    assert texts["Guatelitzi's Thesis"] == {
+        "class": "SoulCore", "text": "", "use": "", **build_augments(AUGMENTS)[THESIS]}
+    assert texts["Lesser Robust Rune"]["adds"] == ROBUST_ADDS
 
 
 def test_render_items_is_json_with_one_mod_and_one_text_per_line():
@@ -717,6 +789,14 @@ def test_item_text_searches_what_an_essence_adds_and_where():
     snapshot = {"patch": "0.5.5", "texts": {**TEXTS, "Greater Essence of the Body": essence}}
     assert item_text(snapshot, "maximum life")["matches"] == [{"name": "Greater Essence of the Body", **essence}]
     assert _names(item_text(snapshot, "boots")) == ["Greater Essence of the Body"]
+
+
+def test_item_text_searches_a_runes_bonded_effects_too():
+    rune = {"class": "SoulCore", "text": "Place into an empty Augment Socket in any Equipment to apply its effect to "
+            "that item. Once socketed it cannot be retrieved but can be replaced by other Augment items.",
+            "use": "", "adds": ROBUST_ADDS}
+    snapshot = {"patch": "0.5.5", "texts": {**TEXTS, "Lesser Robust Rune": rune}}
+    assert _names(item_text(snapshot, "maximum mana")) == ["Lesser Robust Rune"]
 
 
 def test_newest_snapshot_picks_the_highest_patch():

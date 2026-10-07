@@ -137,43 +137,43 @@ def build_items(
 
 
 def build_texts(
-    base_items: dict[str, Any], traded: set[str], adds: dict[str, list[dict[str, str]]] | None = None
+    base_items: dict[str, Any], ids: set[str], extras: dict[str, dict[str, Any]] | None = None
 ) -> dict[str, dict[str, Any]]:
-    """The game's text for each item PoE2's Currency Exchange trades: name -> {"class", "text", "use"},
-    by name, plus "adds" for an item `adds` has (`build_essences`: what an essence adds). Pure.
+    """The game's text for each of the items `ids`: name -> {"class", "text", "use"}, by name, plus the
+    fields `extras` has for it ("adds", "limit", "level" -- `build_essences`, `build_augments`). Pure.
 
-    `traded` is the base ids the exchange lists (`exchange_ids`). text is the item's description, use
-    its directions ("Right click this item then left click a rare item to apply it."), each as a player
-    reads it (`_game_text`), or "" if it has none. An item with neither is left out. A traded id that
-    base_items doesn't have raises ValueError -- the two exports came from different game versions -- and
-    so do two traded items with one name, since the text is looked up by name.
+    `ids` is base ids: what PoE2's Currency Exchange trades (`exchange_ids`), plus the augments. text is
+    the item's description, use its directions ("Right click this item then left click a rare item to
+    apply it."), each as a player reads it (`_game_text`), or "" if it has none. An item with none of
+    text, use and extras is left out. An id that base_items doesn't have raises ValueError -- the two
+    exports came from different game versions -- and so do two items with one name, since the text is
+    looked up by name.
     """
+    extras = extras or {}
     texts: dict[str, dict[str, Any]] = {}
-    ids: dict[str, str] = {}
-    for base_id in sorted(traded):
+    seen: dict[str, str] = {}
+    for base_id in sorted(ids):
         base = base_items.get(base_id)
         if base is None:
-            raise ValueError(f"CurrencyExchange trades {base_id}, which base_items.json doesn't have")
+            raise ValueError(f"{base_id} isn't in base_items.json")
         props = base.get("properties") or {}
         text, use = _game_text(props.get("description")), _game_text(props.get("directions"))
-        if not (text or use):
+        if not (text or use or base_id in extras):
             continue
         name = base["name"]
-        if name in ids:
-            raise ValueError(f"CurrencyExchange trades two items named {name!r}: {ids[name]} and {base_id}")
-        ids[name] = base_id
-        texts[name] = {"class": base["item_class"], "text": text, "use": use}
-        if adds and base_id in adds:
-            texts[name]["adds"] = adds[base_id]
+        if name in seen:
+            raise ValueError(f"two items are named {name!r}: {seen[name]} and {base_id}")
+        seen[name] = base_id
+        texts[name] = {"class": base["item_class"], "text": text, "use": use, **extras.get(base_id, {})}
     return dict(sorted(texts.items()))
 
 
 def build_essences(
     tables: dict[str, list[dict[str, str]]], mods: dict[str, Any]
-) -> dict[str, list[dict[str, str]]]:
-    """What each essence adds, per item type: essence base id -> [{"on", "side", "text"}], in the game's
-    row order. Pure. Essences here are everything in the game's Essences table, Expedition's alloys
-    included -- they work the same way.
+) -> dict[str, dict[str, list[dict[str, str]]]]:
+    """What each essence adds, per item type: essence base id -> {"adds": [{"on", "side", "text"}]}, rows
+    in the game's order -- the field its text entry gets. Pure. Essences here are everything in the game's
+    Essences table, Expedition's alloys included -- they work the same way.
 
     `tables` is dat-export's tables by name, each a list of rows as `csv.DictReader` reads them:
     `EssenceMods` (a row per essence and item type), and the `Essences`, `EssenceTargetItemCategories`,
@@ -222,7 +222,35 @@ def build_essences(
                 raise ValueError(f"{by} has no modifier and no outcomes to take a side from")
             side = " or ".join(sorted(picks))
         adds.setdefault(base_id, []).append({"on": on, "side": side, "text": text})
-    return adds
+    return {base_id: {"adds": rows} for base_id, rows in adds.items()}
+
+
+def build_augments(augments: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """What each augment -- rune, soul core, idol -- does, from repoe-fork/poe2's augments.json: base id ->
+    {"adds": [{"on", "text", "bonded"?}], "limit"?, "level"?}, the fields its text entry gets. Pure.
+
+    on: the kinds of item it fits, as augments.json names them ("Martial Weapon", "All"). text: its effect
+    there, as a player reads it -- "" if it only has a bonded one. bonded: its Bonded modifier there, which
+    the game gives only a Shaman who allocated Wisdom of the Maji. No side: an augment fills a socket, not
+    an affix. limit: how many can be socketed ("1 Ancient Augment"). level: its level requirement. A kind
+    of item with neither effect raises ValueError -- the export changed shape.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    for base_id, augment in augments.items():
+        adds = []
+        for on, effects in augment["categories"].items():
+            text = _game_text("\n".join(effects.get("stat_text") or []))
+            bonded = _game_text("\n".join(effects.get("bonded_stat_text") or []))
+            if not (text or bonded):
+                raise ValueError(f"augments.json gives {base_id} no effect on {on}")
+            adds.append({"on": clean_text(on), "text": text, **({"bonded": bonded} if bonded else {})})
+        entry: dict[str, Any] = {"adds": adds}
+        if augment.get("limit"):
+            entry["limit"] = clean_text(augment["limit"])
+        if augment.get("required_level") is not None:
+            entry["level"] = augment["required_level"]
+        out[base_id] = entry
+    return out
 
 
 def _game_text(raw: str | None) -> str:
@@ -291,15 +319,16 @@ def mod_tiers(
 
 
 def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:
-    """The game's text for the traded items matching `search`, from a loaded snapshot: {"patch", "total",
+    """The game's text for the items matching `search`, from a loaded snapshot: {"patch", "total",
     "matches"}. Pure.
 
-    An item matches when its name, text or use (its directions) contains `search`, or for an essence
-    (or alloy) what it adds and on which item types -- in any case, with line breaks read as spaces. So
-    "Chaos Orb" finds the orb and the omens that change it, and "maximum life" the essences that add it.
-    Each match is {"name", "class", "text", "use"}, plus "adds" for an essence; an exact name comes
-    first, then by name. Up to 20 matches; `total` counts them all. No match adds up to 8 `suggestions` (see
-    `_suggest`). A blank search raises ValueError: it would match every item.
+    An item matches when its name, text or use (its directions) contains `search`, or for an essence or
+    augment what it adds, bonded effects included, and on which kinds of item -- in any case, with line
+    breaks read as spaces. So "Chaos Orb" finds the orb and the omens that change it, and "maximum life"
+    the essences that add it. Each match is {"name", "class", "text", "use"}, plus "adds" for an essence
+    or augment and an augment's "limit" and "level"; an exact name comes first, then by name. Up to 20
+    matches; `total` counts them all. No match adds up to 8 `suggestions` (see `_suggest`). A blank
+    search raises ValueError: it would match every item.
     """
     needle = _flat(search)
     if not needle:
@@ -314,9 +343,10 @@ def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:
 
 
 def _searched(name: str, entry: dict[str, Any]) -> list[str]:
-    """What `item_text` searches in an item: its name, text and use, and each item type and text it adds.
-    Pure."""
-    return [name, entry["text"], entry["use"], *(add[key] for add in entry.get("adds", ()) for key in ("on", "text"))]
+    """What `item_text` searches in an item: its name, text and use, and each kind of item, effect and
+    bonded effect it adds. Pure."""
+    added = [add[key] for add in entry.get("adds", ()) for key in ("on", "text", "bonded") if key in add]
+    return [name, entry["text"], entry["use"], *added]
 
 
 def _flat(text: str) -> str:
