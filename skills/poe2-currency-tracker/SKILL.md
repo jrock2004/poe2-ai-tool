@@ -75,8 +75,10 @@ Read only the **count** from the image. `get_stash_layout(tab)` says which item 
 4. **Handle what the rows can't place:**
    - A slot outside every row (e.g. Ritual's strip down the left edge) is one of `onlyWhenHeld`.
      If exactly one candidate fits, use it; otherwise ask the player to hover it.
-   - A slot named in `overlaps` sits on the same spot as another in the data — ask which item it
-     is (e.g. Ritual's top row: Head of the King vs. Petition Splinter).
+   - A slot named in `overlaps` sits on the same spot as another in the data. If it's dim, it's 0
+     either way — skip it. If it's lit, ask which item it is. (Ritual's top row in 0.5.5: the wide
+     slot shown is Head of the King; Petition Splinter under it is a legacy item, unusable since
+     0.5.0.)
 5. **Score each line's confidence** per `poe2-core/references/confidence.md`. A name read from its
    slot on a crisp screenshot is High. Lower it when:
    - the count is blurry, cropped, or partly hovered over;
