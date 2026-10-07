@@ -33,7 +33,7 @@ You (in Claude)
    │     poe2-gear-upgrade, poe2-crafting, poe2-vendor-regex,
    │     poe2-build-review, poe2-build-switch,
    │     poe2-trials-advisor, poe2-currency-tracker,
-   │     poe2-meta-strategy, poe2-new-league
+   │     poe2-meta-strategy, poe2-new-league, poe2-whats-new
    │
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
@@ -75,6 +75,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-currency-tracker` | Read currency-tab screenshots into a remembered inventory; answer "can I afford this?" |
 | `poe2-meta-strategy` | What's rising/falling this week (in divine terms), sell/hold advice for your currency, and what to farm. |
 | `poe2-new-league` | `/poe2:poe2-new-league` at league start: pick the league, save it as the default, refresh what the patch made stale, onboard the first character. |
+| `poe2-whats-new` | For a returning player: what changed since they last played, and every patch-note line about their build, quoted from the official notes. |
 
 Design notes that shape all of them:
 
@@ -188,7 +189,8 @@ poe2-ai-tools/
     ├── poe2-trials-advisor/
     ├── poe2-currency-tracker/
     ├── poe2-meta-strategy/
-    └── poe2-new-league/
+    ├── poe2-new-league/
+    └── poe2-whats-new/
 ```
 
 ## Tech choice

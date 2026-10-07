@@ -94,6 +94,9 @@ they can be refreshed, and lower confidence accordingly.
 
 - **Characters.** List any roster characters in the old league. Leave them as they are — when a temp
   league ends they move to Standard; the player can update them later with `poe2-character`.
+- **Catch-up.** If roster characters are from an earlier release — their league's recorded patch has
+  different first two numbers from this one's (0.4.x before 0.5.x) — offer as a choice: "Catch me up
+  on what changed" (runs `poe2-whats-new` from that league) or "Skip".
 - **Currency.** Leave the old league's inventory alone. Don't create an empty one for the new league —
   `poe2-currency-tracker` creates it on the first screenshot.
 
