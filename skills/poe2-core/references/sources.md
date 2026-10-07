@@ -25,6 +25,7 @@ PoE1 pages mix in under the same names. So:
 | Passive tree | `parse_pob_code` / `summarize_tree` | github.com — PathOfBuildingCommunity/PathOfBuilding-PoE2 (`dev`) | Snapshot is generated; see `CONTRIBUTING.md`. |
 | Mods, tiers, item bases | `get_knowledge('crafting')` | poe2db.tw — the item class page | Tier data is embedded in the page HTML. |
 | Currency effects | `get_knowledge('crafting')` | poe2db.tw — `Stackable_Currency` | Quote, don't paraphrase. No odds or "1 in N". |
+| Item rules (affix limits, corruption) | `get_knowledge('crafting')` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv`: `Rarity`, `ClientStrings` | Game data, not guides. Name the commit you read. Which currencies take corrupted items comes from their poe2db descriptions. |
 | Trial of Chaos modifiers | `get_knowledge('trials')` | poe2db.tw — `Ultimatum` (Modifiers list) | Re-check every patch; changes aren't always in the notes. |
 | Trial of the Sekhemas | `get_knowledge('trials')` | poe2db.tw | |
 | Farming — what a mechanic drops | `get_knowledge('farming')` | poe2scout categories (via the tools) | No yields, drop rates, or "X per hour" from anywhere. |
@@ -42,6 +43,7 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 | poe2wiki.net | Bot challenge. Don't solve it. | `fetch_guide` block detection only |
 | game8.co | Blocks AI crawlers. | robots check only |
 | Currency-seller "guide" sites | SEO content, not references. | nothing — judgment |
+| mobalytics.gg, for game facts | Editorial guides lag patches: a corruption rule taken from one was contradicted by game data. It also bot-blocks server fetches. A guide link the player pastes is fine, through `fetch_guide`. | nothing — judgment |
 | PoE1 references (poewiki.net, poedb.tw) | Different game; same item and skill names. Not poe2db.tw. | nothing — judgment |
 
 ## Build creators

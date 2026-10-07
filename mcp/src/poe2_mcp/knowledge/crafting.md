@@ -1,15 +1,17 @@
 ---
-patch: 0.5.5
-refreshed: 2026-10-03
+patch: 0.5.5e
+refreshed: 2026-10-06
 ---
 # Crafting knowledge (patch-dependent — verify against the live game)
 
-> **Freshness stamp: researched 2026-10-03.** Patch not confirmed at research time. Currency
-> descriptions and mod tiers below are from poe2db's data pages; affix limits and corruption rules are
-> from Mobalytics' crafting guides. Sources: poe2db `Stackable_Currency`, `Helmets_*`, `Amulets`,
-> `Sceptres`; mobalytics.gg `poe-2/guides/item-modifiers`, `poe-2/guides/vaal-corrupting`. (Maxroll,
-> poe2wiki and game8 are off-limits — see `CONTRIBUTING.md`.) If the player quotes different in-game
-> wording, trust the game and lower confidence.
+> **Freshness stamp: researched 2026-10-03; item rules and corrupted-item currencies re-sourced from
+> game data 2026-10-06 (patch 0.5.5e).** Currency descriptions and mod tiers are from poe2db's data
+> pages. Affix limits are from the game's `Rarity` table, and the corrupted-item error from its client
+> strings, both in repoe-fork/dat-export@16088913cc94 (game 4.5.5.2). Sources: poe2db
+> `Stackable_Currency`, `Helmets_*`, `Amulets`, `Sceptres`; dat-export `Rarity.csv`,
+> `ClientStrings.csv`. Where to look things up, and what to avoid, is in `poe2-core`'s
+> `references/sources.md`. If the player quotes different in-game wording, trust the game and lower
+> confidence.
 
 The skill's job is a **gate check before a cost check**: can this currency change the thing the player
 wants at all? Most wasted currency comes from using the right orb for the wrong job — most often a
@@ -19,12 +21,16 @@ Divine on a mod that has no range.
 
 ## Item rules
 
-- **Affix limits.** Magic: up to **1 prefix + 1 suffix**. Rare: up to **3 prefixes + 3 suffixes**.
-  A mod can only be added if its side (prefix/suffix) has room.
+- **Affix limits** (`Rarity` table). Magic: up to 2 mods, at most **1 prefix + 1 suffix**. Rare: up
+  to 6 mods, at most **3 prefixes + 3 suffixes**. A mod can only be added if its side
+  (prefix/suffix) has room.
 - **Mod level gates item level.** A mod tier can only roll on an item whose item level is at least
   that tier's modifier level. poe2db lists this as the tier's "Level".
-- **Corrupted items can't be modified** — no currency works on them, including another Vaal Orb.
-  Check for "Corrupted" on the item before anything else.
+- **Corrupted items take only the corruption currencies** listed under "Currencies for corrupted
+  items" below. The game's error for a currency used on a corrupted item is "Target is corrupted."
+  (client string `ItemErrorTargetCorrupted`). *Derived, not quoted:* the other currencies in this
+  file don't name corrupted items, so treat them as failing with that error. Check for "Corrupted"
+  on the item before anything else.
 - **Fixed-value mods have no range.** A mod written without a `(min—max)` range, like
   `+1 to Level of all Minion Skills`, is the same at every roll. Only a *different tier* changes it.
 
@@ -71,6 +77,24 @@ of a mod. So it:
 
 Whether Divine also rerolls implicit mods: **not researched.**
 
+### Currencies for corrupted items
+
+Descriptions quoted from poe2db's currency page.
+
+| Currency | Does |
+|---|---|
+| Architect's Orb | "Modifies a Corrupted Equipment or Jewel item unpredictably or destroys it" |
+| Yaomac's Orb of Sacrifice | "Upgrades a Corruption Enchantment on a Rare Weapon or Quiver and removes a random Modifier" |
+| Kopec's Orb of Sacrifice | "Upgrades a Corruption Enchantment on a Rare Armour and removes a random Modifier" |
+| Kamasa's Orb of Sacrifice | "Upgrades a Corruption Enchantment on a Rare Amulet, Ring or Belt and removes a random Modifier" |
+| Yugul's Orb of Sacrifice | "Upgrades a Corruption Enchantment on a Rare Jewel and removes a random Modifier" |
+| Vaal Cultivation Orb | "Replaces up to 2 modifiers on a Corrupted Vaal Unique" / "Replaces other Uniques with a Corrupted Unique of the same Item Class" |
+| Crystallised Corruption | "Modifies a Corrupted Skill Gem unpredictably or destroys it" |
+
+*Derived, not quoted:* each of these has a cost the player must hear before using it. Architect's
+Orb and Crystallised Corruption can destroy the item, and an Orb of Sacrifice removes a random
+modifier, which can be one the player wants to keep.
+
 ## Mod tiers worth knowing
 
 Only tiers that have been checked against poe2db are listed. For anything else, say "check poe2db"
@@ -91,5 +115,6 @@ an "upgraded corruption" version at +2. Both make the item corrupted.
 ## Not researched
 
 Mark these "not researched" if they come up rather than guessing: Essences, Omens, Desecrated mods,
-the crafting bench / recombinators, Divine on implicits, and **odds** of hitting a specific mod (mod
-weights exist on poe2db but haven't been pulled in).
+the crafting bench / recombinators, Divine on implicits, how an item becomes corrupted twice (the
+trade site has a "twice corrupted" filter, so some way exists), and **odds** of hitting a specific
+mod (mod weights exist on poe2db but haven't been pulled in).

@@ -21,7 +21,8 @@ Get, best fidelity first: the **in-game item text** (Ctrl+C, per `poe2-core/refe
 else a **screenshot**, else the player's description. From it, establish:
 
 - **Rarity** (Normal / Magic / Rare / Unique) and **item level**.
-- **Corrupted?** If yes, stop: nothing can modify it.
+- **Corrupted?** If yes, only the knowledge file's corrupted-item currencies can change it. If the
+  player's currency isn't one of them, stop there.
 - **Each explicit mod**, whether it's a **prefix or suffix**, and whether it has a **range** or a
   fixed value. Match mods to tiers in the knowledge file by text and value where you can.
 - **Open affixes** — how many prefix/suffix slots are still free against the rarity's limits.
@@ -50,6 +51,7 @@ Using the currency table in the knowledge file, answer plainly before anything e
 - **Minimum modifier level excludes the target** — a Greater/Perfect orb whose minimum is above the
   target tier's modifier level can never roll it.
 - **No room** — an adding orb with no open affix on the needed side.
+- **Corrupted item** — any currency outside the knowledge file's corrupted-item list fails on it.
 
 If the currency fails the gate, **say "don't use it" and why in one sentence**, then go to §4 for what
 would work. Don't soften this — telling the player their divine is safe is the point.
@@ -63,6 +65,9 @@ List the 1–3 paths that can actually reach the goal, cheapest first:
 - **Remove and re-add** — Annulment then an adding orb, or Chaos on a Rare. Name the risk: removal is
   random, so it can hit the mod the player wants to keep.
 - **Buy it** (trade leagues only — see §5).
+
+On a corrupted item, the only paths are the corrupted-item currencies or a new item. Say what each
+one risks, from the knowledge file — some can destroy the item, and some remove a random mod.
 
 Describe odds qualitatively ("unlikely — one random suffix out of many"). Mod weights aren't
 researched, so **never give a percentage or "1 in N"**.
@@ -102,6 +107,6 @@ weakest signal.
 - **Gate before cost.** Never price a craft the currency can't perform.
 - **No invented numbers.** Tiers, item-level gates, and currency behaviour come from the knowledge
   file; odds are qualitative only.
-- **Corrupted means stop.**
+- **Corrupted means only the corruption currencies.** Everything else fails on a corrupted item.
 - **Don't assume SSF or trade** — read `trade_mode`, per `poe2-core`.
 - Never buy, list, or whisper. Output is advice and trade links the player acts on.
