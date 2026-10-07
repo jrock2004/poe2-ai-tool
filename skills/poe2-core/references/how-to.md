@@ -1,15 +1,30 @@
 # "How do I get that for you?" — player how-tos
 
 Short, current, click-by-click. Surface a one-line version as a hint on any ask; give the full steps
-when the player asks "how?". Game UI shifts per patch — keep these current (see plan §10).
+when the player asks "how?". The game's and Path of Building's UI shift per patch — keep these current
+(`CONTRIBUTING.md` step 5).
 
-## Export a Path of Building (PoB) code
-1. Open Path of Building 2 with your build loaded.
-2. Import/Export tab → **Generate** (or Export) → **Copy** the code.
-3. Paste the code itself here. The assistant decodes it into your stats, gems, and gear — the
-   highest-fidelity way to read a build. (TODO: verify exact menu labels vs current PoB2.)
-   - Only have a `pobb.in` share link? The link itself can't be read — open it and copy the build
-     code from the page, then paste that.
+## Get your character into Path of Building (PoB) and copy its code
+The best way to read your build: Path of Building imports your real character — gear, skills, passive
+tree — and the code it gives you holds all of it.
+
+1. Don't have it? Download **Path of Building Community (PoE2)** from
+   github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/releases and install it.
+2. Open it and click **New** to start a build for this character.
+3. Open the **Import/Export Build** tab. Under **Character Import**, click **Authorize with Path of
+   Exile**: your browser opens to sign in to Path of Exile and let Path of Building see your
+   characters. You do this once. (Path of Building is an app GGG approved; the assistant never sees
+   your login.)
+4. Choose the realm **PoE2**, click **Start**, and pick your character from the list.
+5. Click **Passive Tree and Jewels** (confirm with **Import** if it asks), then **Items and Skills**.
+6. Under **Build Sharing**, click **Generate**, then **Copy**, and paste the code here. Use Copy, not
+   Share — Share turns the code into a link that can't be read here.
+
+After an upgrade, re-import into the same build: steps 3–6 (you stay signed in). Tick **Delete
+equipment** and **Delete skills** first, so old gear and gems don't linger.
+
+Only have a `pobb.in` link (someone else's build)? The link itself can't be read — open it, copy the
+build code from the page, and paste that.
 
 ## Copy an item from in-game
 1. Hover the item so its tooltip shows.
@@ -22,18 +37,14 @@ when the player asks "how?". Game UI shifts per patch — keep these current (se
 3. Drop the image in the chat. Repeat per tab; each tab is tracked separately.
 
 ## Screenshot your character / gear
+For when you don't use Path of Building. It reads less than an import: item mods only show where you
+hover.
 1. Open your **Character** panel (default **C**) to show equipped gear; the inventory panel (**I**)
    works too. Hover a piece to show its full tooltip if you want that item read precisely.
 2. Screenshot the panel (whole window is fine).
-3. Drop it in the chat. This is how the assistant reads your build for gear advice — there's no
-   auto-import (see below).
-
-## Connect your account (OAuth) — currently unavailable
-The official character API would read your gear/skills/passives automatically, but **GGG isn't issuing
-new API keys** right now ("unable to process new applications"), so there's no auto-connect. Use a
-character screenshot or just describe the build instead. If GGG reopens registration this becomes
-automatic with no change to how you use the skills.
+3. Drop it in the chat.
 
 ## Find a build guide
-Paste a link from Mobalytics, Maxroll, or poe-vault, or the build's PoB code. If a guide won't load
-for me, its PoB code always works.
+Paste a link from Mobalytics or poe-vault, or the build's PoB code. For Maxroll, paste the guide's PoB
+code — Maxroll doesn't allow AI tools to read its pages. If a guide won't load, its PoB code always
+works.

@@ -15,8 +15,9 @@ explain things to newcomers consistently.
   with a confidence band and a one-line reason. Read it before producing any recommendation.
 - **`references/currency-glossary.md`** — currency names, common shorthand, and how prices are quoted
   (in exalted vs. divine). Used to normalize what the player types.
-- **`references/how-to.md`** — step-by-step "how do I get that for you?" instructions (export a PoB
-  code, copy an item in game, screenshot a currency tab, find a build guide).
+- **`references/how-to.md`** — step-by-step "how do I get that for you?" instructions (import your
+  character into Path of Building and copy its code, copy an item in game, screenshot a currency tab
+  or your character, find a build guide).
 - **`references/guide-structure.md`** — how to turn any build guide (linked guides, level or gear
   tabs, prose) into ordered stages with entry conditions. Used by `poe2-build-review` and
   `poe2-build-switch`.

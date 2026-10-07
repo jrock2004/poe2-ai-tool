@@ -59,10 +59,13 @@ end). Keep it short:
    - **Has a stash** → offer to read a currency-tab screenshot (`poe2-currency-tracker`) and to check
      the stash for leveling uniques or gear worth handing to the new character.
 7. **How should I read your gear when we need it?** Choices, from "Reading a build" below. Recommend
-   **"PoB code"** when the player is `experienced` or another of their characters already has
-   `build_source: "pob"` — they keep a PoB, and it's the best data. Otherwise recommend **"Character
-   screenshot"**: no PoB upkeep while gear changes every few levels. If Path of Building hasn't shipped
-   this patch's tree yet (see `poe2-new-league` → passive tree), say so on the PoB option.
+   **"Import my character into Path of Building"** for everyone: it's the real character, read
+   exactly, and re-importing after an upgrade takes a minute. With the choice, offer the steps
+   (`poe2-core/references/how-to.md` → "Get your character into Path of Building"); a player who picks
+   it and hasn't done it before gets walked through them. **"Character screenshot"** is for a player
+   who won't install Path of Building. If Path of Building hasn't updated for this patch yet (see
+   `poe2-new-league` → passive tree), say on that option that its tree and totals stay last patch's
+   until it does.
 
 Don't ask for a goal: a new character's `goal` starts as `leveling`. Ask for it later, when it starts to
 matter — see "Listing, updating, switching".
@@ -83,24 +86,27 @@ step 4. When it's done, set the new character active and say which one it replac
 
 Gear/skill reading feeds `poe2-gear-upgrade` and `poe2-build-review`. Order of preference:
 
-- **PoB code** — best fidelity. `parse_pob_code` (MCP) decodes a Path of Building 2 export code into
-  computed stats (resistances, life/ES, DPS), gems, and equipped items. Prefer this when the player
-  has a PoB open. It takes the code itself, not a pobb.in share link — if they paste a link, ask them
-  to copy the code from that page. Record `build_source: "pob"` and the parsed summary.
-- **Character screenshot** — the player screenshots their character/inventory panel; vision reads it.
-  Good when there's no PoB.
+- **PoB code from a character import** — the default, and the best fidelity. Path of Building signs in
+  to the player's account itself (an app GGG approved) and imports the real character, so the code
+  holds what they actually have. `parse_pob_code` (MCP) decodes it into computed stats (resistances,
+  life/ES, DPS), gems, equipped items and the passive tree. It takes the code itself, not a pobb.in
+  share link — if they paste a link, ask for the code (how-to). Record `build_source: "pob"` and the
+  parsed summary. A code from a build they planned by hand works too, but it's a plan, not their
+  gear — when it matters, ask which it is.
+- **Character screenshot** — for a player without Path of Building: they screenshot their
+  character/inventory panel and vision reads it. Item mods only show where they hovered.
 - **Plain description** — "level 84 Deadeye, Ice Shot, resists capped, ~2.4k life" — lowest fidelity,
   fine to start.
 
-**Note on OAuth:** the official character API would read gear automatically, but **GGG isn't issuing new
-API keys** right now, so there's no auto-import — PoB/screenshot/description are the path. If
-registration reopens, this upgrades transparently (see `docs/ggg-oauth-application.md`).
+We can't read the account ourselves: that would need our own GGG API access, and GGG isn't taking new
+applications. Path of Building's import uses its own approved access, which is why it's the default.
 
 ## Listing, updating, switching
 
 - **List** the roster on request: name, class/archetype, goal, league, trade or SSF, and which is
   active.
-- **Update** a build: re-take a screenshot or edit goal/guide/archetype; bump `updated_at`.
+- **Update** a build: re-import into Path of Building and paste the new code (or re-take a screenshot),
+  or edit goal/guide/archetype; bump `updated_at`.
 - **Goal past leveling** — when a character with `goal: leveling` has clearly finished the campaign
   (maps, endgame gear, a build-switch question), ask once as a choice — bossing, mapping, or something
   else — and store it.
