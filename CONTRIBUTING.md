@@ -108,15 +108,16 @@ players who skip their own refresh still get them on update.
 
 ### 7. Vendor regex data
 
-**Needed when** patch notes change mod tiers, their item levels, or mod wording.
-In `mcp/src/poe2_mcp/vendor_regex.py`:
+**Needed when** patch notes change mod wording. Mod tiers and their item levels need nothing here: the
+vendor regex takes them from the item snapshot (step 9), by each mod's family in `TIER_FAMILIES`
+(`mcp/src/poe2_mcp/vendor_regex.py`).
 
-- **`TIERS`** — re-pull each mod's (item level, highest value) pairs from the poe2db item-class pages
-  named in its source comment; the tier data is embedded in the page's HTML. Use regular tiers only,
-  and take the highest value across slots. Re-stamp the patch in the comment.
 - **Stat-list fixture** — regenerate `mcp/tests/trade2_stat_texts.json` from trade2 `/data/stats`
   (Explicit + Implicit `text`s, sorted, deduplicated), then run the tests: a renamed mod fails
   `test_targets_and_traps_still_exist`, and a fragment that now catches the wrong mod fails its traps.
+- **A renamed family** — if `test_tool_takes_every_familys_tiers_from_the_item_snapshot` fails after
+  step 9, a patch renamed a family in `TIER_FAMILIES`: find the new name in the snapshot's `mods` and
+  update the map.
 
 ### 8. Stash-tab layouts
 
