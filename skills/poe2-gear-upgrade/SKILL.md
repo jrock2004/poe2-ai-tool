@@ -4,7 +4,7 @@ description: Look at the player's Path of Exile 2 character and recommend gear u
 ---
 # poe2-gear-upgrade
 
-Load `poe2-core` first. This is the composition skill (F1): read the character, find the slots that are
+Load `poe2-core` first. This is the composition skill: read the character, find the slots that are
 holding the build back, and for each one produce a **realistic, affordable** market upgrade with a trade
 link — prioritized so the player fixes the biggest problem per currency spent, not everything at once.
 

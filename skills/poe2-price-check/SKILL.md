@@ -2,7 +2,7 @@
 name: poe2-price-check
 description: Price a Path of Exile 2 item or currency and say what it's realistically worth, with a confidence level. Use when the player pastes an item, asks "what's this worth", asks about currency exchange rates, or wants trade filters / a search link for an upgrade.
 ---
-# poe2-price-check  (Phase 1)
+# poe2-price-check
 
 Load `poe2-core` first — it owns the confidence rubric, the beginner how-to reference, and the
 "never auto-trade" rule. This skill turns a currency name, a unique, or a pasted rare item into a
@@ -62,7 +62,7 @@ what you changed, and re-search:
 Narrate it plainly: *"Nothing matched at 80 life + 30% MS; I dropped movement speed to 25% and found
 6 listings."* Widening lowers confidence — reflect that in the band.
 
-## Trade filters as the deliverable (F6) and the iterate loop
+## Trade filters as the deliverable, and the iterate loop
 
 The player acts, never the tool. Output is a **link + the exact filters** (and per-listing whisper
 text to copy) — never an auto-purchase or whisper. After a search, invite the loop: the player pastes

@@ -14,7 +14,7 @@ do. Switching the active character is a state update here, **not** a separate sk
 Two sections of saved state (`get_state` / `update_state`; see the shared model in `poe2-core`):
 
 ```
-player = { experience_level }            # account-level; tunes verbosity (poe2-core §7). Set once.
+player = { experience_level }            # account-level; tunes verbosity (poe2-core rule 2). Set once.
 
 characters = { "<name>": {               # keyed by character name (the id)
   league,              # which league they're in (the trade league's name, even for SSF)

@@ -53,7 +53,7 @@ assumes gear a fresh character won't have — say so before calling the player "
 Creator trust is about whether the guide is worth following, not how well this review matches the
 character to it — it doesn't change the confidence band below.
 
-## 2. Structure the guide into stages (the §5.1 model)
+## 2. Structure the guide into stages
 
 A guide is **not** one blob — it's an ordered progression. Structure it per
 `poe2-core/references/guide-structure.md`: ordered stages with entry conditions, linked variants
