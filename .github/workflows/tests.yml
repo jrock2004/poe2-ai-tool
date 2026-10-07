@@ -1,0 +1,32 @@
+# Every push to main reaches players (plugin.json has no version, so Claude Code versions the plugin by
+# commit) -- this is the check that main still works where they run it: Windows and macOS, on the
+# oldest Python the server supports and a current one. Tests are pure: no network, no secrets.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    name: pytest (${{ matrix.os }}, Python ${{ matrix.python }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+        python: ["3.10", "3.14"]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: mcp
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: ${{ matrix.python }}
+      # --locked: fail if uv.lock no longer matches pyproject.toml -- plugin installs resolve from it.
+      - run: uv run --locked pytest -q
