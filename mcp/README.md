@@ -17,7 +17,7 @@ Which source the skills use for what: `skills/poe2-core/references/sources.md`.
   - `exchange.py` — GGG's Currency Exchange API, a second source of currency rates. Built and tested,
     not wired to a tool yet.
 - **Pure** — `pob.py` (Path of Building codes) and `vendor_regex.py`.
-- **Snapshots** — `treedata.py`, `stashlayout.py` and `gamedata.py` each load a generated
+- **Snapshots** — `treedata.py`, `stashlayout.py`, `gamedata.py` and `campaign.py` each load a generated
   `data/*_<version>.json`, and regenerate it when run as a module (`CONTRIBUTING.md`, "Per-patch
   refresh"). Never hand-edit the JSON.
 - **The player's data** — `store.py` (the per-user data dir), `state.py` (roster, currency and league
@@ -58,6 +58,8 @@ call at all.
 - `item_text` — what a currency, omen, essence, alloy, rune, soul core or idol does, in the game's words.
 - `trial_pool` — the Trial of Chaos modifiers, and the Sekhemas afflictions, boons and pledges.
 - `get_stash_layout` — which item sits in each slot of a special stash tab.
+- `campaign_rewards` — the campaign's permanent rewards (resistances, spirit, weapon-set points), with
+  where each comes from and which are a pick-one.
 - `build_vendor_regex` — a vendor search-box string from what the build wants.
 
 ## trade2 notes

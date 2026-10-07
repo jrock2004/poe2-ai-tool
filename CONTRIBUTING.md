@@ -182,6 +182,32 @@ its `source` names both export commits and the game version.
    Resistance tiers and their item levels — one currency's text with its tooltip, and one essence's
    modifiers with its tooltip.
 
+### 10. Campaign rewards
+
+**Needed when** [PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)
+changes `src/Data/QuestRewards.lua` (check that file's history on `dev`), or patch notes change a campaign
+reward. `src/poe2_mcp/data/campaign_<version>.json` lists the campaign's permanent rewards — resistances,
+spirit, weapon-set points — with where each comes from and which are a pick-one, for `campaign_rewards`.
+The game data has the values but not those names, so the list comes from Path of Building, which keeps it
+by hand and can lag a patch.
+
+1. Take `src/Data/QuestRewards.lua` from PathOfBuilding-PoE2 (`dev`) and note the commit.
+2. From `mcp/`, generate the snapshot for the game patch you checked it against (step 3). The command
+   writes the file itself — **don't redirect with `>`**:
+   ```bash
+   .venv/bin/python -m poe2_mcp.campaign path/to/QuestRewards.lua <version> "PathOfBuilding-PoE2@<commit> (dev, <date>), src/Data/QuestRewards.lua -- MIT; values match repoe-fork/dat-export@<commit> (game <version>) QuestStaticRewards, checked <date>" src/poe2_mcp/data/campaign_<version>.json
+   ```
+   Then delete the previous snapshot — only the newest is served. A `ValueError` means Path of Building
+   changed the file's shape: teach `campaign.py` the new field rather than editing the JSON.
+3. Check the values against the game data, at the dat-export commit step 8 found: in `QuestStaticRewards`,
+   `RewardStats` are `Stats` rows and `RewardStatsValues` their values — Beira's +10% cold resistance is
+   the `CroneDropUsed` row, `base_cold_damage_resistance_%` 10. Skip the rows that only grant
+   `number_of_broken_faces` (a count of bosses killed, not a reward). A reward row Path of Building
+   doesn't list may be new this patch: check it in game. For 0.5.5, about ten such rows were left out
+   unchecked, e.g. `DominusEstateLibraryBookUsed` (+5% chaos resistance) and the four
+   `LogbookQuestRune` rows.
+4. **Restart the MCP server** — snapshots are cached per version.
+
 ## Releasing and sharing
 
 **Every push to `main` is a release.** `.claude-plugin/plugin.json` has no `version` on purpose: without
