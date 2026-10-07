@@ -5,8 +5,8 @@ decisions that actually matter while playing: what to trade, whether a drop is a
 character stacks up against a build guide, what to pick in the Trials, and what's worth doing this
 patch — with a stated confidence level on every answer.
 
-> **Status:** all planned phases built; now in use-and-refine. See [`docs/plan.md`](docs/plan.md)
-> for the full design and [Build phases](#build-phases) below for what was built when.
+> **Status:** all planned phases built; now in use-and-refine. See [Build phases](#build-phases) below
+> for what was built when, and [`docs/plan.md`](docs/plan.md) for the original design (historical).
 
 ---
 
@@ -183,9 +183,9 @@ poe2-ai-tools/
 ├── .claude-plugin/        # plugin.json (skills + MCP server) and marketplace.json
 ├── README.md
 ├── docs/
-│   └── plan.md            # full design doc
+│   └── plan.md            # original design doc (historical)
 ├── mcp/                   # the MCP server (data plumbing)
-│   ├── README.md          # endpoints, source decisions, run notes
+│   ├── README.md          # modules, tools, trade2 notes, config
 │   └── src/
 ├── scripts/               # dev setup (test venv): setup.ps1 (Windows), setup.sh (macOS/Linux)
 └── skills/                # one folder per skill, each with a SKILL.md

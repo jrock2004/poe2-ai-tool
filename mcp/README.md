@@ -1,121 +1,98 @@
-# poe2 MCP server (data plumbing)
+# poe2 MCP server
 
-Thin MCP server that gives the skills live data. **Python** (see root README).
-Not implemented yet; this documents the endpoints and decisions so Phase 1 can start immediately.
+The data side of the assistant: a thin Python MCP server (official `mcp` SDK) that fetches live data,
+reads the bundled game-data snapshots, and stores the player's own data. No judgment — that lives in the
+skills. The plugin starts it (`.claude-plugin/plugin.json`); players never run it by hand.
 
-## Sources & split (from the Phase 0 spike)
+Which sources it uses and why: the root [README](../README.md#data-sources--the-reuse-vs-build-decision).
+Which source the skills use for what: `skills/poe2-core/references/sources.md`.
 
-### poe2scout — REUSE for currencies, uniques, price history
-Base: `https://api.poe2scout.com` (legacy proxy: `https://poe2scout.com/api/*`). .NET API.
-Realm + league are path params; discover them at runtime via `GET /{realm}/Leagues`.
-Real routes (read from source):
+## Modules
 
-- `GET /{realm}/Leagues` — list leagues for a realm (realm is `poe2`).
-- `GET /{realm}/Leagues/{league}/Items` — flat list of **currencies + uniques** with `CurrentPrice`.
-  Fields: ItemId, CategoryApiId, Text, Name, Type, ApiId, BaseItemTypeId, CurrentPrice, IconUrl.
-- `GET /{realm}/Leagues/{league}/Items/{itemId}` — one item.
-- `GET /{realm}/Leagues/{league}/Items/{itemId}/History` — price history.
-- `GET /{realm}/Leagues/{league}/Items/Categories` — item categories.
-- `GET /{realm}/Leagues/{league}/Currencies/ByCategory` — currency prices by category.
-- `GET /{realm}/Leagues/{league}/Currencies/{apiId}` — one currency.
-- `GET /{realm}/Leagues/{league}/Currencies/Pairs/{id1}/{id2}/History` — pair exchange history.
-- `GET /{realm}/Leagues/{league}/Uniques/ByCategory` — unique prices by category.
-- `GET /{realm}/Leagues/{league}/ExchangeSnapshot` | `/SnapshotHistory` | `/SnapshotPairs` | `/ReferenceCurrencies`.
-- `GET /Realms/{realm}/Filters` — available filters.
+- **Network clients** — the only modules that call out. Every result is cached and carries its fetch
+  time (`_cache.py`), so tools report how fresh their data is.
+  - `poe2scout.py` — currency and unique prices, price history.
+  - `trade2.py` — the trade site's search, the only way to find rares by mods (notes below).
+  - `guides.py` — build-guide fetch that respects robots.txt and content licenses.
+  - `exchange.py` — GGG's Currency Exchange API, a second source of currency rates. Built and tested,
+    not wired to a tool yet.
+- **Pure** — `pob.py` (Path of Building codes) and `vendor_regex.py`.
+- **Snapshots** — `treedata.py`, `stashlayout.py` and `gamedata.py` each load a generated
+  `data/*_<version>.json`, and regenerate it when run as a module (`CONTRIBUTING.md`, "Per-patch
+  refresh"). Never hand-edit the JSON.
+- **The player's data** — `store.py` (the per-user data dir), `state.py` (roster, currency and league
+  records), `knowledge.py` (the shipped knowledge files against the player's refreshed copies).
+- `server.py` — the tools.
 
-**Key limitation:** no rare-item-by-affix search. `/Items` is a priced reference of currencies +
-uniques only, no stat filters. Etiquette: descriptive `User-Agent` with contact; cache; ~2 req/s.
+## Tools
 
-### GGG /trade2 — thin adapter BUILT (`trade2.py`)
-Unofficial, undocumented, IP-rate-limited. The ONLY source that searches rares by mods. Rules: cache
-hard, read-only, never auto-buy, back off on 429. Powers F6 trade filters and rare pricing in F1.
+The tool descriptions in `server.py` are the reference; this is the map. *Offline* means no network
+call at all.
 
-**Live-validated (2026-09-15, Forbidden Rites / poe2 realm):**
-- `POST /api/trade2/search/{realm}/{league}` `{query…}` → `{id, complexity, result:[hash,…]}`. Works
-  **unauthenticated** from a normal IP with a browser-like `User-Agent` (no POESESSID needed here).
-- `GET /api/trade2/fetch/{hashes}?query={id}` → `{result:[{id, listing, item}]}`; ≤10 hashes/request.
-  `listing.price` = `{type, amount, currency}`; `item` has name/baseType/rarity/ilvl/explicitMods.
-- `GET /api/trade2/data/stats` → stat-filter ids (`explicit.stat_…`), grouped; cached 6h. `#` in the
-  text is the numeric placeholder, so affix→id matching ignores the rolled value.
-- Clickable link for a search id: `https://www.pathofexile.com/trade2/search/{realm}/{league}/{id}`.
-- **Rate limits (from response headers, honor them):** search `X-Rate-Limit-Ip: 5:10:60,15:60:300,
-  30:300:1800,600:21600:3600` (5/10s, 15/60s, …); fetch `12:4:10,16:12:300,…`. Format is
-  `hits:period:timeoutSeconds`. The client self-throttles from the returned `…-State` header and 429s.
-- A POESESSID cookie (env, later) would raise limits and surface online/afk status, but isn't required
-  for read-only search.
+**League and the player's data**
+- `get_leagues` — the leagues poe2scout knows.
+- `set_league` — save the player's league as every tool's default; an explicit `league=` beats it.
+- `get_state` / `update_state` — the saved profile, roster, currency and league records, changed by
+  JSON Merge Patch. Offline.
+- `get_knowledge` / `save_knowledge` — per-patch knowledge (`trials`, `farming`, `crafting`): the newer
+  of the shipped copy and the player's refresh. Offline.
 
-### poe.ninja — fallback economy overview
-Public poe2 economy endpoints, no auth, ~5 min cache, descriptive User-Agent. Cross-check for prices.
+**Prices (poe2scout)**
+- `get_currency_prices` — a category's currency prices, in exalted and divine.
+- `market_movers` — the biggest 7-day risers and fallers per category, measured in divine.
+- `price_unique` — a unique's (or a currency's) price by name, with close-name suggestions.
+- `value_currency` — what an inventory is worth, per line and in total.
 
-### Build guides — robots/license-aware fetch (`guides.py`)
-**Re-verified Sep 2026 — this overturns the plan's older Phase-0 spike:**
-- **Mobalytics** — now **Cloudflare-403s** server fetches even with a browser UA (was "clean static").
-  → route `browser` (assistant reads it in the player's own browser) or paste a PoB code.
-- **poe-vault** — static and readable → **fetch works**.
-- **Maxroll** — reachable, but its robots.txt (Ziff Davis) **explicitly prohibits automated/AI use** of
-  the content. We respect that and refuse → route `paste`.
+**Trade (trade2)**
+- `find_stat_filters` — an affix line to trade stat ids. Cached 6h, so it calls out on a cold cache.
+- `build_trade_filter` — a trade search body, without searching. Offline.
+- `search_trade` — a live, read-only search: the cheapest listings, `priceStats` and a link.
 
-`fetch_guide` gates on robots.txt (Disallow *and* no-AI/scraping preamble) and a small prohibited-host
-list, fetches with an honest descriptive UA where permitted, extracts readable text (BeautifulSoup),
-and otherwise returns a `route` (`browser`/`paste`) instead of scraping around the block. Guide
-structuring into stages (plan §5.1) is the `poe2-build-review` skill's job, not the tool's.
+**Builds**
+- `fetch_guide` — a guide's text, or a `route` (browser or paste) when fetching isn't allowed.
+- `parse_pob_code` — a Path of Building 2 code to character, stats, gems, items and tree. Offline.
+- `summarize_tree` — the same tree summary from bare node ids. Offline.
 
-### GGG Character API (OAuth, poe2 realm) — BLOCKED, deferred
-Official; would list characters and return gear/skills/passives. Endpoints exist (`GET /character/poe2`,
-`GET /character/poe2/{name}`, scope `account:characters`, public/PKCE client). **But OAuth client
-registration is currently closed** — the developer docs say *"We are currently unable to process new
-applications."* So this is unobtainable right now; character reading uses **PoB paste / screenshot**
-(the design primary until registration reopens). See `docs/ggg-oauth-application.md` (parked draft).
-Stash/currency is NOT available at all (no PoE2 stash API) — currency comes from screenshots.
+**Game data (bundled snapshots, offline)**
+- `mod_tiers` — which mods a base can roll, and their tiers.
+- `item_text` — what a currency, omen, essence, alloy, rune, soul core or idol does, in the game's words.
+- `trial_pool` — the Trial of Chaos modifiers, and the Sekhemas afflictions, boons and pledges.
+- `get_stash_layout` — which item sits in each slot of a special stash tab.
+- `build_vendor_regex` — a vendor search-box string from what the build wants.
 
-## MCP tools
-Implemented (Phase 1):
-- `get_leagues` — poe2scout leagues + current divine price.
-- `set_league(league)` — validate a league against poe2scout and save it as every tool's default
-  (per-user data dir, read per call — no restart). Beats `POE2_LEAGUE`; an explicit `league=` beats both.
-- `get_knowledge(topic)` / `save_knowledge(topic, text)` — per-patch game knowledge (`trials`,
-  `farming`, `crafting`). Returns the newer of the shipped copy and the player's saved refresh, by the
-  file's `patch`/`refreshed` header. Offline.
-- `get_state()` / `update_state(patch)` — the player's saved state (profile, roster, currency, league
-  records) as one JSON document in the per-user data dir, changed by RFC 7396 merge patch. Rejects
-  unknown sections; setting one character `active` clears the rest. Offline.
-- `get_currency_prices(category, search, league?)` — currency prices in exalted + divine.
-- `price_unique(name, league?)` — unique/currency reference price, with close-name suggestions.
-- `value_currency(holdings, league?)` — value an inventory of {name, count} at current prices, in
-  exalted + divine, per line and total (net worth / affordability). Powers `poe2-currency-tracker`.
-- `find_stat_filters(affix)` — resolve an affix line to /trade2 stat-filter ids (no search; reads
-  GGG's stat reference, fetched once and cached 6h).
-- `build_trade_filter(category, stats, max_price…)` — construct a /trade2 query (offline, no search).
-- `search_trade(query, league?, limit)` — live read-only /trade2 search + top listings + link.
-- `fetch_guide(url)` — robots/license-aware guide fetch; returns text, or a `route` (browser/paste)
-  when fetching isn't permitted or is bot-blocked. Powers `poe2-build-review`.
-- `parse_pob_code(code, tree_spec?, skill_set?, item_set?)` — decode a Path of Building 2 export
-  code into character, computed stats (resistances/life/ES/DPS), a skill set's gems, equipped items
-  (implicit + explicit mods), and a passive tree. `sets` lists every tree spec, skill set, and item
-  set by 1-based position; the active ones are parsed unless a selector picks another (out of range
-  is an error, never a fallback). Stats exist only for the active sets — `statsNote` says so.
-  Offline, so share links (pobb.in) aren't resolved — paste the code itself. Feeds gear-upgrade /
-  build-review / build-switch without a screenshot.
-- `summarize_tree(main, tree_version, weapon_set_1?, weapon_set_2?, ascendancy?)` — the same tree
-  block as `parse_pob_code` (names, keystones/notables, ascendancy choices, point counts), from bare
-  node ids. For guides with no PoB whose pages carry node ids (Mobalytics). Lists may be disjoint or
-  overlap; no `jewels`. Offline.
-- `build_vendor_regex(want, want_classes?, hide_classes?, slot_classes?, slot_defences?)` — a vendor
-  search-box string (≤250 chars) from a curated fragment table (`vendor_regex.py`): hidden classes AND
-  wanted mods/classes AND a slot gate. Drops the lowest-priority wants to fit and lists them in
-  `dropped`. The valid keys are listed in the tool description. Offline. Powers `poe2-vendor-regex`.
+## trade2 notes
 
-Planned (later phases): `get_my_characters` (OAuth, blocked), `poe2-meta-strategy` data.
+The trade site's own API: undocumented and IP-rate-limited (the root README covers its Terms of Use).
+The client is read-only and signed out, caches hard, and never buys.
 
-## Config (env)
-- `POE2_DATA_DIR` — where the per-user data lives (saved league, state, knowledge refreshes); defaults
-  to the platform's app-data folder (`store.data_dir`).
-- `POE2_LEAGUE` — fallback default league when none is saved with `set_league` (the plugin doesn't set
-  it). poe2scout marks several leagues current at once, so the "first current" fallback is unreliable.
-- `POE2_REALM` (default `poe2`), `POE2SCOUT_BASE`, `POE2_USER_AGENT`, `POE2_TRADE_USER_AGENT`,
-  `POE2_GUIDE_USER_AGENT`.
+- `POST /api/trade2/search/{realm}/{league}` → `{id, complexity, result: [hash…]}`. Works signed out
+  with a browser-like User-Agent.
+- `GET /api/trade2/fetch/{hashes}?query={id}` → the listings; at most 10 hashes a request.
+- `GET /api/trade2/data/stats` → the stat-filter ids, cached 6h. `#` in a stat's text is the number,
+  so matching an affix ignores its roll.
+- Link for a search: `https://www.pathofexile.com/trade2/search/{realm}/{league}/{id}`.
+- **Rate limits** come back in `X-Rate-Limit-Ip` as `hits:period:timeoutSeconds` buckets — seen
+  2026-09-15: search `5:10:60,15:60:300,30:300:1800,600:21600:3600`, fetch `12:4:10,16:12:300,…`. The
+  client throttles from `X-Rate-Limit-Ip-State` and honours `Retry-After` on a 429.
+- A POESESSID cookie would raise the limits. Read-only search doesn't need one, and the client never
+  sends one.
 
-## Run
-The plugin runs it with `uv run --no-dev --project mcp poe2-mcp` (see `.claude-plugin/plugin.json`).
-By hand: `python -m venv .venv && . .venv/bin/activate && pip install -e . --group dev && poe2-mcp`
-— stdio; register it in your MCP client. Tests: `pytest -q` from `mcp/`. (Windows: `.venv\Scripts\activate`.)
+## Config (environment)
+
+All optional; the plugin sets none of them.
+
+- `POE2_DATA_DIR` — the per-user data dir (saved league, state, knowledge refreshes). Default:
+  `%APPDATA%\poe2-ai-tools` (Windows), `~/Library/Application Support/poe2-ai-tools` (macOS),
+  `$XDG_DATA_HOME/poe2-ai-tools` or `~/.local/share/poe2-ai-tools` (Linux).
+- `POE2_LEAGUE` — the league when none is saved with `set_league`. Without either, the tools fall back
+  to poe2scout's first "current" league, which is a guess: several are current at once.
+- `POE2_REALM` — default `poe2`.
+- Base URLs: `POE2SCOUT_BASE`, `POE2_TRADE_BASE`, `POE2_EXCHANGE_BASE`.
+- User agents: `POE2_USER_AGENT` (poe2scout), `POE2_TRADE_USER_AGENT`, `POE2_GUIDE_USER_AGENT`,
+  `POE2_EXCHANGE_USER_AGENT`.
+
+## Run and test
+
+The plugin runs `uv run --no-dev --project mcp poe2-mcp` (stdio). For development, build the test venv
+with `scripts/setup.sh` (macOS/Linux) or `scripts/setup.ps1` (Windows), then from `mcp/`:
+`.venv/bin/python -m pytest -q` (Windows: `.venv\Scripts\python -m pytest -q`). See `CONTRIBUTING.md`.
