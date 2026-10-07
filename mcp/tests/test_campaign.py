@@ -1,5 +1,5 @@
-"""Unit tests for the campaign-rewards snapshot: parsing PoB2's QuestRewards.lua, rendering, the CLI, and
-loading the committed snapshot (pure, no network).
+"""Unit tests for the campaign-rewards snapshot: parsing PoB2's QuestRewards.lua, rendering, the CLI,
+loading the committed snapshot, and searching it (pure, no network).
 
 The entries below are copied verbatim from PathOfBuilding-PoE2@b21d413d (dev, 2026-06-01),
 src/Data/QuestRewards.lua: a stat reward, a weapon-set-point reward, a pick-one reward whose options run over
@@ -9,7 +9,15 @@ import json
 
 import pytest
 
-from poe2_mcp.campaign import latest_version, load_snapshot, main, parse_quest_rewards, render_snapshot
+from poe2_mcp import campaign
+from poe2_mcp.campaign import (
+    campaign_rewards,
+    latest_version,
+    load_snapshot,
+    main,
+    parse_quest_rewards,
+    render_snapshot,
+)
 
 QUEST_REWARDS_LUA = r'''return {
 	{
@@ -199,3 +207,51 @@ def test_the_committed_snapshot_has_the_campaign_resistances():
         ("Sisters of Garukhan Shrine", "+10% to Lightning Resistance"),
         ("Blackjaw", "+10% to Fire Resistance"),
     } <= stats
+
+
+# campaign_rewards: the lookup behind the campaign_rewards tool, on the committed snapshot.
+
+def sources(out: dict) -> list[str]:
+    return [r["from"] for r in out["matches"]]
+
+
+def test_without_a_search_every_reward_in_campaign_order():
+    snapshot = load_snapshot(latest_version())
+    out = campaign_rewards()
+    assert out["matches"] == snapshot["rewards"] and out["total"] == len(snapshot["rewards"])
+    assert out["patch"] == "0.5.5" and out["source"] == snapshot["source"]
+
+
+def test_a_search_finds_reward_text_and_returns_a_pick_one_reward_whole():
+    # Tasalio's Test is a choice: the cold resistance comes with its alternative, so the player sees both.
+    out = campaign_rewards("cold resistance")
+    assert sources(out) == ["Beira", "Tasalio's Test"] and out["total"] == 2
+    assert out["matches"][1]["options"] == ["+5 to Intelligence", "+5% to Cold Resistance"]
+
+
+@pytest.mark.parametrize("search,expected", [
+    # a source, in any case
+    ("BEIRA", ["Beira"]),
+    # an area (the data spells it "Halls Of The Dead")
+    ("halls of the dead", ["Tawhoa's Test", "Tasalio's Test", "Ngamahu's Test"]),
+    # words across an option's line break
+    ("gained +1 charm", ["Medallion"]),
+])
+def test_a_search_matches_source_area_and_text_in_any_case(search, expected):
+    assert sources(campaign_rewards(search)) == expected
+
+
+def test_a_search_matches_the_part():
+    out = campaign_rewards("interlude 2")
+    assert out["total"] > 0 and {r["part"] for r in out["matches"]} == {"Interlude 2"}
+
+
+def test_no_match_is_an_empty_list_not_an_error():
+    out = campaign_rewards("mirror of kalandra")
+    assert (out["total"], out["matches"]) == (0, [])
+
+
+def test_no_snapshot_installed(monkeypatch):
+    monkeypatch.setattr(campaign, "latest_version", lambda: None)
+    out = campaign_rewards("spirit")
+    assert out["valid"] is False and out["error"] == "no campaign snapshot is installed"

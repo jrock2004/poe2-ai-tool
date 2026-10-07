@@ -17,7 +17,7 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from . import knowledge, stashlayout, state, store
+from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
@@ -722,6 +722,21 @@ async def trial_pool(trial: str, search: str | None = None) -> dict[str, Any]:
     if items is None:
         return {**_NO_ITEM_SNAPSHOT}
     return _trial_pool(items, trial, search)
+
+
+@mcp.tool()
+async def campaign_rewards(search: str | None = None) -> dict[str, Any]:
+    """The permanent rewards the Path of Exile 2 campaign gives: resistances, spirit, life, weapon-set
+    passive points and the like.
+
+    Each match has `part` ('Act 1', 'Interlude 2', 'Epilog'), `area`, `from` (the boss, item or shrine),
+    `areaLevel`, then `stat`, or `options` for a pick-one reward -- the player got only one of them, so
+    never add the options up -- and `weaponSetPoints` when it gives some. search: optional; words from a
+    part, area, source or reward text, any case ('cold resistance', 'spirit', 'Act 2') -- without it,
+    every reward, in campaign order. Quote the texts. From Path of Building 2's quest-reward list; `patch`
+    is the game patch it was checked against -- if the league's is newer, it may be stale. Offline.
+    """
+    return campaign.campaign_rewards(search)
 
 
 _VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())

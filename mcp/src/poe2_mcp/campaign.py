@@ -10,7 +10,8 @@ Regenerate per patch from a download of that file at a pinned commit:
     python -m poe2_mcp.campaign path/to/QuestRewards.lua 0_5_5 "<source note>" \\
         src/poe2_mcp/data/campaign_0_5_5.json
 
-Build-time only: nothing here touches the network, and runtime reads only the committed JSON.
+Nothing here touches the network: the CLI reads a downloaded file, and `campaign_rewards` (behind the
+tool of that name) reads only the committed JSON.
 """
 from __future__ import annotations
 
@@ -91,6 +92,34 @@ def latest_version() -> str | None:
     ]
     versions = [v for v in versions if _VERSION_RE.fullmatch(v)]
     return max(versions, key=lambda v: tuple(int(n) for n in v.split("_")), default=None)
+
+
+def campaign_rewards(search: str | None = None) -> dict[str, Any]:
+    """The newest snapshot's rewards: {"patch" ('0.5.5'), "source", "total", "matches"}, in campaign order.
+
+    Without `search`, every reward. With it, those whose part, area, source, stat or any option contains it
+    -- in any case, with line breaks read as spaces. A match is the whole reward, so a pick-one keeps all its
+    options. No snapshot returns {"valid": False, "error", "note"}, like stash_layout.
+    """
+    version = latest_version()
+    snapshot = load_snapshot(version) if version else None
+    if snapshot is None:
+        return {"valid": False, "error": "no campaign snapshot is installed",
+                "note": "Regenerate one with `python -m poe2_mcp.campaign` (see CONTRIBUTING.md)."}
+    needle = _flat(search or "")
+    matches = [reward for reward in snapshot["rewards"]
+               if not needle or any(needle in _flat(text) for text in _searched(reward))]
+    return {"patch": version.replace("_", "."), "source": snapshot["source"], "total": len(matches),
+            "matches": matches}
+
+
+def _searched(reward: Mapping[str, Any]) -> list[str]:
+    return [reward["part"], reward["area"], reward["from"], reward.get("stat", ""), *reward.get("options", ())]
+
+
+def _flat(text: str) -> str:
+    """Lowercase, with each run of whitespace -- line breaks included -- as one space. Pure."""
+    return " ".join(text.lower().split())
 
 
 def _data_dir():
