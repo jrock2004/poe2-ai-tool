@@ -9,8 +9,10 @@ import pytest
 from poe2_mcp import gamedata
 from poe2_mcp.gamedata import (
     build_augments,
+    build_chaos,
     build_essences,
     build_items,
+    build_sekhemas,
     build_texts,
     clean_text,
     exchange_ids,
@@ -460,6 +462,143 @@ def test_build_texts_keeps_an_item_whose_only_text_is_what_it_adds():
     assert texts["Guatelitzi's Thesis"] == {
         "class": "SoulCore", "text": "", "use": "", **build_augments(AUGMENTS)[THESIS]}
     assert texts["Lesser Robust Rune"]["adds"] == ROBUST_ADDS
+
+
+def _ultimatum(rownum, types, previous, name, tier, description):
+    # An UltimatumModifiers row, trimmed: PreviousTier points at the version below, Types at
+    # UltimatumModifierTypes rows.
+    return {"rownum": rownum, "Types": types, "PreviousTier": previous, "Name": name, "Tier": tier,
+            "Description": description}
+
+
+# Shaped like repoe-fork/dat-export's trial tables (game 4.5.5.2), trimmed: real rows, fewer columns. The
+# export writes a line break inside a text as the two characters \n (or \r\n).
+CHAOS_TABLES = {
+    "UltimatumModifierTypes": [{"rownum": str(i), "Id": type_id} for i, type_id in enumerate((
+        "BuffOrDebuff", "ProjectileAreaDebuff", "AreaDenialDaemon", "CentralObjectDaemon", "TurretDaemon",
+        "PlayerAttachedDaemon", "SpawnOneDaemon", "Wager", "WagerShade"))],
+    "UltimatumModifiers": [
+        _ultimatum("10", "[0]", "[]", "Time Paradox", "1",
+                   "[Buff|Buffs] on you expire 50% faster and [Debuff|Debuffs] on you expire 25% slower"),
+        _ultimatum("11", "[0]", "[10]", "Time Paradox II", "3",
+                   "[Buff|Buffs] on you expire 100% faster and [Debuff|Debuffs] on you expire 50% slower"),
+        _ultimatum("12", "[0]", "[11]", "Time Paradox III", "5",
+                   "[Buff|Buffs] on you expire 200% faster and [Debuff|Debuffs] on you expire 100% slower"),
+        _ultimatum("75", "[0]", "[]", "Lethal Rare Monsters", "1", "30% increased [Rarity|Rare] Monsters"),
+        _ultimatum("76", "[0]", "[75]", "Lethal Rare Monsters", "3", "60% increased [Rarity|Rare] Monsters"),
+        _ultimatum("77", "[0]", "[76]", "Lethal Rare Monsters", "5",
+                   "[Rarity|Rare] Monsters have an additional [MonsterModifiers|Modifier]\\n100% increased "
+                   "[Rarity|Rare] Monsters"),
+        _ultimatum("78", "[5]", "[]", "Stormcaller Runes", "1",
+                   "Runes will appear that will call deadly [Lightning] storms if you remain in them"),
+        _ultimatum("79", "[5]", "[78]", "Stormcaller Runes II", "3",
+                   "Large runes will appear that will call deadly [Lightning] storms if you remain in them"),
+        _ultimatum("80", "[5]", "[79]", "Stormcaller Runes III", "5",
+                   "Many large runes will appear that will call deadly [Lightning] storms if you remain in them"),
+        _ultimatum("115", "[8]", "[]", "Wager of Ruin", "1",
+                   "An invulnerable Shade stalks you, inflicting [UltimatumRuin|Ruin] with its Hits\\r\\nYour "
+                   "current [UltimatumRuin|Ruin] is set to 5\\r\\nUnique Trial Bosses drop a Rare Unique Item"),
+        _ultimatum("120", "[7]", "[]", "Wager of Chaos", "1",
+                   "Upgrade 2 previously chosen Modifiers\\r\\nAll Rooms offer an additional Reward"),
+        _ultimatum("121", "[7]", "[120]", "Wager of Chaos", "1",
+                   "Upgrade all previously chosen Modifiers\\r\\nAll Rooms offer 2 additional Rewards"),
+    ],
+}
+TIME_PARADOX = {"name": "Time Paradox", "kind": "modifier", "versions": [
+    {"name": "Time Paradox", "tier": 1, "text": "Buffs on you expire 50% faster and Debuffs on you expire 25% slower"},
+    {"name": "Time Paradox II", "tier": 3,
+     "text": "Buffs on you expire 100% faster and Debuffs on you expire 50% slower"},
+    {"name": "Time Paradox III", "tier": 5,
+     "text": "Buffs on you expire 200% faster and Debuffs on you expire 100% slower"},
+]}
+
+
+def test_build_chaos_chains_each_modifiers_versions_in_order():
+    # Each version points at the one below it; tiers can skip (1, 3, 5). Markup removed.
+    assert build_chaos(CHAOS_TABLES)[0] == TIME_PARADOX
+
+
+def test_build_chaos_says_whether_each_is_a_modifier_hazard_or_wager():
+    # From the game's type names: its "...Daemon" types are room hazards, its "Wager..." types wagers. In
+    # the game's order; same-named versions (Lethal Rare Monsters, Wager of Chaos) still chain.
+    assert [(c["name"], c["kind"], len(c["versions"])) for c in build_chaos(CHAOS_TABLES)] == [
+        ("Time Paradox", "modifier", 3), ("Lethal Rare Monsters", "modifier", 3),
+        ("Stormcaller Runes", "hazard", 3), ("Wager of Ruin", "wager", 1), ("Wager of Chaos", "wager", 2)]
+
+
+def test_build_chaos_turns_the_exports_escaped_line_breaks_into_real_ones():
+    versions = {c["name"]: c["versions"] for c in build_chaos(CHAOS_TABLES)}
+    assert versions["Lethal Rare Monsters"][2]["text"] == (
+        "Rare Monsters have an additional Modifier\n100% increased Rare Monsters")
+    assert versions["Wager of Chaos"][1]["text"] == (
+        "Upgrade all previously chosen Modifiers\nAll Rooms offer 2 additional Rewards")
+
+
+def test_build_chaos_refuses_a_version_pointing_at_a_row_that_isnt_there():
+    # Time Paradox III points at II: without II, the export changed shape.
+    rows = [row for row in CHAOS_TABLES["UltimatumModifiers"] if row["rownum"] != "11"]
+    with pytest.raises(ValueError, match="UltimatumModifiers row 11"):
+        build_chaos({**CHAOS_TABLES, "UltimatumModifiers": rows})
+
+
+def _sanctum(rownum, name, category, next_effect="", boon="", curse="", values="[]"):
+    # A SanctumPersistentEffects row, trimmed: EffectCategory points at a SanctumPersistentEffectCategories
+    # row, NextEffect at the step an effect turns into.
+    return {"rownum": rownum, "Name": name, "EffectCategory": category, "NextEffect": next_effect,
+            "BoonDesc": boon, "CurseDesc": curse, "StatValues": values}
+
+
+SANCTUM_CATEGORIES = (("None", ""), ("MinorCurse", "Minor Afflictions"), ("MinorBoon", "Minor Boons"),
+                      ("MajorCurse", "Major Afflictions"), ("MajorBoon", "Major Boons"), ("Pact", "Pledges"))
+SEKHEMAS_TABLES = {
+    "SanctumPersistentEffectCategories": [{"rownum": str(i), "Id": category_id, "Name": name}
+                                          for i, (category_id, name) in enumerate(SANCTUM_CATEGORIES)],
+    "SanctumPersistentEffects": [
+        _sanctum("7", "[UNUSED]", "3", curse="Rooms spawn [Volatiles|Volatile] Anomalies", values="[1]"),
+        _sanctum("35", "Earned Honour", "4", boon="Restore {0} of your [Honour] on room completion", values="[7]"),
+        _sanctum("42", "Ghastly Scythe", "3", next_effect="43",
+                 curse="Losing [Honour] ends the Trial\\r\\n(removed after 3 rooms)", values="[1]"),
+        _sanctum("43", "Ghastly Scythe", "3", next_effect="44",
+                 curse="Losing [Honour] ends the Trial\\r\\n(removed after 2 rooms)", values="[1]"),
+        _sanctum("44", "Ghastly Scythe", "3", curse="Losing [Honour] ends the Trial\\r\\n(removed after 1 room)",
+                 values="[1]"),
+        _sanctum("62", "Wooden Effigy", "2", boon="[UNUSED]"),
+        _sanctum("108", "Iron Manacles", "1", curse="You have no [Evasion]", values="[1]"),
+        _sanctum("113", "Pledge to the Powerful", "5", boon="50% less [Honour] lost in Boss Rooms",
+                 curse="100% more [Honour] lost in non-Boss Rooms", values="[100,-50]"),
+        _sanctum("116", "", "0"),  # a hidden quest flag
+    ],
+}
+
+
+def test_build_sekhemas_lists_the_effects_a_run_can_offer_in_the_games_order():
+    # Not the rows the game marks UNUSED, nor the nameless quest flag; and a chain (Ghastly Scythe counting
+    # down its rooms) once, by the step it starts at.
+    assert [e["name"] for e in build_sekhemas(SEKHEMAS_TABLES)] == [
+        "Earned Honour", "Ghastly Scythe", "Iron Manacles", "Pledge to the Powerful"]
+
+
+@pytest.mark.parametrize("effect", [
+    {"name": "Iron Manacles", "category": "Minor Afflictions", "text": "You have no Evasion"},
+    # A pledge is a boon with a cost.
+    {"name": "Pledge to the Powerful", "category": "Pledges", "text": "50% less Honour lost in Boss Rooms",
+     "cost": "100% more Honour lost in non-Boss Rooms"},
+    # The game fills {0} in from the row's values; how it formats them isn't in the export.
+    {"name": "Earned Honour", "category": "Major Boons", "text": "Restore {0} of your Honour on room completion",
+     "values": [7]},
+    {"name": "Ghastly Scythe", "category": "Major Afflictions",
+     "text": "Losing Honour ends the Trial\n(removed after 3 rooms)"},
+])
+def test_build_sekhemas_gives_each_effect_its_category_and_text(effect):
+    assert effect in build_sekhemas(SEKHEMAS_TABLES)
+
+
+@pytest.mark.parametrize("table, rownum", [("SanctumPersistentEffects", "43"),
+                                           ("SanctumPersistentEffectCategories", "5")])
+def test_build_sekhemas_refuses_a_row_it_cant_resolve(table, rownum):
+    tables = {**SEKHEMAS_TABLES, table: [row for row in SEKHEMAS_TABLES[table] if row["rownum"] != rownum]}
+    with pytest.raises(ValueError, match=f"{table} row {rownum}"):
+        build_sekhemas(tables)
 
 
 def test_render_items_is_json_with_one_mod_and_one_text_per_line():

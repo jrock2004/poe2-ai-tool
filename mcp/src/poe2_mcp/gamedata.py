@@ -255,6 +255,93 @@ def build_augments(augments: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def build_chaos(tables: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
+    """The Trial of Chaos modifiers, from dat-export's `UltimatumModifiers` and `UltimatumModifierTypes`:
+    [{"name", "kind", "versions": [{"name", "tier", "text"}]}], in the game's order. Pure.
+
+    Each row points at the version below it (PreviousTier), so a modifier's versions run from its first
+    to its last, tiers 1-5 with gaps. kind is from the game's type names: its "...Daemon" types are room
+    hazards, its "Wager..." types wagers, the rest modifiers. A row pointing at one that isn't there
+    raises ValueError -- the export changed shape.
+    """
+    types = {row["rownum"]: row["Id"] for row in tables["UltimatumModifierTypes"]}
+    rows = tables["UltimatumModifiers"]
+    by_rownum = {row["rownum"]: row for row in rows}
+    after: dict[str, dict[str, str]] = {}
+    for row in rows:
+        for below in json.loads(row["PreviousTier"] or "[]"):
+            _table_ref(by_rownum, "UltimatumModifiers", str(below), f"UltimatumModifiers row {row['rownum']}")
+            after[str(below)] = row
+
+    chaos = []
+    for row in rows:
+        if json.loads(row["PreviousTier"] or "[]"):
+            continue
+        by = f"UltimatumModifiers row {row['rownum']}"
+        kinds = [_table_ref(types, "UltimatumModifierTypes", str(t), by) for t in json.loads(row["Types"] or "[]")]
+        kind = ("wager" if any(k.startswith("Wager") for k in kinds)
+                else "hazard" if any(k.endswith("Daemon") for k in kinds) else "modifier")
+        versions = []
+        step: dict[str, str] | None = row
+        while step is not None:
+            versions.append({"name": clean_text(step["Name"]), "tier": int(step["Tier"]),
+                             "text": _table_text(step["Description"])})
+            step = after.get(step["rownum"])
+        chaos.append({"name": clean_text(row["Name"]), "kind": kind, "versions": versions})
+    return chaos
+
+
+def build_sekhemas(tables: dict[str, list[dict[str, str]]]) -> list[dict[str, Any]]:
+    """The Trial of the Sekhemas afflictions, boons and pledges, from dat-export's
+    `SanctumPersistentEffects` and `SanctumPersistentEffectCategories`: [{"name", "category", "text",
+    "cost"?, "values"?}], in the game's order. Pure.
+
+    category is the game's ("Minor Afflictions", "Pledges"). A pledge is a boon with a cost. The game fills
+    a "{0}" in the text from the row's values, which come along as `values` -- how it formats them isn't
+    in the export. Left out: the rows the game marks UNUSED, nameless rows, and the later steps of a chain
+    (NextEffect: Ghastly Scythe counting down its rooms is listed once, by the step it starts at). A row
+    pointing at one that isn't there raises ValueError -- the export changed shape.
+    """
+    categories = {row["rownum"]: row["Name"] for row in tables["SanctumPersistentEffectCategories"]}
+    rows = tables["SanctumPersistentEffects"]
+    by_rownum = {row["rownum"]: row for row in rows}
+    later_steps = set()
+    for row in rows:
+        if row["NextEffect"]:
+            _table_ref(by_rownum, "SanctumPersistentEffects", row["NextEffect"],
+                       f"SanctumPersistentEffects row {row['rownum']}")
+            later_steps.add(row["NextEffect"])
+
+    effects = []
+    for row in rows:
+        name = clean_text(row["Name"])
+        boon, curse = _table_text(row["BoonDesc"]), _table_text(row["CurseDesc"])
+        if not name or row["rownum"] in later_steps or "UNUSED" in (name, boon, curse):
+            continue
+        category = _table_ref(categories, "SanctumPersistentEffectCategories", row["EffectCategory"],
+                              f"SanctumPersistentEffects row {row['rownum']}")
+        effect: dict[str, Any] = {"name": name, "category": category, "text": boon or curse}
+        if boon and curse:
+            effect["cost"] = curse
+        if "{" in effect["text"] + effect.get("cost", ""):
+            effect["values"] = json.loads(row["StatValues"] or "[]")
+        effects.append(effect)
+    return effects
+
+
+def _table_ref(rows: dict[str, Any], table: str, rownum: str, by: str) -> Any:
+    """`rows[rownum]` -- a dat-export row reference -- or ValueError naming both rows. Pure."""
+    if rownum not in rows:
+        raise ValueError(f"{by} names {table} row {rownum}, which the table doesn't have")
+    return rows[rownum]
+
+
+def _table_text(raw: str | None) -> str:
+    """A dat-export text as a player reads it: the export writes a line break as the two characters \\n
+    (or \\r\\n); otherwise like `_game_text`. Pure."""
+    return _game_text((raw or "").replace("\\r\\n", "\n").replace("\\n", "\n"))
+
+
 def _game_text(raw: str | None) -> str:
     """Item text as a player reads it: markup removed, each line trimmed, and the game's line breaks kept
     as LF (the export mixes in CRLF). Pure."""
