@@ -29,10 +29,14 @@ Take only the creators whose "Good for" matches the playstyle, and follow `sourc
 them.
 
 - **Open each matching creator's build list** — the "Build list" link in `sources.md`, through
-  `fetch_guide` and its routes as `poe2-build-review` §1 handles them (Mobalytics goes through the
-  browser). Pick the guides on it that fit the playstyle. A list that is only a site root (no
-  per-author page): find the creator's guides there by author; if you can't, give the player the link
-  and ask them to paste the guide they like.
+  `fetch_guide` and its routes as `poe2-build-review` §1 handles them. Pick the guides on it that fit
+  the playstyle; a creator's list holds builds outside their "Good for" too. A Mobalytics list shows
+  each guide's patch tag (`0.5.5 FR`), "Updated on" date, class and ascendancy, and tags like
+  **Starter** (a league starter) and **End Game** — narrow by those before opening any guide. A
+  title's "0.5" names the patch line; the tag is the exact patch.
+- **A creator with no per-author list** (a site root in `sources.md`): don't hunt for their guides
+  page by page. Give the player the site and the creator's channel from `sources.md`, and ask them to
+  paste the guide they like.
 - **Open each candidate guide** — at most five — the same way, and read:
   - the **patch** it states, against the league's patch (`get_state` → `leagues[league].patch`; if
     it isn't there, follow the shared model in `poe2-core`);
