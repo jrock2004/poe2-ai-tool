@@ -19,6 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
+from .gamedata import load_items, mod_tiers as _mod_tiers
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
@@ -652,6 +653,26 @@ async def get_stash_layout(tab: str) -> dict[str, Any]:
     Offline; no network.
     """
     return stashlayout.stash_layout(tab)
+
+
+@mcp.tool()
+async def mod_tiers(base: str, search: str | None = None, item_level: int | None = None) -> dict[str, Any]:
+    """Which mods a Path of Exile 2 base can roll, from the game's own data: each mod family with its
+    side (prefix/suffix) and every tier's name, text and the item level it needs.
+
+    base: the item's base type as its item text names it, e.g. 'Rusted Greathelm' (any case). An unknown
+    name returns `suggestions`; a name with several variants returns each, with its requirements.
+    search: optional; part of a tier's text or a family's name, e.g. 'fire resistance' or 'minion'. A
+    found base with no matching family means that mod can't roll on it.
+    item_level: optional; the item's item level -- each tier then says whether it `canRoll` there.
+    `patch` is the game patch the data is from; if the league's is newer, it may be stale. No odds: the
+    game data says what can roll, not how likely it is. Offline.
+    """
+    items = load_items()
+    if items is None:
+        return {"valid": False, "error": "no item snapshot is installed",
+                "note": "Regenerate one with `python -m poe2_mcp.gamedata` (see CONTRIBUTING.md)."}
+    return _mod_tiers(items, base, search, item_level)
 
 
 _VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())

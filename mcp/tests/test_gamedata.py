@@ -5,7 +5,16 @@ import httpx
 import pytest
 
 from poe2_mcp import gamedata
-from poe2_mcp.gamedata import build_items, clean_text, fetch_export, main, render_items
+from poe2_mcp.gamedata import (
+    build_items,
+    clean_text,
+    fetch_export,
+    load_items,
+    main,
+    mod_tiers,
+    newest_snapshot,
+    render_items,
+)
 
 HELM = "Metadata/Items/Armours/Helmets/"
 BODY = "Metadata/Items/Armours/BodyArmours/"
@@ -236,3 +245,74 @@ def test_main_rejects_a_patch_that_isnt_a_version(monkeypatch, tmp_path, patch):
     monkeypatch.setattr(gamedata, "fetch_export", lambda commit: EXPORT)
     with pytest.raises(SystemExit):
         main(["items", COMMIT, patch, str(tmp_path / "out.json")])
+
+
+SNAPSHOT = {**build_items(MODS_BY_BASE, MODS, BASE_ITEMS), "patch": "0.5.5", "source": "fixture"}
+WHELPLING = {"name": "of the Whelpling", "itemLevel": 1, "text": "+(6-10)% to Fire Resistance"}
+TZTEOSH = {"name": "of Tzteosh", "itemLevel": 82, "text": "+(41-45)% to Fire Resistance"}
+
+
+def test_mod_tiers_lists_the_matching_families_of_a_base_with_every_tier():
+    # The base name matches in any case; search matches part of a tier's text.
+    assert mod_tiers(SNAPSHOT, "rusted greathelm", search="fire") == {
+        "base": "Rusted Greathelm",
+        "patch": "0.5.5",
+        "variants": [{
+            "class": "Helmets",
+            "requirements": {"level": 1, "str": 0, "dex": 0, "int": 0},
+            "families": [{"family": "FireResistance", "side": "suffix", "tiers": [WHELPLING, TZTEOSH]}],
+        }],
+    }
+
+
+def test_mod_tiers_search_matches_a_family_name_too():
+    # "fireresistance" isn't in any tier's text ("Fire Resistance" has a space) -- only the family's name.
+    families = mod_tiers(SNAPSHOT, "Rusted Greathelm", search="fireresistance")["variants"][0]["families"]
+    assert [f["family"] for f in families] == ["FireResistance"]
+
+
+def test_mod_tiers_without_search_lists_every_family_prefixes_first():
+    families = mod_tiers(SNAPSHOT, "Rusted Greathelm")["variants"][0]["families"]
+    assert [(f["side"], f["family"]) for f in families] == [("prefix", "IncreasedLife"), ("suffix", "FireResistance")]
+
+
+def test_mod_tiers_says_which_tiers_can_roll_at_an_item_level():
+    tiers = mod_tiers(SNAPSHOT, "Rusted Greathelm", search="fire", item_level=45)["variants"][0]["families"][0]["tiers"]
+    assert tiers == [{**WHELPLING, "canRoll": True}, {**TZTEOSH, "canRoll": False}]
+
+
+def test_mod_tiers_says_when_no_family_on_the_base_matches():
+    # The answer to "can this roll here at all?" when it can't: the base is found, no family matches.
+    out = mod_tiers(SNAPSHOT, "Rusted Greathelm", search="minion")
+    assert out["base"] == "Rusted Greathelm" and out["variants"][0]["families"] == []
+
+
+def test_mod_tiers_gives_each_variant_of_a_shared_name():
+    variants = mod_tiers(SNAPSHOT, "Ascetic Garb")["variants"]
+    assert [v["requirements"]["level"] for v in variants] == [45, 51]
+    assert [[f["family"] for f in v["families"]] for v in variants] == [["FireResistance"], ["IncreasedLife"]]
+
+
+def test_mod_tiers_suggests_close_names_for_an_unknown_base():
+    assert mod_tiers(SNAPSHOT, "greathelm") == {
+        "base": None, "patch": "0.5.5", "variants": [], "suggestions": ["Rusted Greathelm", "Soldier Greathelm"]}
+
+
+@pytest.mark.parametrize("level", [0, -1])
+def test_mod_tiers_rejects_an_item_level_below_1(level):
+    with pytest.raises(ValueError, match="item_level"):
+        mod_tiers(SNAPSHOT, "Rusted Greathelm", item_level=level)
+
+
+def test_newest_snapshot_picks_the_highest_patch():
+    # By patch, not text: 0.5.10 is after 0.5.5, and a hotfix letter after its base patch.
+    names = ["items_0_5_5.json", "items_0_5_5e.json", "items_0_5_10.json", "tree_0_5.json", "items_notes.json"]
+    assert newest_snapshot(names) == "items_0_5_10.json"
+    assert newest_snapshot(["items_0_5_5.json", "items_0_5_5e.json"]) == "items_0_5_5e.json"
+    assert newest_snapshot(["tree_0_5.json"]) is None
+
+
+def test_load_items_reads_the_committed_snapshot_once():
+    items = load_items()
+    assert items["patch"] == "0.5.5" and "Rusted Greathelm" in items["bases"]
+    assert load_items() is items

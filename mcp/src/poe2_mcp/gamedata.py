@@ -14,12 +14,16 @@ Resistance").
 """
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sys
+from importlib import resources
 from typing import Any
 
 import httpx
+
+from .knowledge import patch_key
 
 # Equipment, by mods_by_base's class names: what a player wears or wields that rolls prefixes/suffixes.
 PLAYER_CLASSES = (
@@ -35,6 +39,7 @@ EXPORT_FILES = ("mods_by_base", "mods", "base_items")
 USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
+_SNAPSHOT_PREFIX = "items_"
 # The game's display markup: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
 _DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
 _DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
@@ -133,6 +138,71 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"mods": {\n' + rows((f"{json.dumps(t)}: ", m) for t, m in items["mods"].items()) + "\n}\n"
         "}\n"
     )
+
+
+def mod_tiers(
+    items: dict[str, Any], base: str, search: str | None = None, item_level: int | None = None
+) -> dict[str, Any]:
+    """Which mods `base` can roll, from a loaded snapshot: {"base", "patch", "variants"}. Pure.
+
+    `base` matches a base name in any case; an unknown one returns base None and up to 8 names that
+    contain it as `suggestions`. Each variant of the name comes back with its class, requirements and
+    families -- prefixes first, then suffixes -- each with every tier: name, itemLevel, text. `search`
+    keeps the families whose name or any tier's text contains it (any case); a found base with no
+    matching family is the answer "that can't roll here". With `item_level`, each tier says whether it
+    `canRoll` on an item of that level.
+    """
+    if item_level is not None and item_level < 1:
+        raise ValueError(f"item_level must be at least 1 (the item's item level), got {item_level}")
+    wanted = base.strip().lower()
+    name = next((n for n in items["bases"] if n.lower() == wanted), None)
+    if name is None:
+        suggestions = sorted(n for n in items["bases"] if wanted in n.lower())[:8]
+        return {"base": None, "patch": items["patch"], "variants": [], "suggestions": suggestions}
+
+    needle = (search or "").strip().lower()
+    variants = []
+    for variant in items["bases"][name]:
+        pool = items["groups"][variant["group"]]
+        families = []
+        for side in _SIDES:
+            for family, tier_ids in pool[side].items():
+                tiers = [items["mods"][t] for t in tier_ids]
+                if needle and needle not in family.lower() and not any(needle in t["text"].lower() for t in tiers):
+                    continue
+                rows = []
+                for tier in tiers:
+                    row = {"name": tier["name"], "itemLevel": tier["level"], "text": tier["text"]}
+                    if item_level is not None:
+                        row["canRoll"] = tier["level"] <= item_level
+                    rows.append(row)
+                families.append({"family": family, "side": side, "tiers": rows})
+        variants.append({"class": variant["class"], "requirements": variant["requirements"], "families": families})
+    return {"base": name, "patch": items["patch"], "variants": variants}
+
+
+def newest_snapshot(names: Any) -> str | None:
+    """The `items_<patch>.json` name with the highest patch, or None. Pure. Ordered by patch, not text
+    (0.5.10 after 0.5.5; a hotfix letter after its base patch); other names are ignored."""
+    best, best_key = None, None
+    for name in names:
+        if not (name.startswith(_SNAPSHOT_PREFIX) and name.endswith(".json")):
+            continue
+        try:
+            key = patch_key(name[len(_SNAPSHOT_PREFIX):-len(".json")].replace("_", "."))
+        except ValueError:
+            continue
+        if best_key is None or key > best_key:
+            best, best_key = name, key
+    return best
+
+
+@functools.lru_cache(maxsize=None)
+def load_items() -> dict[str, Any] | None:
+    """The newest committed item snapshot, or None if there isn't one. Loaded once."""
+    data = resources.files("poe2_mcp").joinpath("data")
+    name = newest_snapshot(entry.name for entry in data.iterdir())
+    return json.loads(data.joinpath(name).read_text(encoding="utf-8")) if name else None
 
 
 def fetch_export(commit: str, transport: httpx.BaseTransport | None = None) -> dict[str, Any]:
