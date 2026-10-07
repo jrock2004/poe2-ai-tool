@@ -456,6 +456,7 @@ async def build_trade_filter(
     max_price: float | None = None,
     price_currency: str = "divine",
     online_only: bool = True,
+    max_level: int | None = None,
 ) -> dict[str, Any]:
     """Build a Path of Exile 2 /trade2 search body from filters, WITHOUT running a live search.
 
@@ -465,6 +466,7 @@ async def build_trade_filter(
     category: type option like 'armour.boots', 'weapon.crossbow', 'accessory.ring', 'jewel'.
     stats: list of {id, min?, max?}; get ids from find_stat_filters.
     max_price: optional ceiling in price_currency (e.g. your currency budget).
+    max_level: optional; the character's level, so only items it can wear now come back. At least 1.
     """
     query = build_query(
         stats=_stat_filters_from(stats),
@@ -472,6 +474,7 @@ async def build_trade_filter(
         max_price=max_price,
         price_currency=price_currency,
         online_only=online_only,
+        max_level=max_level,
     )
     return {
         "query": query,

@@ -66,6 +66,25 @@ def test_build_query_offline_only_when_requested():
     assert q["query"]["status"] == {"option": "any"}
 
 
+def test_build_query_caps_the_level_requirement():
+    # A leveling character can't wear what it isn't level for. trade2's req_filters "lvl" is a
+    # min/max filter, like price (checked against /data/filters).
+    filters = build_query(category="armour.boots", max_level=40)["query"]["filters"]
+    assert filters["req_filters"]["filters"]["lvl"] == {"max": 40}
+    assert filters["type_filters"]["filters"]["category"] == {"option": "armour.boots"}
+
+
+def test_build_query_level_cap_sits_beside_the_price_cap():
+    assert set(build_query(max_level=40, max_price=2)["query"]["filters"]) == {"req_filters", "trade_filters"}
+
+
+@pytest.mark.parametrize("level", [0, -5])
+def test_build_query_rejects_a_level_cap_below_1(level):
+    # A 0 passed for "level unknown" would quietly match almost nothing.
+    with pytest.raises(ValueError, match="max_level"):
+        build_query(max_level=level)
+
+
 def test_stat_rank_prefers_explicit_over_pseudo():
     explicit = {"type": "explicit", "norm": "#% increased movement speed"}
     pseudo = {"type": "pseudo", "norm": "#% increased movement speed"}

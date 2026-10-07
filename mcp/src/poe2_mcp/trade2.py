@@ -263,13 +263,18 @@ def build_query(
     max_price: float | None = None,
     price_currency: str = "divine",
     online_only: bool = True,
+    max_level: int | None = None,
 ) -> dict[str, Any]:
     """Construct a trade2 search body. Pure -- no network, always safe to call.
 
     stats: required affix filters (resolve ids via Trade2Client.find_stats first).
     category: type filter option, e.g. 'armour.boots', 'weapon.bow', 'accessory.ring'.
     max_price: optional price ceiling in `price_currency` (e.g. cap by your currency budget).
+    max_level: optional level-requirement ceiling -- the character's level, so every result can be
+      worn now. At least 1.
     """
+    if max_level is not None and max_level < 1:
+        raise ValueError(f"max_level must be at least 1 (the character's level), got {max_level}")
     query: dict[str, Any] = {"status": {"option": "online" if online_only else "any"}}
 
     filters: dict[str, Any] = {}
@@ -277,6 +282,8 @@ def build_query(
         filters["type_filters"] = {"filters": {"category": {"option": category}}}
     if max_price is not None:
         filters["trade_filters"] = {"filters": {"price": {"max": max_price, "option": price_currency}}}
+    if max_level is not None:
+        filters["req_filters"] = {"filters": {"lvl": {"max": max_level}}}
     if filters:
         query["filters"] = filters
 
