@@ -298,6 +298,21 @@ def test_mod_tiers_suggests_close_names_for_an_unknown_base():
         "base": None, "patch": "0.5.5", "variants": [], "suggestions": ["Rusted Greathelm", "Soldier Greathelm"]}
 
 
+def test_mod_tiers_suggests_names_sharing_words_when_none_contains_the_name():
+    # An old or mistyped full name ("Expert Hunter Hood" isn't a 0.5.5 base) contains no base name, so
+    # suggest by shared whole words: most shared first, then fewer words (closer), then by name. Real
+    # 0.5.5 names; "Hooded" isn't the word "Hood".
+    names = ["Covert Hood", "Hooded Mask", "Hunter Hood", "Lace Hood", "Runeforged Hunter Hood",
+             "Runemastered Hunter Hood"]
+    snapshot = {"patch": "0.5.5", "bases": {name: [] for name in names}, "groups": [], "mods": {}}
+    assert mod_tiers(snapshot, "Expert HUNTER hood")["suggestions"] == [
+        "Hunter Hood", "Runeforged Hunter Hood", "Runemastered Hunter Hood", "Covert Hood", "Lace Hood"]
+
+
+def test_mod_tiers_suggests_nothing_when_no_name_shares_a_word():
+    assert mod_tiers(SNAPSHOT, "Mirror of Kalandra")["suggestions"] == []
+
+
 @pytest.mark.parametrize("level", [0, -1])
 def test_mod_tiers_rejects_an_item_level_below_1(level):
     with pytest.raises(ValueError, match="item_level"):

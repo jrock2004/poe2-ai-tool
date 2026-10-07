@@ -145,8 +145,8 @@ def mod_tiers(
 ) -> dict[str, Any]:
     """Which mods `base` can roll, from a loaded snapshot: {"base", "patch", "variants"}. Pure.
 
-    `base` matches a base name in any case; an unknown one returns base None and up to 8 names that
-    contain it as `suggestions`. Each variant of the name comes back with its class, requirements and
+    `base` matches a base name in any case; an unknown one returns base None and up to 8 `suggestions`
+    (see `_suggest`). Each variant of the name comes back with its class, requirements and
     families -- prefixes first, then suffixes -- each with every tier: name, itemLevel, text. `search`
     keeps the families whose name or any tier's text contains it (any case); a found base with no
     matching family is the answer "that can't roll here". With `item_level`, each tier says whether it
@@ -157,8 +157,7 @@ def mod_tiers(
     wanted = base.strip().lower()
     name = next((n for n in items["bases"] if n.lower() == wanted), None)
     if name is None:
-        suggestions = sorted(n for n in items["bases"] if wanted in n.lower())[:8]
-        return {"base": None, "patch": items["patch"], "variants": [], "suggestions": suggestions}
+        return {"base": None, "patch": items["patch"], "variants": [], "suggestions": _suggest(items["bases"], wanted)}
 
     needle = (search or "").strip().lower()
     variants = []
@@ -179,6 +178,18 @@ def mod_tiers(
                 families.append({"family": family, "side": side, "tiers": rows})
         variants.append({"class": variant["class"], "requirements": variant["requirements"], "families": families})
     return {"base": name, "patch": items["patch"], "variants": variants}
+
+
+def _suggest(names: Any, wanted: str) -> list[str]:
+    """Up to 8 base names for a lowercase name that matched none: those that contain it, or, when none
+    does (an old or mistyped full name), those sharing the most whole words with it -- fewer words
+    first, as the closer match, then by name. Pure."""
+    hits = sorted(n for n in names if wanted in n.lower())
+    if hits:
+        return hits[:8]
+    words = set(wanted.split())
+    ranked = sorted((-len(words & set(n.lower().split())), len(n.split()), n) for n in names)
+    return [n for shared, _, n in ranked if shared < 0][:8]
 
 
 def newest_snapshot(names: Any) -> str | None:
