@@ -14,6 +14,7 @@ import asyncio
 import math
 from typing import Any
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 
 from . import knowledge, stashlayout, state, store
@@ -452,7 +453,9 @@ async def search_trade(
     cheapest matching listings (name, mods, price, seller, and the whisper text for you to copy).
     `priceStats` gives min/median/max in exalted and the max/min spread over the listings shown --
     the cheap end of the market, since results are price-ascending -- for grounding confidence.
-    Rate-limited and cached; it never buys, lists, or whispers on your behalf -- you act.
+    If poe2scout can't be reached, the listings still come back: only exalted prices are converted,
+    and `note` says so. Rate-limited and cached; it never buys, lists, or whispers on your behalf --
+    you act.
     """
     league_f = await _scout.resolve_league(league)
     league_id = league_f.body["Value"]
@@ -472,11 +475,26 @@ async def search_trade(
         listings = [summarize_listing(e) for e in entries_f.body]
 
     rates: dict[str, float] = {}
+    scout_down = False
     if listings:
-        items_f = await _scout.get_items(league_id)
-        sources.append(items_f)
-        rates = rates_from_items(items_f.body)
+        try:
+            items_f = await _scout.get_items(league_id)
+            sources.append(items_f)
+            rates = rates_from_items(items_f.body)
+        except (RuntimeError, httpx.HTTPError, ValueError):
+            # The listings come from trade2 and still stand. Exalted is the base unit, so it converts at 1.
+            rates, scout_down = {"exalted": 1.0}, True
     stats = listing_price_stats(listings, rates)
+
+    note = (
+        "Read-only trade search (cached). Open 'url' to browse/whisper yourself; the tool never "
+        "contacts sellers. 0 matches means the filter is too tight -- widen it and search again."
+        if total else
+        "No listings matched. Loosen the filters (drop a min, allow offline, raise the price cap)."
+    )
+    if scout_down:
+        note = ("poe2scout was unreachable, so only exalted prices were converted; the other currencies "
+                "are in priceStats.unconvertedCurrencies. " + note)
 
     return {
         "league": league_id,
@@ -495,12 +513,7 @@ async def search_trade(
             "spreadRatio": _round(stats["spreadRatio"], 2),
         },
         "listings": listings,
-        "note": (
-            "Read-only trade search (cached). Open 'url' to browse/whisper yourself; the tool never "
-            "contacts sellers. 0 matches means the filter is too tight -- widen it and search again."
-            if total else
-            "No listings matched. Loosen the filters (drop a min, allow offline, raise the price cap)."
-        ),
+        "note": note,
     }
 
 
