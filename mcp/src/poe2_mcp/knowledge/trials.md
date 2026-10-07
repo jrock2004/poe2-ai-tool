@@ -145,8 +145,9 @@ one up by the name on the offer and quote it.
   pre-0.5.5 guides — check the in-game counter).
 
 **Wagers** (Inscribed Ultimatum runs) are offered like a modifier and trade danger for reward; their
-texts are `trial_pool('chaos', 'wager')`. The data lists both Wager of Chaos versions at tier 1, so it
-can't say which one the 0.5.5c hotfix's "tier 2" is.
+texts are `trial_pool('chaos', 'wager')`. Every wager is tier 1 in the game's files, so read a wager's
+version order, not its `tier`: the 0.5.5c hotfix's "tier 2" is the second Wager of Chaos version, the
+one with 2 additional rewards.
 
 **Decision principles.**
 - **Take the modifier your build barely notices; avoid the one that hits a layer you depend on.** Read
