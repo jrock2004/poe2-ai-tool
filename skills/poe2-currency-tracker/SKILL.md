@@ -90,7 +90,8 @@ Read only the **count** from the image. `get_stash_layout(tab)` says which item 
 6. **Show what you read and ask to confirm** before saving:
    > Read from your **currency** tab: Exalted ×20, Divine ×4, Chaos ×2, Vaal ×12, Scroll of Wisdom
    > ×334 *(Wisdom count partly covered — Low)*. Save this? Correct anything that's off.
-7. **On confirm, save** (replace that tab). On a correction, apply it and save the corrected value.
+7. **On confirm, save** (replace that tab, and drop the adjustments it supersedes — see "Manual
+   adjustments & drift"). On a correction, apply it and save the corrected value.
 
 Names from `get_stash_layout` are the game's own names, so they price as-is through
 `value_currency`; use `poe2-core/references/currency-glossary.md` only for names the player types.
@@ -116,7 +117,10 @@ The inventory goes stale the moment the player trades — that's expected, not a
 honest, cheapest first:
 - **Re-screenshot** the tab after trading; that tab's counts are replaced. This is the source of truth.
 - **Quick adjustment** between syncs: "spent 2 divine" → append `{name:"Divine Orb", delta:-2, ...}`.
-  Adjustments are a stopgap; a fresh screenshot supersedes them (clear that tab's adjustments on resave).
+  Adjustments are a stopgap; a fresh screenshot supersedes them. When saving a tab, drop the
+  adjustments for every item that tab holds — every item its `get_stash_layout` lists, held or not.
+  Spending a whole stack leaves its slot dim, so it isn't in the save, but its adjustment must still
+  go. For an ordinary tab, that's the items the player named for it.
 
 When answering, if the inventory is old, note it ("last synced 2 days ago — re-screenshot for an exact
 number") rather than presenting a stale total as current.
