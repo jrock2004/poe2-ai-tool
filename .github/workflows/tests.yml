@@ -1,6 +1,7 @@
 # Every push to main reaches players (plugin.json has no version, so Claude Code versions the plugin by
 # commit) -- this is the check that main still works where they run it: Windows and macOS, on the
-# oldest Python the server supports and a current one. Tests are pure: no network, no secrets.
+# oldest Python the server supports and a current one. Tests are pure: no network, no secrets. The
+# smoke step runs offline too; it only downloads packages, like a player's first install.
 name: tests
 
 on:
@@ -30,3 +31,7 @@ jobs:
           python-version: ${{ matrix.python }}
       # --locked: fail if uv.lock no longer matches pyproject.toml -- plugin installs resolve from it.
       - run: uv run --locked pytest -q
+      # Starts the server the way the plugin does -- its own fresh environment from uv.lock, no dev
+      # group -- and calls each offline tool once: catches a snapshot missing from the package, a broken
+      # runtime dependency, or a tool gone from the server. Never --live: no network checks in CI.
+      - run: uv run --locked python ../scripts/smoke.py

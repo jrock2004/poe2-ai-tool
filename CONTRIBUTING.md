@@ -15,7 +15,8 @@ from `mcp/`:
 Tests are pure — no network, no live API. Add fixtures under `mcp/tests/` rather than calling out.
 
 **Smoke test.** The tests don't run the server the way players do; `scripts/smoke.py` does. It starts it
-as the plugin does (`uv run --no-dev`, with a throwaway data dir, so your own state is never touched),
+as the plugin does (`uv run --no-dev`, in its own fresh environment and with a throwaway data dir, so
+neither your dev venv nor your own state is touched),
 calls each tool once, and prints the patch each snapshot reports. From the repo root:
 
 ```bash
@@ -228,8 +229,9 @@ by hand and can lag a patch.
 one, Claude Code versions the plugin by commit. Players who turned on auto-update (README → Updates) get
 a push in the background at their next session; everyone else when they run `claude plugin update`. So
 keep `main` working where players run it: the `tests` workflow runs the suite on Windows and macOS, on
-Python 3.10 and 3.14, for every push — fix a red run before anything else. CI doesn't run the smoke test,
-so run it before pushing a change to the server or a snapshot.
+Python 3.10 and 3.14, for every push — fix a red run before anything else. CI runs the smoke test's
+offline checks too, but never `--live`: before pushing a change to the price or trade tools, run
+`--live` (or `--trade`) yourself.
 
 **Don't add `version` on its own.** It keeps players on that string however many commits land, until it
 changes. Your own install — a local marketplace, loaded in place — ignores it, so a forgotten bump only
