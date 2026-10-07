@@ -178,7 +178,8 @@ class GuideFetcher:
                 "Some of this guide loads client-side, so detail (e.g. gem/gear tables) may be missing; "
                 "paste the PoB code for the exact build if needed."
                 if dynamic else
-                "Static fetch OK. Structure it into stages by level/act (see the guide model in the plan)."
+                "Static fetch OK. For a guide, structure it into stages per "
+                "poe2-core/references/guide-structure.md."
             ),
         }
 
