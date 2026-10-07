@@ -69,8 +69,12 @@ apply here as written, and `poe2-core/references/sources.md` says where to look.
   reworded"); say nothing about unaffected topics. If anything was saved, add once: these refreshes are
   the player's own copy and survive updates; an update that ships newer knowledge takes over from them
   automatically.
-- **How-to steps** (`skills/poe2-core/references/how-to.md`): refresh only if the notes change the
-  game's UI it describes (CONTRIBUTING step 5).
+- **How-to steps.** They ship with plugin updates; the player can't refresh them. If the notes change
+  the game UI they describe (menus, the export flow, hotkeys), tell the player those steps may be out
+  of date until an update.
+- **Stash-tab layouts.** Also shipped with updates. Call `get_stash_layout("currency")`; if its
+  `patch` is older than this patch, tell the player stash screenshots may name a slot wrong until an
+  update, so they should check any line that looks off.
 - **Passive tree.** The player can't refresh it; tree data ships with plugin updates. Check whether
   this patch's tree is in: call `summarize_tree` with an empty `main` and the patch's tree version
   (its first two numbers, e.g. `"0.6.0"` → `"0_6"`). If `note` is null, it's in — nothing to say. If
