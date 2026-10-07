@@ -71,14 +71,17 @@ apply here as written, and `poe2-core/references/sources.md` says where to look.
   automatically.
 - **How-to steps** (`skills/poe2-core/references/how-to.md`): refresh only if the notes change the
   game's UI it describes (CONTRIBUTING step 5).
-- **Passive tree.** Not refreshable yet — Path of Building 2 ships the new tree days after league
-  start. List the snapshots in `mcp/src/poe2_mcp/data/` for yourself; tell the player only what affects
-  them:
-  > Until Path of Building 2 updates for this patch, reviews from a PoB code reflect last patch's tree —
-  > use screenshots or a description for the campaign.
+- **Passive tree.** The player can't refresh it; tree data ships with plugin updates. Check whether
+  this patch's tree is in: call `summarize_tree` with an empty `main` and the patch's tree version
+  (its first two numbers, e.g. `"0.6.0"` → `"0_6"`). If `note` is null, it's in — nothing to say. If
+  `note` is set, tell the player:
+  > I don't have this patch's passive tree yet, so tree comparisons will show passive ids instead of
+  > names until an update brings it (`claude plugin update poe2@poe2-ai-tool`, then restart Claude).
+  > If Path of Building hasn't updated for this patch either, a PoB code still holds last patch's
+  > tree, and its life and resistance totals can be off.
 
-  The first PoB from the updated version comes back with `tree.note` set; that's the signal for
-  CONTRIBUTING step 1 (a maintainer task — don't attempt it here).
+  Making the tree is a maintainer task (CONTRIBUTING step 1, which can work from GGG's own export
+  before Path of Building ships) — don't attempt it here.
 
 If the patch notes couldn't be found, say these skills are working from last patch's knowledge until
 they can be refreshed, and lower confidence accordingly.
