@@ -59,11 +59,12 @@ def price_trend(logs: list[dict[str, Any]] | None) -> dict[str, Any] | None:
     """Summarize a poe2scout `PriceLogs` series (daily {Price, Time, Quantity}). Pure -- no network.
 
     Returns {days, minExalted, maxExalted, changePct} over the points that have a Price, or None if
-    there are none. Points are ordered by Time (ISO-8601), not by input order. changePct is the
-    oldest -> newest change in percent; None with fewer than 2 points or an oldest price <= 0.
+    there are none. Null entries (poe2scout sends one) are skipped. Points are ordered by Time
+    (ISO-8601), not by input order. changePct is the oldest -> newest change in percent; None with
+    fewer than 2 points or an oldest price <= 0.
     """
     points = sorted(
-        (lg for lg in logs or [] if lg.get("Price") is not None),
+        (lg for lg in logs or [] if lg and lg.get("Price") is not None),
         key=lambda lg: lg.get("Time") or "",  # one ISO-8601 format per series, so text order works
     )
     if not points:

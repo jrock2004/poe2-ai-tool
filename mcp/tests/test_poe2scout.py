@@ -188,6 +188,13 @@ def test_price_trend_skips_points_without_a_price():
     assert trend["changePct"] == pytest.approx(2.0)
 
 
+def test_price_trend_skips_null_entries():
+    # Live shape since 2026-10-06: poe2scout sends a null first entry, then the logs newest first.
+    trend = price_trend([None, _log(22, 510.0), _log(21, 505.0), _log(20, 500.0)])
+    assert trend["days"] == 3
+    assert trend["changePct"] == pytest.approx(2.0)
+
+
 def test_price_trend_single_point_has_no_change():
     trend = price_trend([_log(22, 500.0)])
     assert trend == {"days": 1, "minExalted": 500.0, "maxExalted": 500.0, "changePct": None}
@@ -197,7 +204,7 @@ def test_price_trend_zero_oldest_price_has_no_change():
     assert price_trend([_log(21, 0.0), _log(22, 5.0)])["changePct"] is None
 
 
-@pytest.mark.parametrize("logs", [None, [], [_log(22, None)]])
+@pytest.mark.parametrize("logs", [None, [], [_log(22, None)], [None]])
 def test_price_trend_with_no_priced_points_is_none(logs):
     assert price_trend(logs) is None
 
