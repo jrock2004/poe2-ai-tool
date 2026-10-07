@@ -1,17 +1,16 @@
 ---
 patch: 0.5.5e
-refreshed: 2026-10-06
+refreshed: 2026-10-07
 ---
 # Crafting knowledge (patch-dependent — verify against the live game)
 
 > **Freshness stamp: researched 2026-10-03; item rules and corrupted-item currencies re-sourced from
-> game data 2026-10-06 (patch 0.5.5e).** Currency descriptions and mod tiers are from poe2db's data
-> pages. Affix limits are from the game's `Rarity` table, and the corrupted-item error from its client
-> strings, both in repoe-fork/dat-export@16088913cc94 (game 4.5.5.2). Sources: poe2db
-> `Stackable_Currency`, `Helmets_*`, `Amulets`, `Sceptres`; dat-export `Rarity.csv`,
-> `ClientStrings.csv`. Where to look things up, and what to avoid, is in `poe2-core`'s
-> `references/sources.md`. If the player quotes different in-game wording, trust the game and lower
-> confidence.
+> game data 2026-10-06 (patch 0.5.5e); mod tiers moved to `mod_tiers` 2026-10-07.** Currency
+> descriptions are from poe2db's currency page. Affix limits are from the game's `Rarity` table, and the
+> corrupted-item error from its client strings, both in repoe-fork/dat-export@16088913cc94 (game
+> 4.5.5.2). Sources: poe2db `Stackable_Currency`; dat-export `Rarity.csv`, `ClientStrings.csv`. Where to
+> look things up, and what to avoid, is in `poe2-core`'s `references/sources.md`. If the player quotes
+> different in-game wording, trust the game and lower confidence.
 
 The skill's job is a **gate check before a cost check**: can this currency change the thing the player
 wants at all? Most wasted currency comes from using the right orb for the wrong job — most often a
@@ -25,7 +24,7 @@ Divine on a mod that has no range.
   to 6 mods, at most **3 prefixes + 3 suffixes**. A mod can only be added if its side
   (prefix/suffix) has room.
 - **Mod level gates item level.** A mod tier can only roll on an item whose item level is at least
-  that tier's modifier level. poe2db lists this as the tier's "Level".
+  that tier's modifier level — `mod_tiers` gives it as each tier's `itemLevel`.
 - **Corrupted items take only the corruption currencies** listed under "Currencies for corrupted
   items" below. The game's error for a currency used on a corrupted item is "Target is corrupted."
   (client string `ItemErrorTargetCorrupted`). *Derived, not quoted:* the other currencies in this
@@ -95,26 +94,18 @@ Descriptions quoted from poe2db's currency page.
 Orb and Crystallised Corruption can destroy the item, and an Orb of Sacrifice removes a random
 modifier, which can be one the player wants to keep.
 
-## Mod tiers worth knowing
+## Mod tiers
 
-Only tiers that have been checked against poe2db are listed. For anything else, say "check poe2db"
-and lower confidence — never fill in a tier from memory.
+Look tiers up with `mod_tiers` — the item's base, the mod, and its item level. It lists every family a
+base can roll, each tier's value range and the item level it needs, from the game's own data; a found
+base with no matching family means the mod can't roll there. Never fill in a tier from memory.
 
-**`+# to Level of all Minion Skills`** — suffix, fixed values, mod family `IncreaseSocketedGemLevel`.
-
-| Tier name | Value | Modifier level | Helmets (all armour types) | Amulets | Sceptres |
-|---|---|---|---|---|---|
-| of the Taskmaster | +1 | 5 (sceptres: 2) | yes | yes | yes |
-| of the Despot | +2 | 41 (sceptres: 25) | yes | yes | yes |
-| of the Overseer | +3 | 75 (sceptres: 55) | no | yes | yes |
-| of the Slavedriver | +4 | 78 | no | no | yes |
-
-Helmets can also get it from **corruption**: a Vaal corruption enchantment gives +1, and poe2db lists
-an "upgraded corruption" version at +2. Both make the item corrupted.
+Corruption is separate: on a helmet, a Vaal corruption enchantment can give `+1 to Level of all Minion
+Skills`, and poe2db lists an "upgraded corruption" version at +2. Both make the item corrupted.
 
 ## Not researched
 
 Mark these "not researched" if they come up rather than guessing: Essences, Omens, Desecrated mods,
 the crafting bench / recombinators, Divine on implicits, how an item becomes corrupted twice (the
 trade site has a "twice corrupted" filter, so some way exists), and **odds** of hitting a specific
-mod (mod weights exist on poe2db but haven't been pulled in).
+mod (the game data the tools use marks which mods can roll, not how likely each is).

@@ -8,9 +8,10 @@ Load `poe2-core` first. One item, one goal, one currency: **can this currency ge
 goal, and is it the best way to spend it?** The answer is often "no — that orb can't change that
 mod," and saying so before any cost talk is the skill's main value.
 
-Facts about currencies, affix limits, and mod tiers come **only** from
-`get_knowledge('crafting')`. If what you need isn't there, say "not researched — check poe2db"
-and lower confidence. Never fill in a tier, item-level gate, or odds from memory.
+Mod tiers and their item-level gates come **only** from `mod_tiers` (the game's own data, per base);
+currency behaviour and affix limits **only** from `get_knowledge('crafting')`. If what you need isn't
+in either, say "not researched — check poe2db" and lower confidence. Never fill in a tier, item-level
+gate, or odds from memory.
 
 Scope: single-currency decisions and short paths (a few orbs). Not full multi-step craft plans, and
 not Essences, Omens, Desecrated mods, or the bench — those are "not researched".
@@ -24,22 +25,26 @@ else a **screenshot**, else the player's description. From it, establish:
 - **Corrupted?** If yes, only the knowledge file's corrupted-item currencies can change it. If the
   player's currency isn't one of them, stop there.
 - **Each explicit mod**, whether it's a **prefix or suffix**, and whether it has a **range** or a
-  fixed value. Match mods to tiers in the knowledge file by text and value where you can.
+  fixed value. Match each mod to its tier with `mod_tiers` — the item's base type (its item text names
+  it), the mod as `search` — by its value.
 - **Open affixes** — how many prefix/suffix slots are still free against the rarity's limits.
 
-Anything you inferred rather than read (rarity from a description, prefix/suffix from memory of a mod
-not in the knowledge file), say so — it lowers confidence.
+Anything you inferred rather than read (rarity from a description, a mod's side or tier you couldn't
+match in `mod_tiers`), say so — it lowers confidence.
 
 ## 2. Pin down the goal
 
 Restate the goal as a target mod and tier ("suffix `+2 to Level of all Minion Skills`, tier *of the
 Despot*"). Then check it's **reachable on this item at all**:
 
-- Does the target tier roll on this **item class**? (Helmets cap at +2 minion levels.)
-- Is the item's **item level ≥ the tier's modifier level**?
+- Does the target roll on this **base** at all, and up to which tier? Call `mod_tiers` with the base,
+  the target mod as `search`, and the item's `item_level`. A found base with no matching family means
+  it can't roll there — say so plainly.
+- Can the target tier roll at this **item level**? Its `canRoll` says; each tier's `itemLevel` is the
+  gate.
 - Is there an **open affix of the right side**, or would one have to be removed first?
 
-If the tier isn't in the knowledge file, you can't confirm reachability — say so.
+If `mod_tiers` can't find the base (check its `suggestions`), you can't confirm reachability — say so.
 
 ## 3. Gate check: can this currency do it?
 
@@ -49,7 +54,7 @@ Using the currency table in the knowledge file, answer plainly before anything e
 - **Wrong kind of change** — Divine only rerolls numbers within the current tiers. It can't add a mod,
   remove one, or change a tier, and does nothing to fixed-value mods.
 - **Minimum modifier level excludes the target** — a Greater/Perfect orb whose minimum is above the
-  target tier's modifier level can never roll it.
+  target tier's modifier level (its `itemLevel` in `mod_tiers`) can never roll it.
 - **No room** — an adding orb with no open affix on the needed side.
 - **Corrupted item** — any currency outside the knowledge file's corrupted-item list fails on it.
 
@@ -69,8 +74,8 @@ List the 1–3 paths that can actually reach the goal, cheapest first:
 On a corrupted item, the only paths are the corrupted-item currencies or a new item. Say what each
 one risks, from the knowledge file — some can destroy the item, and some remove a random mod.
 
-Describe odds qualitatively ("unlikely — one random suffix out of many"). Mod weights aren't
-researched, so **never give a percentage or "1 in N"**.
+Describe odds qualitatively ("unlikely — one random suffix out of many"). The game data says what can
+roll, not how likely it is, so **never give a percentage or "1 in N"**.
 
 ## 5. Cost and alternatives
 
@@ -90,12 +95,11 @@ recommended path, and confidence. Keep it short; the player is usually standing 
 
 ## Confidence (per `poe2-core/references/confidence.md`)
 
-- **High** — item read from item text or a clear screenshot, and every tier/gate in the answer is in
-  the knowledge file, which matches the live patch.
-- **Medium** — some item detail inferred, or the knowledge file may be a patch behind.
+- **High** — item read from item text or a clear screenshot, every tier and gate in the answer comes
+  from `mod_tiers` or the knowledge file, and their `patch` matches the live patch.
+- **Medium** — some item detail inferred, or the data may be a patch behind (its `patch` is older).
 - **Low** — a tier, gate, or currency behaviour in the answer is "not researched", or the item was
-  only described. Name the one thing that would raise it (the item text, or confirming the tier on
-  poe2db).
+  only described. Name the one thing that would raise it (the item text, or the item's base type).
 
 A "don't use it" verdict that rests only on currency behaviour (e.g. Divine vs. a fixed-value mod) can
 be High even when the tiers aren't researched — the gate doesn't depend on them. For trade-league
@@ -105,8 +109,8 @@ weakest signal.
 ## Guardrails
 
 - **Gate before cost.** Never price a craft the currency can't perform.
-- **No invented numbers.** Tiers, item-level gates, and currency behaviour come from the knowledge
-  file; odds are qualitative only.
+- **No invented numbers.** Tiers and item-level gates come from `mod_tiers`, currency behaviour from
+  the knowledge file; odds are qualitative only.
 - **Corrupted means only the corruption currencies.** Everything else fails on a corrupted item.
 - **Don't assume SSF or trade** — read `trade_mode`, per `poe2-core`.
 - Never buy, list, or whisper. Output is advice and trade links the player acts on.
