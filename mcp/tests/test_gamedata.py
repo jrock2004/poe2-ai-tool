@@ -12,6 +12,7 @@ from poe2_mcp.gamedata import (
     build_chaos,
     build_essences,
     build_items,
+    build_passives,
     build_sekhemas,
     build_texts,
     clean_text,
@@ -27,6 +28,7 @@ from poe2_mcp.gamedata import (
     top_rolls,
     trial_pool,
 )
+from poe2_mcp.treedata import load_snapshot as load_tree_snapshot
 
 HELM = "Metadata/Items/Armours/Helmets/"
 BODY = "Metadata/Items/Armours/BodyArmours/"
@@ -602,6 +604,51 @@ def test_build_sekhemas_refuses_a_row_it_cant_resolve(table, rownum):
         build_sekhemas(tables)
 
 
+def _passive(rownum, passive_id, node, name):
+    return {"rownum": rownum, "Id": passive_id, "PassiveSkillGraphId": node, "Name": name}
+
+
+# Shaped like repoe-fork/dat-export's PassiveSkills.csv (game 4.5.5.2), trimmed: real rows, fewer columns. A
+# row's PassiveSkillGraphId is the node id Path of Building and our tree snapshot use; its Id is what the
+# in-game Build Planner's .build files name a passive by. A small node, three named ones, an ascendancy node.
+PASSIVE_TABLES = {"PassiveSkills": [
+    _passive("0", "attributes1", "3251", "Attribute"),
+    _passive("3571", "mana_regeneration49", "94", "Efficient Killing"),
+    _passive("5133", "ailments38", "55", "Fast Acting Toxins"),
+    _passive("5944", "passive_keystone_zealots_oath", "52", "Zealot's Oath"),
+    _passive("6153", "AscendancyWitch1Notable1", "36564", "Beidat's Gaze"),
+]}
+
+
+def test_build_passives_maps_each_tree_node_to_its_build_planner_id():
+    # Every row -- small and ascendancy nodes too, which a guide allocates as well -- keyed by node id in
+    # numeric order, so a regeneration reads as a small diff.
+    passives = build_passives(PASSIVE_TABLES)
+    assert passives == {"52": "passive_keystone_zealots_oath", "55": "ailments38", "94": "mana_regeneration49",
+                        "3251": "attributes1", "36564": "AscendancyWitch1Notable1"}
+    assert list(passives) == ["52", "55", "94", "3251", "36564"]
+
+
+def test_build_passives_skips_a_row_with_no_place_on_the_tree():
+    rows = [*PASSIVE_TABLES["PassiveSkills"], _passive("9800", "not_on_the_tree", "", "")]
+    assert "not_on_the_tree" not in build_passives({"PassiveSkills": rows}).values()
+
+
+def test_build_passives_refuses_two_rows_for_one_node():
+    # Which Id would the planner want? The export changed shape.
+    rows = [*PASSIVE_TABLES["PassiveSkills"], _passive("9801", "zealots_oath_copy", "52", "Zealot's Oath")]
+    with pytest.raises(ValueError, match="node 52"):
+        build_passives({"PassiveSkills": rows})
+
+
+def test_build_passives_names_a_renamed_column():
+    # dat-export's column names are guesses that can change between runs (CONTRIBUTING.md step 9).
+    rows = [{("GraphId" if k == "PassiveSkillGraphId" else k): v for k, v in row.items()}
+            for row in PASSIVE_TABLES["PassiveSkills"]]
+    with pytest.raises(KeyError, match="PassiveSkillGraphId"):
+        build_passives({"PassiveSkills": rows})
+
+
 TRIALS = {"patch": "0.5.5", "chaos": build_chaos(CHAOS_TABLES), "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
 
 
@@ -641,16 +688,19 @@ def test_trial_pool_rejects_a_trial_it_doesnt_know(trial):
 
 def test_render_items_is_json_with_one_entry_per_line():
     items = {**_items(), "texts": _texts(), "chaos": build_chaos(CHAOS_TABLES),
-             "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
+             "sekhemas": build_sekhemas(SEKHEMAS_TABLES), "passives": build_passives(PASSIVE_TABLES)}
     text = render_items(items, "0.5.5", "repoe-fork/poe2@abc123 (game 4.5.5.2)")
     snapshot = json.loads(text)
     assert snapshot["patch"] == "0.5.5" and snapshot["source"] == "repoe-fork/poe2@abc123 (game 4.5.5.2)"
-    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas")} == items
+    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas", "passives")} == items
+    assert list(snapshot["passives"]) == list(items["passives"])  # numeric order survives the round trip
     lines = text.splitlines()
     assert sum('"side":' in line for line in lines) == len(snapshot["mods"])
     assert sum('"use":' in line for line in lines) == len(snapshot["texts"])
     assert sum('"versions":' in line for line in lines) == len(snapshot["chaos"])  # a modifier and its versions
     assert sum('"category":' in line for line in lines) == len(snapshot["sekhemas"])
+    assert sum(f'"{node}": "{passive_id}"' in line
+               for line in lines for node, passive_id in snapshot["passives"].items()) == len(snapshot["passives"])
     assert text.endswith("\n")
 
 
@@ -761,6 +811,7 @@ MAIN_TABLES = {
     **ESSENCE_TABLES,
     **CHAOS_TABLES,
     **SEKHEMAS_TABLES,
+    **PASSIVE_TABLES,
     "BaseItemTypes": [*ESSENCE_TABLES["BaseItemTypes"],
                       {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"}],
     "CurrencyExchange": [{"rownum": "12", "Item": "3"}, {"rownum": "76", "Item": "111"}],
@@ -798,6 +849,8 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
     assert snapshot["chaos"][0] == TIME_PARADOX
     assert [e["name"] for e in snapshot["sekhemas"]] == [
         "Earned Honour", "Ghastly Scythe", "Iron Manacles", "Pledge to the Powerful"]
+    # The Build Planner's passive ids, from the same fetch (PassiveSkills is in TABLE_NAMES).
+    assert snapshot["passives"]["52"] == "passive_keystone_zealots_oath"
 
 
 @pytest.mark.parametrize("argv", [
@@ -1030,4 +1083,10 @@ def test_load_items_reads_the_committed_snapshot_once():
     assert items["texts"]["Greater Essence of the Body"]["adds"]
     assert items["texts"]["Lesser Robust Rune"]["adds"]
     assert items["chaos"] and items["sekhemas"]
+    assert items["passives"]["52"] == "passive_keystone_zealots_oath"
     assert load_items() is items
+
+
+def test_the_committed_snapshot_names_every_node_of_the_tree_snapshot_for_the_build_planner():
+    # A .build file names passives by PassiveSkills Id; parse_pob_code and the tree snapshot give node ids.
+    assert set(load_tree_snapshot("0_5")["nodes"]) <= set(load_items()["passives"])

@@ -8,8 +8,9 @@ items, and nothing in their records tells the two apart -- and what each essence
 tables. Runes, soul cores and idols come from repoe-fork/poe2's `augments.json`, traded or not: PoE1 has
 none. This module turns them into one compact snapshot per patch (`data/items_<patch>.json`) that the
 tools read at runtime: which mods each base can roll, each tier's name, side, item-level gate and text,
-each item's text, and what each essence and augment adds. Regenerate per patch, from each export's
-commit for that game version:
+each item's text, what each essence and augment adds, both trials' pools, and the id the in-game Build
+Planner names each passive-tree node by. Regenerate per patch, from each export's commit for that game
+version:
 
     python -m poe2_mcp.gamedata items <poe2-commit> <dat-export-commit> 0.5.5 src/poe2_mcp/data/items_0_5_5.json
 
@@ -47,11 +48,11 @@ EXPORT_REPO = "repoe-fork/poe2"
 EXPORT_FILES = ("mods_by_base", "mods", "base_items", "augments")
 TABLES_REPO = "repoe-fork/dat-export"
 TABLES_DIR = "current/poe2/heuristics/csv"
-# The dat-export tables the snapshot reads: what the Currency Exchange trades, what each essence adds, and
-# the two trials' pools.
+# The dat-export tables the snapshot reads: what the Currency Exchange trades, what each essence adds, the
+# two trials' pools, and the Build Planner's passive ids.
 TABLE_NAMES = ("CurrencyExchange", "BaseItemTypes", "Essences", "EssenceMods", "EssenceTargetItemCategories",
                "Mods", "UltimatumModifiers", "UltimatumModifierTypes", "SanctumPersistentEffects",
-               "SanctumPersistentEffectCategories")
+               "SanctumPersistentEffectCategories", "PassiveSkills")
 USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
@@ -331,6 +332,26 @@ def build_sekhemas(tables: dict[str, list[dict[str, str]]]) -> list[dict[str, An
     return effects
 
 
+def build_passives(tables: dict[str, list[dict[str, str]]]) -> dict[str, str]:
+    """Each passive-tree node's id in dat-export's `PassiveSkills` -- what the in-game Build Planner's .build
+    files name a passive by -- keyed by its PassiveSkillGraphId, the node id Path of Building and the tree
+    snapshot use: {"52": "passive_keystone_zealots_oath", ...}, in numeric node order. Pure.
+
+    Every row with a node id: small and ascendancy nodes too, since a guide allocates those as well. A row
+    with none has no place on the tree and is left out. Two rows for one node raise ValueError -- the export
+    changed shape.
+    """
+    passives: dict[str, str] = {}
+    for row in tables["PassiveSkills"]:
+        node = row["PassiveSkillGraphId"]
+        if not node:
+            continue
+        if node in passives:
+            raise ValueError(f"PassiveSkills rows {passives[node]!r} and {row['Id']!r} are both node {node}")
+        passives[node] = row["Id"]
+    return {node: passives[node] for node in sorted(passives, key=int)}
+
+
 def _table_ref(rows: dict[str, Any], table: str, rownum: str, by: str) -> Any:
     """`rows[rownum]` -- a dat-export row reference -- or ValueError naming both rows. Pure."""
     if rownum not in rows:
@@ -351,9 +372,9 @@ def _game_text(raw: str | None) -> str:
 
 
 def render_items(items: dict[str, Any], patch: str, source: str) -> str:
-    """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier
-    and Sekhemas effect per line, so a per-patch regeneration reads as a small diff. Pure; ends with a
-    newline."""
+    """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier,
+    Sekhemas effect and passive id per line, so a per-patch regeneration reads as a small diff. Pure; ends
+    with a newline."""
 
     def rows(pairs: Any) -> str:
         return ",\n".join(f"  {key}{json.dumps(value, ensure_ascii=False)}" for key, value in pairs)
@@ -367,7 +388,8 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"mods": {\n' + rows((f"{json.dumps(t)}: ", m) for t, m in items["mods"].items()) + "\n},\n"
         '"texts": {\n' + rows((f"{json.dumps(n)}: ", t) for n, t in items["texts"].items()) + "\n},\n"
         '"chaos": [\n' + rows(("", c) for c in items["chaos"]) + "\n],\n"
-        '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n]\n"
+        '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n],\n"
+        '"passives": {\n' + rows((f"{json.dumps(n)}: ", p) for n, p in items["passives"].items()) + "\n}\n"
         "}\n"
     )
 
@@ -616,6 +638,7 @@ def main(argv: list[str]) -> None:
     items["texts"] = build_texts(export["base_items"], exchange_ids(tables) | set(augments), extras)
     items["chaos"] = build_chaos(tables)
     items["sekhemas"] = build_sekhemas(tables)
+    items["passives"] = build_passives(tables)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
