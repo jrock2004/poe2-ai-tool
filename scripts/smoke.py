@@ -1,8 +1,10 @@
 """Smoke-test the poe2 MCP server the way the plugin runs it.
 
 Launches `uv run --no-dev --project mcp poe2-mcp` over stdio, as `.claude-plugin/plugin.json` does, with a
-throwaway data dir so the player's own roster, currency and league are never read or written. Then it calls
-each tool once and checks the answer is there: not an error, not empty. Exact values are pytest's job; this
+throwaway data dir so the player's own roster, currency and league are never read or written, and -- like the
+plugin -- its own environment, built fresh from `uv.lock` each run (without one, `uv run` would rebuild the
+dev venv, `mcp/.venv`, without its test tools). Then it calls each tool once and checks the answer is
+there: not an error, not empty. Exact values are pytest's job; this
 catches what pure tests can't -- a snapshot missing from the package, a broken runtime dependency, a tool
 gone from the server, a regenerated snapshot that loads but comes back empty.
 
@@ -249,10 +251,14 @@ async def main() -> int:
     parser.add_argument("--trade", action="store_true", help="also run one trade search (implies --live)")
     parser.add_argument("--league", help="league for the live checks (default: the first current one)")
     args = parser.parse_args()
-    with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryFile("w+", encoding="utf-8") as log:
+    # ignore_cleanup_errors: on Windows the just-closed server can briefly hold files in its venv.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as scratch, \
+            tempfile.TemporaryFile("w+", encoding="utf-8") as log:
+        data_dir = Path(scratch) / "data"
+        data_dir.mkdir()
         server = StdioServerParameters(
             command="uv", args=["run", "--quiet", "--no-dev", "--project", str(PROJECT), "poe2-mcp"],
-            env={**os.environ, "POE2_DATA_DIR": data_dir},
+            env={**os.environ, "POE2_DATA_DIR": str(data_dir), "UV_PROJECT_ENVIRONMENT": str(Path(scratch) / "venv")},
         )
         try:
             async with stdio_client(server, errlog=log) as (read, write), ClientSession(read, write) as session:
