@@ -8,18 +8,18 @@ Load `poe2-core` first. This is the composition skill (F1): read the character, 
 holding the build back, and for each one produce a **realistic, affordable** market upgrade with a trade
 link — prioritized so the player fixes the biggest problem per currency spent, not everything at once.
 
-It composes what's already built: `poe2-character` (whose build, and its goal), a gear read (screenshot),
-`find_stat_filters` + `build_trade_filter` + `search_trade` (the upgrades), and `value_currency` +
-`poe2-currency-tracker` (what's actually affordable).
+It composes what's already built: `poe2-character` (whose build, and its goal), a gear read (a PoB code
+from a character import, or a screenshot), `find_stat_filters` + `build_trade_filter` + `search_trade`
+(the upgrades), and `value_currency` + `poe2-currency-tracker` (what's actually affordable).
 
 ## 1. Get the character, its gear, and its *targets*
 
 - Resolve the character via `poe2-character` (active one, or a named override). Use its **goal** and
   **archetype** — an upgrade is only an upgrade *relative to what the build is trying to do*.
-- Read the gear, best fidelity first: a **PoB code** via `parse_pob_code` (gives computed resistances,
-  life/ES, DPS + gear + gems — ideal for diagnosis), else a **character screenshot**, else the player's
-  description. There's no OAuth auto-import (GGG isn't issuing keys). If a slot is unreadable, say so
-  rather than assuming it's empty.
+- Read the gear, best fidelity first: a **PoB code from a character import** via `parse_pob_code` (the
+  real gear, with computed resistances, life/ES and DPS — ideal for diagnosis; the how-to "Get your
+  character into Path of Building" gets one), else a **character screenshot**, else the player's
+  description. If a slot is unreadable, say so rather than assuming it's empty.
 - **Anchor to the build's targets, don't invent them.** "What you *should* be running" depends on the
   build's plan, which the gear alone doesn't tell you. In order of preference:
   1. **A guide the player is following** — hand off to `poe2-build-review` / `fetch_guide` to get the
@@ -130,10 +130,11 @@ reporting a shaky result.
 
 ## Confidence (per `poe2-core/references/confidence.md`)
 
-- **High** — real gear read from a clear screenshot + a healthy sample of comparable listings.
+- **High** — real gear, from a character-import PoB code or a clear screenshot, + a healthy sample of
+  comparable listings.
 - **Medium** — some gear or intent inferred, or a thin listing sample.
-- **Low** — build/goal guessed, or a slot unreadable. Say what would raise it (a clearer character
-  screenshot, confirming the build's goal, a currency-tab screenshot for the budget).
+- **Low** — build/goal guessed, or a slot unreadable. Say what would raise it (a PoB code from a
+  character import, confirming the build's goal, a currency-tab screenshot for the budget).
 
 "Healthy" / "thin" sample means the rubric's **Market signals** thresholds on each slot's
 `priceStats` (sample, spread, coverage) and `ageSeconds` — the band is capped by the weakest. When

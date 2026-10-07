@@ -21,8 +21,9 @@ Resolve the active character via `poe2-character`. What matters for trials:
   spare or fights already drag.
 - **Chaos resistance / EHP** and any known weak layer.
 
-If you don't have this, ask one or two quick questions (or read a character screenshot). Vague context
-→ lower confidence, and say what would sharpen it.
+If you don't have this, read their PoB code from a character import (it gives the defences directly)
+or a character screenshot, or ask one or two quick questions. Vague context → lower confidence, and
+say what would sharpen it.
 
 ## 2. Match picks to the build (per `get_knowledge('trials')`)
 
@@ -56,5 +57,5 @@ here can end a run.
 - **Ground every pick in the knowledge file + the build**, not from memory of a past patch. If the file
   doesn't cover something the player sees, say so and reason from the mechanics rather than inventing a
   specific effect.
-- Keep the knowledge file current — it's part of the patch-churn maintenance (plan §10).
+- Keep the knowledge file current — it's part of the per-patch refresh (`CONTRIBUTING.md` step 2).
 - Plain language first for newer players (define "honour", "affliction", "max res") per `poe2-core`.
