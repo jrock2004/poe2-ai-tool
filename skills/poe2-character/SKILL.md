@@ -41,10 +41,11 @@ a time**, in plain language, and **write each answer to state as it comes in** (
 end). Keep it short:
 
 1. **Which character are we working on?** (name)
-2. **Following a guide?** Choices: "Yes — I'll paste a link or PoB code" / "No". If yes, take it and
-   read class, ascendancy, and archetype from it (`fetch_guide` / `parse_pob_code`, handling routes as
-   `poe2-build-review` §1 does). Confirm them in one line ("Ice Shot Deadeye — right?") and store the
-   guide.
+2. **Following a guide?** Choices: "Yes — I'll paste a link or PoB code" / "Not yet — help me pick one" /
+   "No". **Help me pick** runs `poe2-build-picker`; the guide the player picks there comes back as a yes.
+   If yes, take it and read class, ascendancy, and archetype from it (`fetch_guide` / `parse_pob_code`,
+   handling routes as `poe2-build-review` §1 does). Confirm them in one line ("Ice Shot Deadeye —
+   right?") and store the guide.
 3. **What is it?** Only if there's no guide, or the guide didn't say: class + ascendancy and the build
    in plain words ("Ice Shot Deadeye", "minion army"). Fine if they only know some of it.
 4. **Which league?** (so currency and trade prices resolve correctly). Offer the leagues `get_leagues`

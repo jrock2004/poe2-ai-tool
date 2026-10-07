@@ -67,7 +67,7 @@ Personal Path of Exile 2 decision assistant. Two parts:
   - `stashlayout.py` + `data/stash_layouts_<version>.json` — which item sits in each special stash-tab
     slot, served by `get_stash_layout` so the currency tracker names items from their slot. Also
     **generated, never hand-edited**: `python -m poe2_mcp.stashlayout` (see `CONTRIBUTING.md`).
-- `skills/` — one folder per skill (thirteen). The judgment lives here, not in the server.
+- `skills/` — one folder per skill (fourteen). The judgment lives here, not in the server.
 - `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
 - `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
   install the repo as a plugin; it is not deployed anywhere else.

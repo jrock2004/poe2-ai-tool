@@ -31,7 +31,7 @@ You (in Claude)
    ├── Skills  ── the judgment + confidence
    │     poe2-core, poe2-price-check, poe2-character,
    │     poe2-gear-upgrade, poe2-crafting, poe2-vendor-regex,
-   │     poe2-build-review, poe2-build-switch,
+   │     poe2-build-picker, poe2-build-review, poe2-build-switch,
    │     poe2-trials-advisor, poe2-currency-tracker,
    │     poe2-meta-strategy, poe2-new-league, poe2-whats-new
    │
@@ -55,7 +55,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | **Game-data export** ([repoe-fork/poe2](https://github.com/repoe-fork/poe2), [repoe-fork/dat-export](https://github.com/repoe-fork/dat-export)) | which mods a base can roll, and every tier's item-level gate (`mod_tiers`); what each currency, omen, essence or rune does, in the game's own words (`item_text`) | **Generate, don't research.** Exports of GGG's game files, fetched at pinned commits and turned into a per-patch snapshot (`CONTRIBUTING.md` step 9). The game files still carry PoE1 items, so PoE2's own Currency Exchange table picks which ones get text. |
 | **Build guides** (Mobalytics/Maxroll/poe-vault) | build targets, leveling/endgame plans | Tiered: PoB code > static fetch > browser-assisted read > paste. poe-vault fetches; Mobalytics bot-blocks server fetches (browser/paste); Maxroll's license forbids automated/AI use, so it's refused (paste). |
 | ~~GGG Character API~~ (OAuth) | your characters' gear/skills/passives | **Blocked** — GGG isn't issuing new API clients. Builds are read from PoB codes or screenshots instead. |
-| ~~poe.ninja~~ | economy cross-check, build popularity | **Not integrated.** poe2scout covers prices; a meta-builds view would need a check of its undocumented API and terms first. |
+| ~~poe.ninja~~ | economy cross-check, build popularity | **Not integrated.** poe2scout covers prices. Its API docs (checked 2026-10-07) make the economy endpoints the public surface and keep builds data internal, "not available for third-party use" — so the build picker gives you poe.ninja's builds link and never reads it. |
 
 **No PoE2 stash API exists** (confirmed mid-2026), so currency tracking is done by reading
 **screenshots** of your currency/crafting tabs into a remembered inventory.
@@ -70,6 +70,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | `poe2-gear-upgrade` | Find your weak slots and rank realistic market upgrades by value-per-currency. |
 | `poe2-crafting` | Say whether a crafting currency can get an item to your goal — and stop you wasting it when it can't. |
 | `poe2-vendor-regex` | A vendor search string that lights up only the items your character is missing, on bases it can use. |
+| `poe2-build-picker` | Help you choose a build: a shortlist of current guides from trusted creators that fit your playstyle, trade or SSF, and starting point. |
 | `poe2-build-review` | Compare your character to a guide, stage-aware by your level. |
 | `poe2-build-switch` | Say whether you're ready to move from a guide's leveling version to its endgame version, and what's in the way. |
 | `poe2-trials-advisor` | Recommend picks in Trial of Sekhemas / Trial of Chaos for your build. |
@@ -196,6 +197,7 @@ poe2-ai-tools/
     ├── poe2-gear-upgrade/
     ├── poe2-crafting/
     ├── poe2-vendor-regex/
+    ├── poe2-build-picker/
     ├── poe2-build-review/
     ├── poe2-build-switch/
     ├── poe2-trials-advisor/
