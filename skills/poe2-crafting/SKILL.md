@@ -9,12 +9,14 @@ goal, and is it the best way to spend it?** The answer is often "no — that orb
 mod," and saying so before any cost talk is the skill's main value.
 
 Mod tiers and their item-level gates come **only** from `mod_tiers` (the game's own data, per base);
-currency behaviour and affix limits **only** from `get_knowledge('crafting')`. If what you need isn't
-in either, say "not researched — check poe2db" and lower confidence. Never fill in a tier, item-level
-gate, or odds from memory.
+what a currency or omen does **only** from `item_text` (the game's own text); affix limits and the
+rules around them **only** from `get_knowledge('crafting')`. If what you need isn't in any of them, say
+"not researched — check poe2db" and lower confidence. Never fill in a tier, item-level gate, currency
+effect, or odds from memory.
 
-Scope: single-currency decisions and short paths (a few orbs). Not full multi-step craft plans, and
-not Essences, Omens, Desecrated mods, or the bench — those are "not researched".
+Scope: single-currency decisions and short paths (a few orbs, or an omen steering one of them). Not
+full multi-step craft plans, and not Desecrated mods or the bench — those are "not researched". An
+essence's text says what it does, but not which modifier it adds — that's not researched either.
 
 ## 1. Read the item
 
@@ -22,8 +24,8 @@ Get, best fidelity first: the **in-game item text** (Ctrl+C, per `poe2-core/refe
 else a **screenshot**, else the player's description. From it, establish:
 
 - **Rarity** (Normal / Magic / Rare / Unique) and **item level**.
-- **Corrupted?** If yes, only the knowledge file's corrupted-item currencies can change it. If the
-  player's currency isn't one of them, stop there.
+- **Corrupted?** If yes, only currencies whose text names a corrupted item can change it (search
+  `item_text` for "corrupted"). If the player's currency isn't one of them, stop there.
 - **Each explicit mod**, whether it's a **prefix or suffix**, and whether it has a **range** or a
   fixed value. Match each mod to its tier with `mod_tiers` — the item's base type (its item text names
   it), the mod as `search` — by its value.
@@ -48,7 +50,8 @@ If `mod_tiers` can't find the base (check its `suggestions`), you can't confirm 
 
 ## 3. Gate check: can this currency do it?
 
-Using the currency table in the knowledge file, answer plainly before anything else:
+Look the currency up with `item_text` — its `text` says what it does, its `use` what it's used on —
+and, with the knowledge file's rules, answer plainly before anything else:
 
 - **Wrong rarity** — e.g. Chaos or Exalted on a Magic item, Augmentation on a Rare.
 - **Wrong kind of change** — Divine only rerolls numbers within the current tiers. It can't add a mod,
@@ -56,7 +59,7 @@ Using the currency table in the knowledge file, answer plainly before anything e
 - **Minimum modifier level excludes the target** — a Greater/Perfect orb whose minimum is above the
   target tier's modifier level (its `itemLevel` in `mod_tiers`) can never roll it.
 - **No room** — an adding orb with no open affix on the needed side.
-- **Corrupted item** — any currency outside the knowledge file's corrupted-item list fails on it.
+- **Corrupted item** — any currency whose text doesn't name a corrupted item fails on it.
 
 If the currency fails the gate, **say "don't use it" and why in one sentence**, then go to §4 for what
 would work. Don't soften this — telling the player their divine is safe is the point.
@@ -69,10 +72,13 @@ List the 1–3 paths that can actually reach the goal, cheapest first:
   Greater/Perfect minimum still allows the target tier).
 - **Remove and re-add** — Annulment then an adding orb, or Chaos on a Rare. Name the risk: removal is
   random, so it can hit the mod the player wants to keep.
+- **Steer it with an omen** — search `item_text` for the currency's name: an omen whose text names it
+  can narrow what it does (Omen of Sinistral Erasure: the next Chaos Orb removes only prefixes). Its
+  `use` says how to activate it; it's used up when it triggers.
 - **Buy it** (trade leagues only — see §5).
 
-On a corrupted item, the only paths are the corrupted-item currencies or a new item. Say what each
-one risks, from the knowledge file — some can destroy the item, and some remove a random mod.
+On a corrupted item, the only paths are the currencies made for corrupted items, or a new item. Say
+what each one risks, from its text — some can destroy the item, and some remove a random mod.
 
 Describe odds qualitatively ("unlikely — one random suffix out of many"). The game data says what can
 roll, not how likely it is, so **never give a percentage or "1 in N"**.
@@ -95,8 +101,9 @@ recommended path, and confidence. Keep it short; the player is usually standing 
 
 ## Confidence (per `poe2-core/references/confidence.md`)
 
-- **High** — item read from item text or a clear screenshot, every tier and gate in the answer comes
-  from `mod_tiers` or the knowledge file, and their `patch` matches the live patch.
+- **High** — item read from item text or a clear screenshot, every tier, gate and currency effect in
+  the answer comes from `mod_tiers`, `item_text` or the knowledge file, and their `patch` matches the
+  live patch.
 - **Medium** — some item detail inferred, or the data may be a patch behind (its `patch` is older).
 - **Low** — a tier, gate, or currency behaviour in the answer is "not researched", or the item was
   only described. Name the one thing that would raise it (the item text, or the item's base type).
@@ -109,8 +116,8 @@ weakest signal.
 ## Guardrails
 
 - **Gate before cost.** Never price a craft the currency can't perform.
-- **No invented numbers.** Tiers and item-level gates come from `mod_tiers`, currency behaviour from
-  the knowledge file; odds are qualitative only.
-- **Corrupted means only the corruption currencies.** Everything else fails on a corrupted item.
+- **No invented numbers or effects.** Tiers and item-level gates come from `mod_tiers`, what a
+  currency does from `item_text`; odds are qualitative only.
+- **Corrupted means only the currencies made for corrupted items.** Everything else fails on one.
 - **Don't assume SSF or trade** — read `trade_mode`, per `poe2-core`.
 - Never buy, list, or whisper. Output is advice and trade links the player acts on.
