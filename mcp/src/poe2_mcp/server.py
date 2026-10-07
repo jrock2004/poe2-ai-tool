@@ -87,9 +87,10 @@ async def set_league(league: str) -> dict[str, Any]:
     """Save the player's league as the default for every tool, until changed again.
 
     league: league name or short name, as listed by get_leagues. It's checked against poe2scout first;
-    an unknown name raises and nothing is saved. Takes effect on the next call -- no restart needed.
+    an unknown name raises and nothing is saved, and so does poe2scout being unreachable. Takes effect
+    on the next call -- no restart needed.
     """
-    resolved = (await _scout.resolve_league(league)).body
+    resolved = (await _scout.resolve_league(league, strict=True)).body
     root = store.data_dir()
     config = store.read_config(root)
     config["league"] = resolved["Value"]

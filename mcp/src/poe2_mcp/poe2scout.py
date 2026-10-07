@@ -229,19 +229,22 @@ class Poe2ScoutClient:
         """
         return await self._get(f"/{REALM}/Leagues")
 
-    async def resolve_league(self, league: str | None = None) -> Fetched[dict[str, Any]]:
+    async def resolve_league(
+        self, league: str | None = None, *, strict: bool = False
+    ) -> Fetched[dict[str, Any]]:
         """Return a league dict, stamped with when the league list was fetched.
 
         Precedence: explicit ``league`` arg -> saved league (``set_league``, read per call) ->
         configured ``POE2_LEAGUE`` -> first IsCurrent -> first. The IsCurrent fallback is last-resort
         only: poe2scout marks SC/HC/event leagues current at once, so relying on array order is
         unsafe -- prefer saving a league.
-        """
-        fetched = await self.get_leagues()
-        leagues = fetched.body
-        if not leagues:
-            raise RuntimeError("poe2scout returned no leagues")
 
+        If the league list can't be fetched -- an HTTP or network error, a body that isn't JSON, or an
+        empty list -- a named league comes back unchecked, {"Value": name, "Unchecked": True} stamped
+        now, so tools that don't need poe2scout's data (trade search) keep working. With no league
+        named it raises, and so does ``strict=True``: set_league never saves a name nothing checked. A
+        name missing from a list that was fetched always raises.
+        """
         saved = store.read_config(store.data_dir()).get("league")
         if league:
             wanted, source = league, "league argument"
@@ -249,6 +252,17 @@ class Poe2ScoutClient:
             wanted, source = saved, "saved league"
         else:
             wanted, source = DEFAULT_LEAGUE, "POE2_LEAGUE"
+
+        try:
+            fetched = await self.get_leagues()
+            if not fetched.body:
+                raise RuntimeError("poe2scout returned no leagues")
+        except (RuntimeError, httpx.HTTPError, ValueError):
+            if strict or not wanted:
+                raise
+            return Fetched(body={"Value": wanted, "Unchecked": True}, fetched_at=time.time())
+        leagues = fetched.body
+
         if wanted:
             needle = wanted.lower()
             for lg in leagues:

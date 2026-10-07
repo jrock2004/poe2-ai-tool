@@ -1,5 +1,6 @@
 import asyncio
 import math
+import time
 
 import httpx
 import pytest
@@ -167,6 +168,72 @@ def test_resolve_league_unknown_saved_league_names_its_source_and_the_options(mo
 def test_resolve_league_with_no_leagues_raises(monkeypatch):
     with pytest.raises(RuntimeError, match="no leagues"):
         _resolve(monkeypatch, [], None, configured=None)
+
+
+# poe2scout down: the league list can't be fetched. A named league (argument, saved, POE2_LEAGUE) is
+# used unchecked, so tools that don't need poe2scout's data -- trade search -- keep working. A name the
+# list doesn't have still raises (tests above): the fallback is only for a list we couldn't get.
+def _http_503(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(503)
+
+
+def _unreachable(request: httpx.Request) -> httpx.Response:
+    raise httpx.ConnectError("connection refused", request=request)
+
+
+def _html_page(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, text="<html>Just a moment...</html>")
+
+
+def _no_leagues(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(200, json=[])
+
+
+def _resolve_when_down(
+    monkeypatch, handler, league: str | None = None, saved: str | None = None,
+    configured: str | None = None, strict: bool = False,
+) -> Fetched:
+    """resolve_league against a poe2scout whose every request goes to `handler`."""
+    monkeypatch.setattr(poe2scout, "DEFAULT_LEAGUE", configured)
+    if saved is not None:
+        write_config(data_dir(), {"league": saved})
+
+    async def run():
+        client = Poe2ScoutClient(min_gap_s=0, transport=httpx.MockTransport(handler))
+        try:
+            return await client.resolve_league(league, strict=strict)
+        finally:
+            await client.aclose()
+
+    return asyncio.run(run())
+
+
+@pytest.mark.parametrize("handler", [_http_503, _unreachable, _html_page, _no_leagues])
+def test_resolve_league_uses_the_saved_league_unchecked_when_poe2scout_is_down(monkeypatch, handler):
+    league = _resolve_when_down(monkeypatch, handler, saved="Forbidden Rites")
+    assert league.body == {"Value": "Forbidden Rites", "Unchecked": True}
+    assert abs(league.fetched_at - time.time()) < 60  # stamped now, so it doesn't age the answer
+
+
+def test_resolve_league_down_prefers_the_argument_to_the_saved_league(monkeypatch):
+    league = _resolve_when_down(monkeypatch, _http_503, "Standard", saved="Forbidden Rites")
+    assert league.body["Value"] == "Standard"
+
+
+def test_resolve_league_down_falls_back_to_poe2_league(monkeypatch):
+    assert _resolve_when_down(monkeypatch, _http_503, configured="HC Forbidden Rites").body["Value"] == "HC Forbidden Rites"
+
+
+def test_resolve_league_down_with_no_league_named_still_raises(monkeypatch):
+    # Nothing to fall back to: picking "the first current league" needs the list itself.
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        _resolve_when_down(monkeypatch, _http_503)
+
+
+def test_resolve_league_strict_raises_when_poe2scout_is_down(monkeypatch):
+    # set_league passes strict=True: it must never save a name nothing has checked.
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        _resolve_when_down(monkeypatch, _http_503, saved="Forbidden Rites", strict=True)
 
 
 def _log(day: int, price):
