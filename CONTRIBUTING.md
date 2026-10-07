@@ -63,13 +63,14 @@ export instead, so node names and point counts work from day one:
 
 ### 2. Trials knowledge
 
-**Needed when** patch notes touch the Trial of the Sekhemas or Trial of Chaos — and re-check the Trial
-of Chaos modifiers every patch anyway: 0.5.5 reworked them without saying so in the notes.
+**Needed when** patch notes change how the Trial of the Sekhemas or Trial of Chaos works — its rules,
+its rewards, or the choices it offers. The pools themselves (Trial of Chaos modifiers, Sekhemas
+afflictions, boons and pledges) come from the item snapshot (step 9), which also catches changes the
+notes leave out — 0.5.5 reworked the Chaos modifiers without saying so.
 Update `mcp/src/poe2_mcp/knowledge/trials.md`:
 
-- Take Trial of Chaos modifier text from poe2db's `Ultimatum` page (its *Modifiers* list is game data
-  and matches the in-game tooltips), not from guide sites — they lag a patch or more.
-- Quote modifier text verbatim, with every version's values; re-stamp the date, patch, and sources.
+- Quote patch-note lines verbatim; re-stamp the date, patch, and sources.
+- Don't copy modifier, affliction or boon text into the file; point to `trial_pool`.
 
 ### 3. Farming knowledge
 
