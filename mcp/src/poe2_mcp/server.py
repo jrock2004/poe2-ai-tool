@@ -167,9 +167,10 @@ async def get_currency_prices(
 ) -> dict[str, Any]:
     """Get current Path of Exile 2 currency prices for a category.
 
-    category: currency category apiId, e.g. 'currency', 'essence', 'runes', 'catalysts'.
+    category: poe2scout currency category apiId, e.g. 'currency', 'essences', 'runes', 'fragments'
+      (catalysts are under 'breach'; market_movers' description lists every category).
     search: optional name filter, e.g. 'divine' or 'chaos'.
-    league: league value; defaults to the current league.
+    league: league value; defaults to the saved league (set_league).
     Prices are returned in both exalted and divine. Each item also carries `trend` -- its daily price
     history (usually ~7 days): min/max in exalted, the oldest -> newest change in percent, and
     `changePctVsDivine`, the same change measured in divine. Prices are quoted in exalted, so when

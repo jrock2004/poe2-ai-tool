@@ -21,8 +21,10 @@ If they don't know how to copy an item, give the one-liner from `poe2-core/refer
 
 ## Currencies and uniques (poe2scout)
 
-- Currency: `get_currency_prices(category, search)` — category is the apiId (`currency`, `essence`,
-  `runes`, `catalysts`, …), `search` narrows by name. Prices come back in both exalted and divine.
+- Currency: `get_currency_prices(category, search)` — category is poe2scout's apiId (`currency`,
+  `essences`, `runes`, `fragments`, …; catalysts are under `breach`), listed in full in
+  `poe2-core/references/currency-glossary.md`. `search` narrows by name. Prices come back in both
+  exalted and divine.
 - Unique: `price_unique(name)` — exact match returns the reference price; otherwise it returns
   close-name suggestions. If there's no match, say so and offer the nearest names; don't invent a price.
 - League defaults to the saved one (the active character's); pass `league` only to override.
