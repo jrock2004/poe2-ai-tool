@@ -150,6 +150,25 @@ currency tracker names items from it.
 6. **Restart the MCP server** — snapshots are cached per version, so a running server keeps serving
    the old one.
 
+### 9. Item data (mod tiers and bases)
+
+**Needed when** [repoe-fork/poe2](https://github.com/repoe-fork/poe2) publishes a new game version — its
+`version.txt` changes. That follows a patch, and sometimes a lettered patch that changed the game's
+files; a server-side fix doesn't. `src/poe2_mcp/data/items_<patch>.json` holds which mods each base can
+roll and every tier's name, side, item level and text; its `source` names the export commit and game
+version it came from.
+
+1. Take the commit hash of repoe-fork/poe2 (`master`) whose `version.txt` is the new game version — a
+   commit, not `master`: the command refuses a branch, so the snapshot names exactly what it came from.
+2. From `mcp/`, generate the snapshot for the game patch it's for (the league's patch, e.g. `0.6.0`).
+   The command fetches the export and writes the file itself — **don't redirect with `>`**:
+   ```bash
+   .venv/bin/python -m poe2_mcp.gamedata items <commit> <patch> src/poe2_mcp/data/items_<patch>.json
+   ```
+   Then delete the previous snapshot — only the newest is served.
+3. Check it: run the tests, then compare one family you know with the game — e.g. a helmet's Fire
+   Resistance tiers and their item levels.
+
 ## Releasing and sharing
 
 **Every push to `main` is a release.** `.claude-plugin/plugin.json` has no `version` on purpose: without

@@ -23,7 +23,7 @@ PoE1 pages mix in under the same names. So:
 | Prices — rares | `find_stat_filters` → `build_trade_filter` → `search_trade` (trade2) | — | poe2scout has no rares. Never from the web. |
 | Market direction | `market_movers` (poe2scout) | — | Judge in divine (`changePctVsDivine`). |
 | Passive tree | `parse_pob_code` / `summarize_tree` | github.com — PathOfBuildingCommunity/PathOfBuilding-PoE2 (`dev`) | Snapshot is generated; see `CONTRIBUTING.md`. |
-| Mods, tiers, item bases | `get_knowledge('crafting')` | poe2db.tw — the item class page | Tier data is embedded in the page HTML. |
+| Mods, tiers, item bases | `get_knowledge('crafting')` | poe2db.tw — the item class page | Tier data is embedded in the page HTML. The item snapshot is generated from github.com — repoe-fork/poe2, at a pinned commit (`CONTRIBUTING.md` step 9); its data is GGG's. |
 | Currency effects | `get_knowledge('crafting')` | poe2db.tw — `Stackable_Currency` | Quote, don't paraphrase. No odds or "1 in N". |
 | Item rules (affix limits, corruption) | `get_knowledge('crafting')` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv`: `Rarity`, `ClientStrings` | Game data, not guides. Name the commit you read. Which currencies take corrupted items comes from their poe2db descriptions. |
 | Trial of Chaos modifiers | `get_knowledge('trials')` | poe2db.tw — `Ultimatum` (Modifiers list) | Re-check every patch; changes aren't always in the notes. |
