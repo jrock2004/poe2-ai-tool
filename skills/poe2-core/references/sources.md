@@ -18,7 +18,7 @@ PoE1 pages mix in under the same names. So:
 
 | Topic | Primary | Fallback | Notes |
 |---|---|---|---|
-| Patch / hotfix notes | pathofexile.com — forum patch-notes section | poe2db.tw patch-notes page | Quote verbatim. Take the launch patch, not a later hotfix, as the league's patch. |
+| Patch / hotfix notes | pathofexile.com — PoE2's patch notes are forum 2212, "Early Access Patch Notes" (`/forum/view-forum/2212`) | poe2db.tw patch-notes page | Not `/forum/view-forum/patch-notes`: that one is PoE1's (3.x). Quote verbatim. Take the launch patch, not a later hotfix, as the league's patch. If 2212 stops getting new patches (at 1.0 the game leaves Early Access), find PoE2's patch-notes forum from the forum index and update this row. |
 | Prices — currency, uniques | `get_currency_prices`, `price_unique`, `value_currency` (poe2scout) | — | Never from the web. |
 | Prices — rares | `find_stat_filters` → `build_trade_filter` → `search_trade` (trade2) | — | poe2scout has no rares. Never from the web. |
 | Market direction | `market_movers` (poe2scout) | — | Judge in divine (`changePctVsDivine`). |
