@@ -67,6 +67,13 @@ Personal Path of Exile 2 decision assistant. Two parts:
   - `stashlayout.py` + `data/stash_layouts_<version>.json` — which item sits in each special stash-tab
     slot, served by `get_stash_layout` so the currency tracker names items from their slot. Also
     **generated, never hand-edited**: `python -m poe2_mcp.stashlayout` (see `CONTRIBUTING.md`).
+  - `gamedata.py` + `data/items_<patch>.json` — mod tiers, item text and both trial pools, from
+    repoe-fork's exports at pinned commits, served by `mod_tiers`, `item_text`, `trial_pool` and the
+    vendor regex's tiers. Also **generated, never hand-edited**: `python -m poe2_mcp.gamedata items …`
+    (see `CONTRIBUTING.md`).
+  - `campaign.py` + `data/campaign_<version>.json` — the campaign's permanent rewards, from PoB2's
+    `QuestRewards.lua`, served by `campaign_rewards`. Also **generated, never hand-edited**:
+    `python -m poe2_mcp.campaign` (see `CONTRIBUTING.md`).
 - `skills/` — one folder per skill (fourteen). The judgment lives here, not in the server.
 - `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
 - `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
@@ -77,7 +84,8 @@ Design rules that hold across both:
 - **Read-only toward GGG.** Never buy, list, or whisper. Generate searches and advice; John acts.
 - **Pure core, thin edges.** Query construction (`build_query`), PoB parsing, and scoring are
   pure and unit-tested. Network calls live only in the client modules — `trade2`, `poe2scout`,
-  `guides` — and are cached. Note that `find_stat_filters` *does* hit the network on a cold
+  `guides`, `exchange` — and are cached (the `gamedata` generator also fetches, at build time only).
+  Note that `find_stat_filters` *does* hit the network on a cold
   cache (`trade2._stats` fetches `/data/stats`, cached 6h); "offline" in this repo usually means
   "cached," not "never calls out."
 - **Every answer carries a grounded confidence level** (see `skills/poe2-core/references/confidence.md`).
