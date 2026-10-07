@@ -48,6 +48,7 @@ USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
 _SNAPSHOT_PREFIX = "items_"
+_TEXT_MATCHES = 20
 # The game's display markup: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
 _DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
 _DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
@@ -223,10 +224,37 @@ def mod_tiers(
     return {"base": name, "patch": items["patch"], "variants": variants}
 
 
+def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:
+    """The game's text for the traded items matching `search`, from a loaded snapshot: {"patch", "total",
+    "matches"}. Pure.
+
+    An item matches when its name, text or use (its directions) contains `search`, in any case and with
+    line breaks read as spaces -- so "Chaos Orb" finds the orb and the omens that change it. Each match
+    is {"name", "class", "text", "use"}; an exact name comes first, then by name. Up to 20 matches;
+    `total` counts them all. No match adds up to 8 `suggestions` (see `_suggest`). A blank search raises
+    ValueError: it would match every item.
+    """
+    needle = _flat(search)
+    if not needle:
+        raise ValueError("search is empty: give an item's name, or words from what it does")
+    found = [{"name": name, **entry} for name, entry in items["texts"].items()
+             if any(needle in _flat(field) for field in (name, entry["text"], entry["use"]))]
+    found.sort(key=lambda row: (row["name"].lower() != needle, row["name"]))
+    out = {"patch": items["patch"], "total": len(found), "matches": found[:_TEXT_MATCHES]}
+    if not found:
+        out["suggestions"] = _suggest(items["texts"], needle)
+    return out
+
+
+def _flat(text: str) -> str:
+    """Lowercase, with each run of whitespace -- line breaks included -- as one space. Pure."""
+    return " ".join(text.lower().split())
+
+
 def _suggest(names: Any, wanted: str) -> list[str]:
-    """Up to 8 base names for a lowercase name that matched none: those that contain it, or, when none
-    does (an old or mistyped full name), those sharing the most whole words with it -- fewer words
-    first, as the closer match, then by name. Pure."""
+    """Up to 8 names (bases, or traded items) for a lowercase name that matched none: those that contain
+    it, or, when none does (an old or mistyped full name), those sharing the most whole words with it --
+    fewer words first, as the closer match, then by name. Pure."""
     hits = sorted(n for n in names if wanted in n.lower())
     if hits:
         return hits[:8]

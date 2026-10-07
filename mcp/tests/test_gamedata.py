@@ -11,6 +11,7 @@ from poe2_mcp.gamedata import (
     clean_text,
     fetch_exchange,
     fetch_export,
+    item_text,
     load_items,
     main,
     mod_tiers,
@@ -454,6 +455,91 @@ def test_mod_tiers_suggests_nothing_when_no_name_shares_a_word():
 def test_mod_tiers_rejects_an_item_level_below_1(level):
     with pytest.raises(ValueError, match="item_level"):
         mod_tiers(SNAPSHOT, "Rusted Greathelm", item_level=level)
+
+
+# Rows of the committed snapshot's texts (game 4.5.5.2).
+OMEN_USE = "Right click this item in your inventory to set it to be active. This item is consumed when triggered."
+TEXTS = {
+    "Chaos Orb": {
+        "class": "StackableCurrency",
+        "text": "Removes a random modifier and augments a Rare item with a new random modifier",
+        "use": "Right click this item then left click a rare item to apply it."},
+    "Diluted Liquid Ire": {
+        "class": "StackableCurrency",
+        "text": "Removes a random modifer and Augments a Rare Basic Jewel with a\nnew guaranteed Crafted modifier",
+        "use": "Can be used at The Withered Willow to Instil Amulets with a Notable Passive Skill.\n"
+               "Right click this item then left click a Rare Jewel to apply it."},
+    "Omen of Sinistral Annulment": {
+        "class": "Omen",
+        "text": "While this item is active in your inventory your next\n"
+                "Orb of Annulment will remove only prefix modifiers",
+        "use": OMEN_USE},
+    "Omen of Sinistral Erasure": {
+        "class": "Omen",
+        "text": "While this item is active in your inventory your next\nChaos Orb will remove only prefix modifiers",
+        "use": OMEN_USE},
+    "Orb of Annulment": {
+        "class": "StackableCurrency",
+        "text": "Removes a random modifier from an item",
+        "use": "Right click this item then left click on a magic or rare item to apply it."},
+    "Orb of Transmutation": {
+        "class": "StackableCurrency",
+        "text": "Upgrades a Normal item to a Magic item with 1 modifier",
+        "use": "Right click this item then left click a normal item to apply it."},
+    "Transmutation Shard": {
+        "class": "StackableCurrency", "text": "", "use": "A stack of 10 shards becomes an Orb of Transmutation"},
+}
+TEXT_SNAPSHOT = {"patch": "0.5.5", "texts": TEXTS}
+
+
+def _names(out):
+    return [match["name"] for match in out["matches"]]
+
+
+def test_item_text_finds_an_item_and_what_mentions_it_exact_name_first():
+    # Any case. The omen's text names the orb; the orb comes first, though it sorts after the omen.
+    assert item_text(TEXT_SNAPSHOT, "orb of ANNULMENT") == {
+        "patch": "0.5.5",
+        "total": 2,
+        "matches": [{"name": "Orb of Annulment", **TEXTS["Orb of Annulment"]},
+                    {"name": "Omen of Sinistral Annulment", **TEXTS["Omen of Sinistral Annulment"]}],
+    }
+
+
+def test_item_text_reads_line_breaks_as_spaces():
+    # The game breaks "your next\nChaos Orb" for display; a search shouldn't depend on where.
+    assert _names(item_text(TEXT_SNAPSHOT, "next chaos orb")) == ["Omen of Sinistral Erasure"]
+
+
+def test_item_text_searches_the_directions_too():
+    # Some facts live only there: where an item is used, and what shards add up to.
+    assert _names(item_text(TEXT_SNAPSHOT, "instil")) == ["Diluted Liquid Ire"]
+    assert _names(item_text(TEXT_SNAPSHOT, "Orb of Transmutation")) == ["Orb of Transmutation", "Transmutation Shard"]
+
+
+def test_item_text_stops_at_20_matches_and_counts_them_all():
+    texts = {f"Orb {i:02}": {"class": "StackableCurrency", "text": "", "use": ""} for i in range(25)}
+    out = item_text({"patch": "0.5.5", "texts": texts}, "orb")
+    assert out["total"] == 25 and _names(out) == [f"Orb {i:02}" for i in range(20)]
+
+
+def test_item_text_suggests_names_sharing_words_when_nothing_matches():
+    # Orb of Scouring is a PoE1 leftover the exchange doesn't trade. As in mod_tiers: most shared words
+    # first, then fewer words -- so names sharing only "of" come last, but they do come.
+    assert item_text(TEXT_SNAPSHOT, "Orb of Scouring") == {
+        "patch": "0.5.5",
+        "total": 0,
+        "matches": [],
+        "suggestions": ["Orb of Annulment", "Orb of Transmutation", "Chaos Orb", "Omen of Sinistral Annulment",
+                        "Omen of Sinistral Erasure"],
+    }
+
+
+@pytest.mark.parametrize("search", ["", "   "])
+def test_item_text_rejects_a_blank_search(search):
+    # It would match every item.
+    with pytest.raises(ValueError, match="search"):
+        item_text(TEXT_SNAPSHOT, search)
 
 
 def test_newest_snapshot_picks_the_highest_patch():
