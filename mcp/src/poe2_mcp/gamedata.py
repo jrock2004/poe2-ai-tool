@@ -131,9 +131,11 @@ def build_items(
     return {"groups": groups, "bases": bases, "mods": tiers}
 
 
-def build_texts(base_items: dict[str, Any], traded: set[str]) -> dict[str, dict[str, str]]:
+def build_texts(
+    base_items: dict[str, Any], traded: set[str], adds: dict[str, list[dict[str, str]]] | None = None
+) -> dict[str, dict[str, Any]]:
     """The game's text for each item PoE2's Currency Exchange trades: name -> {"class", "text", "use"},
-    by name. Pure.
+    by name, plus "adds" for an item `adds` has (`build_essences`: what an essence adds). Pure.
 
     `traded` is the base ids the exchange lists (`fetch_exchange`). text is the item's description, use
     its directions ("Right click this item then left click a rare item to apply it."), each as a player
@@ -141,7 +143,7 @@ def build_texts(base_items: dict[str, Any], traded: set[str]) -> dict[str, dict[
     base_items doesn't have raises ValueError -- the two exports came from different game versions -- and
     so do two traded items with one name, since the text is looked up by name.
     """
-    texts: dict[str, dict[str, str]] = {}
+    texts: dict[str, dict[str, Any]] = {}
     ids: dict[str, str] = {}
     for base_id in sorted(traded):
         base = base_items.get(base_id)
@@ -156,7 +158,66 @@ def build_texts(base_items: dict[str, Any], traded: set[str]) -> dict[str, dict[
             raise ValueError(f"CurrencyExchange trades two items named {name!r}: {ids[name]} and {base_id}")
         ids[name] = base_id
         texts[name] = {"class": base["item_class"], "text": text, "use": use}
+        if adds and base_id in adds:
+            texts[name]["adds"] = adds[base_id]
     return dict(sorted(texts.items()))
+
+
+def build_essences(
+    tables: dict[str, list[dict[str, str]]], mods: dict[str, Any]
+) -> dict[str, list[dict[str, str]]]:
+    """What each essence adds, per item type: essence base id -> [{"on", "side", "text"}], in the game's
+    row order. Pure. Essences here are everything in the game's Essences table, Expedition's alloys
+    included -- they work the same way.
+
+    `tables` is dat-export's tables by name, each a list of rows as `csv.DictReader` reads them:
+    `EssenceMods` (a row per essence and item type), and the `Essences`, `EssenceTargetItemCategories`,
+    `Mods` and `BaseItemTypes` rows it points at by rownum. `mods` is repoe-fork/poe2's mods.json.
+
+    on: the item types, as the game names them ("Amulet, Boots or Gloves"). text: what the game shows --
+    the row's own text, else its display modifier's, else its modifier's -- as a player reads it. side:
+    the modifier's ("prefix"/"suffix"); when the essence picks a modifier at random, that of the possible
+    picks ("prefix or suffix" if they differ). A row pointing at one that isn't there, a modifier
+    mods.json doesn't have, or a row with no text or no side raises ValueError -- the export changed shape.
+    """
+    index = {table: {row["rownum"]: row for row in tables[table]}
+             for table in ("BaseItemTypes", "Essences", "EssenceTargetItemCategories", "Mods")}
+
+    def ref(table: str, rownum: str, by: str) -> dict[str, str]:
+        if rownum not in index[table]:
+            raise ValueError(f"{by} names {table} row {rownum}, which the table doesn't have")
+        return index[table][rownum]
+
+    def mod(rownum: str, by: str) -> dict[str, Any]:
+        mod_id = ref("Mods", rownum, by)["Id"]
+        if mod_id not in mods:
+            raise ValueError(f"{by} names mod {mod_id}, which mods.json doesn't have")
+        return mods[mod_id]
+
+    adds: dict[str, list[dict[str, str]]] = {}
+    for row in tables["EssenceMods"]:
+        by = f"EssenceMods row {row['rownum']}"
+        essence = ref("Essences", row["Essence"], by)
+        base_id = ref("BaseItemTypes", essence["BaseItemType"], f"Essences row {essence['rownum']}")["Id"]
+        on = clean_text(ref("EssenceTargetItemCategories", row["TargetItemCategory"], by)["Text"])
+        if row["Text"]:
+            shown = row["Text"]
+        elif row["DisplayMod"]:
+            shown = mod(row["DisplayMod"], by).get("text")
+        else:
+            shown = row["Mod"] and mod(row["Mod"], by).get("text")
+        text = _game_text(shown)
+        if not text:
+            raise ValueError(f"{by} has nothing to show: no text of its own, and its modifier has none")
+        if row["Mod"]:
+            side = mod(row["Mod"], by)["generation_type"]
+        else:
+            picks = {mod(str(pick), by)["generation_type"] for pick in json.loads(row["OutcomeMods"] or "[]")}
+            if not picks:
+                raise ValueError(f"{by} has no modifier and no outcomes to take a side from")
+            side = " or ".join(sorted(picks))
+        adds.setdefault(base_id, []).append({"on": on, "side": side, "text": text})
+    return adds
 
 
 def _game_text(raw: str | None) -> str:
@@ -228,22 +289,29 @@ def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:
     """The game's text for the traded items matching `search`, from a loaded snapshot: {"patch", "total",
     "matches"}. Pure.
 
-    An item matches when its name, text or use (its directions) contains `search`, in any case and with
-    line breaks read as spaces -- so "Chaos Orb" finds the orb and the omens that change it. Each match
-    is {"name", "class", "text", "use"}; an exact name comes first, then by name. Up to 20 matches;
-    `total` counts them all. No match adds up to 8 `suggestions` (see `_suggest`). A blank search raises
-    ValueError: it would match every item.
+    An item matches when its name, text or use (its directions) contains `search`, or for an essence
+    (or alloy) what it adds and on which item types -- in any case, with line breaks read as spaces. So
+    "Chaos Orb" finds the orb and the omens that change it, and "maximum life" the essences that add it.
+    Each match is {"name", "class", "text", "use"}, plus "adds" for an essence; an exact name comes
+    first, then by name. Up to 20 matches; `total` counts them all. No match adds up to 8 `suggestions` (see
+    `_suggest`). A blank search raises ValueError: it would match every item.
     """
     needle = _flat(search)
     if not needle:
         raise ValueError("search is empty: give an item's name, or words from what it does")
     found = [{"name": name, **entry} for name, entry in items["texts"].items()
-             if any(needle in _flat(field) for field in (name, entry["text"], entry["use"]))]
+             if any(needle in _flat(field) for field in _searched(name, entry))]
     found.sort(key=lambda row: (row["name"].lower() != needle, row["name"]))
     out = {"patch": items["patch"], "total": len(found), "matches": found[:_TEXT_MATCHES]}
     if not found:
         out["suggestions"] = _suggest(items["texts"], needle)
     return out
+
+
+def _searched(name: str, entry: dict[str, Any]) -> list[str]:
+    """What `item_text` searches in an item: its name, text and use, and each item type and text it adds.
+    Pure."""
+    return [name, entry["text"], entry["use"], *(add[key] for add in entry.get("adds", ()) for key in ("on", "text"))]
 
 
 def _flat(text: str) -> str:

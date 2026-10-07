@@ -6,6 +6,7 @@ import pytest
 
 from poe2_mcp import gamedata
 from poe2_mcp.gamedata import (
+    build_essences,
     build_items,
     build_texts,
     clean_text,
@@ -22,6 +23,7 @@ from poe2_mcp.gamedata import (
 HELM = "Metadata/Items/Armours/Helmets/"
 BODY = "Metadata/Items/Armours/BodyArmours/"
 CURRENCY = "Metadata/Items/Currency/"
+BODY_ESSENCE = CURRENCY + "CurrencyGreaterEssenceLife"
 
 
 @pytest.mark.parametrize("raw, clean", [
@@ -140,6 +142,10 @@ BASE_ITEMS = {
     CURRENCY + "CurrencyConvertToNormal": _stackable(
         "Orb of Scouring", "StackableCurrency", "Removes all modifiers from an item",
         "Right click this item then left click on a magic or rare item to apply it."),
+    BODY_ESSENCE: _stackable(
+        "Greater Essence of the Body", "StackableCurrency",
+        "Upgrades a [ItemRarity|Magic] item to a [ItemRarity|Rare] item, adding a guaranteed modifier",
+        "Right click this item then left click a Magic item to apply it."),
 }
 # What PoE2's Currency Exchange trades, of those: all but Orb of Scouring.
 TRADED = {
@@ -255,6 +261,129 @@ def test_build_texts_refuses_two_traded_items_with_one_name():
     base_items = {**BASE_ITEMS, CURRENCY + "CurrencyRerollRareCopy": BASE_ITEMS[CURRENCY + "CurrencyRerollRare"]}
     with pytest.raises(ValueError, match="Chaos Orb"):
         build_texts(base_items, TRADED | {CURRENCY + "CurrencyRerollRareCopy"})
+
+
+def _essence_mod(rownum, essence, category, mod="", display="", text="", outcomes="[]", weights="[]"):
+    # An EssenceMods row as csv.DictReader reads it: every value text, "" when empty.
+    return {"rownum": rownum, "Essence": essence, "TargetItemCategory": category, "Mod": mod, "DisplayMod": display,
+            "Text": text, "OutcomeMods": outcomes, "OutcomeModWeights": weights}
+
+
+# Shaped like repoe-fork/dat-export's essence tables (game 4.5.5.2), trimmed: real rows, fewer columns. An
+# EssenceMods row points at its Essences, EssenceTargetItemCategories and Mods rows by rownum, and an
+# Essences row at its BaseItemTypes row. One essence for each kind of row the game has.
+ESSENCE_TABLES = {
+    "BaseItemTypes": [
+        {"rownum": "111", "Id": BODY_ESSENCE, "Name": "Greater Essence of the Body"},
+        {"rownum": "134", "Id": CURRENCY + "CurrencyPerfectEssenceAttribute",
+         "Name": "Perfect Essence of the Infinite"},
+        {"rownum": "140", "Id": CURRENCY + "CurrencyCorruptedEssenceDelirium", "Name": "Essence of Delirium"},
+        {"rownum": "143", "Id": CURRENCY + "CurrencyCorruptedEssenceAbyss", "Name": "Essence of the Abyss"},
+    ],
+    "Essences": [
+        {"rownum": "24", "BaseItemType": "111"}, {"rownum": "47", "BaseItemType": "134"},
+        {"rownum": "49", "BaseItemType": "140"}, {"rownum": "56", "BaseItemType": "143"},
+    ],
+    "EssenceTargetItemCategories": [
+        {"rownum": "0", "Id": "AllEquipment", "Text": "[Equipment]"},
+        {"rownum": "7", "Id": "BodyArmour", "Text": "Body Armour"},
+        {"rownum": "9", "Id": "Amulet", "Text": "Amulet"},
+        {"rownum": "13", "Id": "ShieldBeltHelmetBody", "Text": "Belt, Body Armour, Helmet or [Shield]"},
+        {"rownum": "15", "Id": "AmuletBootsGloves", "Text": "Amulet, Boots or Gloves"},
+    ],
+    "Mods": [
+        {"rownum": "84", "Id": "IncreasedLife7"}, {"rownum": "85", "Id": "IncreasedLife8"},
+        {"rownum": "4589", "Id": "EssenceGrantedPassive"}, {"rownum": "4590", "Id": "EssenceAbyssPrefix"},
+        {"rownum": "4591", "Id": "EssenceAbyssSuffix"}, {"rownum": "14312", "Id": "EssenceDisplayAttributes5"},
+        {"rownum": "14345", "Id": "EssencePercentStrength1"}, {"rownum": "14346", "Id": "EssencePercentDexterity1"},
+        {"rownum": "14347", "Id": "EssencePercentIntelligence1"},
+    ],
+    "EssenceMods": [
+        _essence_mod("10", "49", "7", mod="4589", text="Allocates a random Notable Passive Skill"),
+        _essence_mod("13", "56", "0", text="[MarkofAbyssalLord|Mark of the Abyssal Lord]", outcomes="[4590,4591]",
+                     weights="[50,50]"),
+        _essence_mod("18", "24", "13", mod="85"),
+        _essence_mod("19", "24", "15", mod="84"),
+        _essence_mod("90", "47", "9", display="14312", outcomes="[14345,14346,14347]", weights="[50,50,50]"),
+    ],
+}
+# repoe-fork/poe2's mods.json entries for those Mods rows, trimmed to what an essence needs.
+ABYSS_MARK = "Bears the [MarkofAbyssalLord|Mark of the Abyssal Lord]"
+ESSENCE_MODS = {
+    "IncreasedLife7": {"generation_type": "prefix", "text": "+(85-99) to maximum Life"},
+    "IncreasedLife8": {"generation_type": "prefix", "text": "+(100-119) to maximum Life"},
+    "EssenceGrantedPassive": {"generation_type": "prefix", "text": None},
+    "EssenceAbyssPrefix": {"generation_type": "prefix", "text": ABYSS_MARK},
+    "EssenceAbyssSuffix": {"generation_type": "suffix", "text": ABYSS_MARK},
+    "EssenceDisplayAttributes5": {"generation_type": "unique",
+                                  "text": "(7-10)% increased [Strength], [Dexterity] or [Intelligence]"},
+    "EssencePercentStrength1": {"generation_type": "suffix", "text": "(7-10)% increased [Strength]"},
+    "EssencePercentDexterity1": {"generation_type": "suffix", "text": "(7-10)% increased [Dexterity]"},
+    "EssencePercentIntelligence1": {"generation_type": "suffix", "text": "(7-10)% increased [Intelligence]"},
+}
+BODY_ADDS = [
+    {"on": "Belt, Body Armour, Helmet or Shield", "side": "prefix", "text": "+(100-119) to maximum Life"},
+    {"on": "Amulet, Boots or Gloves", "side": "prefix", "text": "+(85-99) to maximum Life"},
+]
+
+
+def _essences():
+    return build_essences(ESSENCE_TABLES, ESSENCE_MODS)
+
+
+def test_build_essences_gives_each_essence_its_modifier_per_item_type():
+    # By base id, like the exchange; rows in the game's order, markup removed.
+    assert _essences()[BODY_ESSENCE] == BODY_ADDS
+
+
+@pytest.mark.parametrize("essence, adds", [
+    # The row's own text wins: the modifier it grants has none.
+    ("CurrencyCorruptedEssenceDelirium",
+     {"on": "Body Armour", "side": "prefix", "text": "Allocates a random Notable Passive Skill"}),
+    # A random pick of three shows as its display modifier; all three are suffixes.
+    ("CurrencyPerfectEssenceAttribute",
+     {"on": "Amulet", "side": "suffix", "text": "(7-10)% increased Strength, Dexterity or Intelligence"}),
+    # A pick between a prefix and a suffix can land on either.
+    ("CurrencyCorruptedEssenceAbyss",
+     {"on": "Equipment", "side": "prefix or suffix", "text": "Mark of the Abyssal Lord"}),
+])
+def test_build_essences_shows_what_the_game_shows(essence, adds):
+    assert _essences()[CURRENCY + essence] == [adds]
+
+
+# The rows Greater Essence of the Body's first EssenceMods row leads to.
+BODY_REFS = {"Mods": "85", "EssenceTargetItemCategories": "13", "Essences": "24", "BaseItemTypes": "111"}
+
+
+@pytest.mark.parametrize("table", sorted(BODY_REFS))
+def test_build_essences_refuses_a_row_it_cant_resolve(table):
+    # With one of them gone, the export changed shape: fail, don't guess.
+    tables = {**ESSENCE_TABLES, table: [r for r in ESSENCE_TABLES[table] if r["rownum"] != BODY_REFS[table]]}
+    with pytest.raises(ValueError, match=f"{table} row {BODY_REFS[table]}"):
+        build_essences(tables, ESSENCE_MODS)
+
+
+def test_build_essences_refuses_a_modifier_mods_json_doesnt_have():
+    mods = {k: v for k, v in ESSENCE_MODS.items() if k != "IncreasedLife8"}
+    with pytest.raises(ValueError, match="IncreasedLife8"):
+        build_essences(ESSENCE_TABLES, mods)
+
+
+@pytest.mark.parametrize("rownum, column", [("10", "Text"), ("13", "OutcomeMods")])
+def test_build_essences_refuses_a_row_it_cant_show(rownum, column):
+    # Without its own text, Delirium's row has nothing to show (its modifier has no text); without its
+    # outcomes, the Abyss row has no side.
+    rows = [{**row, column: ""} if row["rownum"] == rownum else row for row in ESSENCE_TABLES["EssenceMods"]]
+    with pytest.raises(ValueError, match=f"EssenceMods row {rownum}"):
+        build_essences({**ESSENCE_TABLES, "EssenceMods": rows}, ESSENCE_MODS)
+
+
+def test_build_texts_gives_a_traded_essence_what_it_adds():
+    # Only items with something to add get "adds"; the essences the exchange doesn't trade (none of the
+    # other three here) are left out like everything else.
+    texts = build_texts(BASE_ITEMS, TRADED | {BODY_ESSENCE}, _essences())
+    assert texts["Greater Essence of the Body"]["adds"] == BODY_ADDS
+    assert "adds" not in texts["Chaos Orb"] and "Essence of Delirium" not in texts
 
 
 def test_render_items_is_json_with_one_mod_and_one_text_per_line():
@@ -540,6 +669,15 @@ def test_item_text_rejects_a_blank_search(search):
     # It would match every item.
     with pytest.raises(ValueError, match="search"):
         item_text(TEXT_SNAPSHOT, search)
+
+
+def test_item_text_searches_what_an_essence_adds_and_where():
+    essence = {"class": "StackableCurrency",
+               "text": "Upgrades a Magic item to a Rare item, adding a guaranteed modifier",
+               "use": "Right click this item then left click a Magic item to apply it.", "adds": BODY_ADDS}
+    snapshot = {"patch": "0.5.5", "texts": {**TEXTS, "Greater Essence of the Body": essence}}
+    assert item_text(snapshot, "maximum life")["matches"] == [{"name": "Greater Essence of the Body", **essence}]
+    assert _names(item_text(snapshot, "boots")) == ["Greater Essence of the Body"]
 
 
 def test_newest_snapshot_picks_the_highest_patch():
