@@ -31,7 +31,8 @@ PoE1 pages mix in under the same names. So:
 | Farming — what a mechanic drops | `get_knowledge('farming')` | poe2scout categories (via the tools) | No yields, drop rates, or "X per hour" from anywhere. |
 | Stash-tab layouts (which item is in which slot) | `get_stash_layout` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv` | Snapshot is generated; see `CONTRIBUTING.md`. Column names there are guesses — trust `_COLUMNS` in `stashlayout.py`, not the headers. No license; the data is GGG's. |
 | Game / PoB UI steps | `references/how-to.md` | *not set* | |
-| Build guides | the player's link or PoB code, via `fetch_guide` | — | Follow its `route`. See "Build creators" for whose guides to trust. |
+| Build guides | the player's link or PoB code, via `fetch_guide` | — | Follow its `route`. See "Build creators" for whose guides to trust. To help pick one (`poe2-build-picker`): a matching creator's build list. |
+| Build popularity (what people play) | the player, on `poe.ninja/poe2/builds` — give them the link | — | Never read it ourselves; see "Avoid". |
 
 Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 
@@ -45,6 +46,7 @@ Domains for `allowed_domains`: `pathofexile.com`, `poe2db.tw`, `github.com`.
 | Currency-seller "guide" sites | SEO content, not references. | nothing — judgment |
 | mobalytics.gg, for game facts | Editorial guides lag patches: a corruption rule taken from one was contradicted by game data. It also bot-blocks server fetches. A guide link the player pastes is fine, through `fetch_guide`. | nothing — judgment |
 | PoE1 references (poewiki.net, poedb.tw) | Different game; same item and skill names. Not poe2db.tw. | nothing — judgment |
+| poe.ninja builds and character pages | Its API docs (poe.ninja/docs/api, checked 2026-10-07) say the builds, character and Path of Building data are internal and "not available for third-party use". Give the player the link; for a character they like, they copy its PoB code. Its economy endpoints are separate and public. | nothing — judgment |
 
 ## Build creators
 
