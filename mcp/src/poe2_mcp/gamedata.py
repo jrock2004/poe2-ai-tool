@@ -456,6 +456,36 @@ def item_text(items: dict[str, Any], search: str) -> dict[str, Any]:
     return out
 
 
+def trial_pool(items: dict[str, Any], trial: str, search: str | None = None) -> dict[str, Any]:
+    """A trial's pool from a loaded snapshot -- "chaos" (the Trial of Chaos modifiers, `build_chaos`) or
+    "sekhemas" (its afflictions, boons and pledges, `build_sekhemas`): {"patch", "trial", "total",
+    "matches"}, in the game's order. Pure.
+
+    Without `search`, the whole pool. With it, the entries whose name, text (any version's, a pledge's
+    cost) or kind of entry (a modifier's kind, an effect's category) contains it -- in any case, with line
+    breaks read as spaces. No match adds up to 8 `suggestions` (see `_suggest`). An unknown trial raises
+    ValueError.
+    """
+    key = (trial or "").strip().lower()
+    if key not in _TRIALS:
+        raise ValueError(f"trial must be 'chaos' or 'sekhemas', not {trial!r}")
+    pool = items[key]
+    needle = _flat(search or "")
+    matches = [entry for entry in pool if not needle or any(needle in _flat(f) for f in _TRIALS[key](entry))]
+    out = {"patch": items["patch"], "trial": key, "total": len(matches), "matches": matches}
+    if not matches:
+        out["suggestions"] = _suggest([entry["name"] for entry in pool], needle)
+    return out
+
+
+# What `trial_pool` searches in each trial's entries.
+_TRIALS = {
+    "chaos": lambda modifier: [modifier["name"], modifier["kind"],
+                               *(version[key] for version in modifier["versions"] for key in ("name", "text"))],
+    "sekhemas": lambda effect: [effect["name"], effect["category"], effect["text"], effect.get("cost", "")],
+}
+
+
 def _searched(name: str, entry: dict[str, Any]) -> list[str]:
     """What `item_text` searches in an item: its name, text and use, and each kind of item, effect and
     bonded effect it adds. Pure."""

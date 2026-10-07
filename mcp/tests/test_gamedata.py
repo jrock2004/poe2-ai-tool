@@ -25,6 +25,7 @@ from poe2_mcp.gamedata import (
     newest_snapshot,
     render_items,
     top_rolls,
+    trial_pool,
 )
 
 HELM = "Metadata/Items/Armours/Helmets/"
@@ -599,6 +600,43 @@ def test_build_sekhemas_refuses_a_row_it_cant_resolve(table, rownum):
     tables = {**SEKHEMAS_TABLES, table: [row for row in SEKHEMAS_TABLES[table] if row["rownum"] != rownum]}
     with pytest.raises(ValueError, match=f"{table} row {rownum}"):
         build_sekhemas(tables)
+
+
+TRIALS = {"patch": "0.5.5", "chaos": build_chaos(CHAOS_TABLES), "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
+
+
+def _trial_names(trial, search=None):
+    return [entry["name"] for entry in trial_pool(TRIALS, trial, search)["matches"]]
+
+
+def test_trial_pool_gives_a_trials_whole_pool_in_the_games_order():
+    assert trial_pool(TRIALS, "chaos") == {
+        "patch": "0.5.5", "trial": "chaos", "total": 5, "matches": build_chaos(CHAOS_TABLES)}
+
+
+def test_trial_pool_search_matches_names_texts_and_what_kind_of_entry_it_is():
+    # Any case, trial included; a version's text counts, and so does a modifier's kind or an effect's category.
+    assert _trial_names("Chaos", "BUFFS ON YOU") == ["Time Paradox"]
+    assert _trial_names("chaos", "hazard") == ["Stormcaller Runes"]
+    assert _trial_names("sekhemas", "pledges") == ["Pledge to the Powerful"]
+
+
+def test_trial_pool_search_reads_a_pledges_cost_and_line_breaks_as_spaces():
+    # "non-boss rooms" is only in the pledge's cost; Ghastly Scythe's text breaks before "(removed".
+    assert _trial_names("sekhemas", "non-boss rooms") == ["Pledge to the Powerful"]
+    assert _trial_names("sekhemas", "trial (removed") == ["Ghastly Scythe"]
+
+
+def test_trial_pool_suggests_names_when_nothing_matches():
+    # As item_text does: here, the one name sharing a word with the misspelling.
+    assert trial_pool(TRIALS, "chaos", "Time Paradoks") == {
+        "patch": "0.5.5", "trial": "chaos", "total": 0, "matches": [], "suggestions": ["Time Paradox"]}
+
+
+@pytest.mark.parametrize("trial", ["sanctum", "ultimatum", ""])
+def test_trial_pool_rejects_a_trial_it_doesnt_know(trial):
+    with pytest.raises(ValueError, match="chaos"):
+        trial_pool(TRIALS, trial)
 
 
 def test_render_items_is_json_with_one_entry_per_line():
