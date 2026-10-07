@@ -49,6 +49,18 @@ node ids only and `tree.note` says so.
    `ascendancyCount` with the points Path of Building shows. If the parser rejects the file, the
    `tree.lua` format changed — fix `treedata.py` rather than hand-editing the JSON.
 
+**Before Path of Building ships the new tree** — at a league launch, say — generate from GGG's own
+export instead, so node names and point counts work from day one:
+
+1. From [grindinggear/poe2-skilltree-export](https://github.com/grindinggear/poe2-skilltree-export),
+   take `data.json` at the commit named for the new patch (e.g. `0.5.5`), and note the commit.
+2. Pass it where `tree.lua` goes — a `.json` input is read as GGG's export:
+   ```bash
+   .venv/bin/python -m poe2_mcp.treedata path/to/data.json <version> "grindinggear/poe2-skilltree-export@<commit> (<patch>), data.json -- GGG's official tree export" src/poe2_mcp/data/tree_<version>.json
+   ```
+3. Ship it, then regenerate from Path of Building's `tree.lua` (steps 1–4 above) once it lands. GGG's
+   file leaves a few nodes unnamed, and they stay unnamed until then.
+
 ### 2. Trials knowledge
 
 **Needed when** patch notes touch the Trial of the Sekhemas or Trial of Chaos — and re-check the Trial

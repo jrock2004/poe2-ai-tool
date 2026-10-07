@@ -8,6 +8,11 @@ are counted by the parser, not named. Regenerate per patch:
 
     python -m poe2_mcp.treedata path/to/tree.lua 0_5 "<source note>" src/poe2_mcp/data/tree_0_5.json
 
+When Path of Building hasn't shipped a patch's tree yet, pass GGG's own export instead
+(grindinggear/poe2-skilltree-export, `data.json`, published per patch): `from_ggg_export` reads it
+into the same shape, and the snapshot comes out the same way. Regenerate from tree.lua once Path of
+Building ships it.
+
 Build-time only: nothing here touches the network, and runtime reads only the committed JSON.
 """
 from __future__ import annotations
@@ -30,6 +35,9 @@ _TOKEN_RE = re.compile(
 )
 _VERSION_RE = re.compile(r"\d+_\d+")
 _ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
+# GGG's display markup in stat text: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
+_DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
+_DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
 
 
 def _tokenize(text: str) -> list[tuple[str, str]]:
@@ -135,6 +143,56 @@ def parse_lua_table(text: str) -> Any:
     return result
 
 
+def _clean_stat_line(line: str) -> str:
+    """One line of GGG stat text as tree.lua has it: display markup and a leading bullet removed."""
+    line = _DISPLAY_TAG_RE.sub(lambda m: m.group(1), line)
+    line = _DISPLAY_LINK_RE.sub(lambda m: m.group(2) or m.group(1), line)
+    return line.lstrip("•").lstrip()
+
+
+def from_ggg_export(data: dict[str, Any]) -> dict[str, Any]:
+    """Read GGG's tree export (grindinggear/poe2-skilltree-export, data.json) into the shape
+    parse_lua_table gives for tree.lua -- the fields extraction reads -- so either source makes the
+    same snapshot. Pure. What it smooths over:
+
+    - Ascendancies are named only under `classes`. A start node carries an internal name, so it takes
+      its ascendancy's name, as in tree.lua.
+    - Nodes of an ascendancy with no name there are placeholders for one not in the game yet: dropped.
+    - Stat text carries display markup and several lines to one string: cleaned and split.
+    - Class starts are `classStartIndex`, free nodes `isFree`; ids are string keys, plus a `root`
+      entry with no `skill`.
+
+    A node GGG leaves unnamed stays unnamed -- borrowing an older snapshot's name could be wrong if
+    GGG reused the id.
+    """
+    ascendancies = {
+        a["id"]: a["name"]
+        for c in data.get("classes") or []
+        for a in c.get("ascendancies") or []
+        if a.get("name")
+    }
+    nodes: dict[int, dict[str, Any]] = {}
+    for node in (data.get("nodes") or {}).values():
+        if "skill" not in node:
+            continue  # the `root` entry
+        ascendancy_id = node.get("ascendancyId")
+        ascendancy = ascendancies.get(ascendancy_id)
+        if ascendancy_id and not ascendancy:
+            continue  # a placeholder for an ascendancy not in the game yet
+        nodes[int(node["skill"])] = {
+            "name": ascendancy if node.get("isAscendancyStart") else node.get("name"),
+            "ascendancyName": ascendancy,
+            "isKeystone": node.get("isKeystone"),
+            "isNotable": node.get("isNotable"),
+            "isMultipleChoiceOption": node.get("isMultipleChoiceOption"),
+            "isAscendancyStart": node.get("isAscendancyStart"),
+            "classesStart": node.get("classStartIndex") is not None,
+            "isFreeAllocate": node.get("isFree"),
+            "stats": [_clean_stat_line(line) for stat in node.get("stats") or [] for line in stat.split("\n")],
+        }
+    return {"nodes": nodes}
+
+
 def extract_named_nodes(tree: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Select the nodes worth naming from a parsed tree.lua: keystones, notables, ascendancy nodes.
 
@@ -204,8 +262,9 @@ def load_snapshot(version: str | None) -> dict[str, Any] | None:
 
 
 def render_snapshot(tree: dict[str, Any], version: str, source: str) -> str:
-    """The snapshot JSON text for a parsed tree.lua: treeVersion, source, uncounted, then one named
-    node per line (so a per-patch regeneration reads as a small diff). Pure; ends with a newline.
+    """The snapshot JSON text for a parsed tree (tree.lua, or GGG's export via from_ggg_export):
+    treeVersion, source, uncounted, then one named node per line (so a per-patch regeneration reads as
+    a small diff). Pure; ends with a newline.
     """
     lines = [f"  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}"
              for k, v in extract_named_nodes(tree).items()]
@@ -219,16 +278,18 @@ def render_snapshot(tree: dict[str, Any], version: str, source: str) -> str:
 
 
 def main(argv: list[str]) -> None:
-    """CLI: treedata <tree.lua> <treeVersion> <source note> <out.json> -- writes the snapshot file.
+    """CLI: treedata <tree.lua | data.json> <treeVersion> <source note> <out.json> -- writes the
+    snapshot file. A .json input is read as GGG's tree export, anything else as tree.lua.
 
     Writes the file itself (UTF-8, no BOM, LF) instead of printing for a shell redirect: Windows
     PowerShell 5.1's `>` would write UTF-16, and text mode on Windows would turn LF into CRLF.
     """
     if len(argv) != 4:
-        sys.exit("usage: python -m poe2_mcp.treedata <tree.lua> <treeVersion> <source note> <out.json>")
+        sys.exit("usage: python -m poe2_mcp.treedata <tree.lua | data.json> <treeVersion> <source note> <out.json>")
     path, version, source, out = argv
     with open(path, encoding="utf-8") as f:
-        tree = parse_lua_table(f.read())
+        text = f.read()
+    tree = from_ggg_export(json.loads(text)) if path.lower().endswith(".json") else parse_lua_table(text)
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(render_snapshot(tree, version, source))
 

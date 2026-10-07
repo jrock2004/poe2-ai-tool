@@ -1,4 +1,5 @@
-"""Unit tests for the tree.lua parser and named-node extraction (pure, no network)."""
+"""Unit tests for the tree.lua parser, the GGG tree-export reader, and named-node extraction (pure,
+no network)."""
 import pytest
 
 import json
@@ -6,6 +7,7 @@ import json
 from poe2_mcp.treedata import (
     extract_named_nodes,
     extract_uncounted,
+    from_ggg_export,
     load_snapshot,
     main,
     parse_lua_table,
@@ -217,3 +219,131 @@ def test_main_writes_utf8_without_bom_and_with_lf_endings(tmp_path):
 def test_main_requires_an_output_path(tmp_path):
     with pytest.raises(SystemExit):
         main([str(tmp_path / "tree.lua"), "0_5", "fixture"])
+
+
+# The backup source for when Path of Building hasn't shipped a new tree yet: GGG's own export
+# (grindinggear/poe2-skilltree-export, data.json). Real 0.5.5 nodes (commit bd87e6512c92), trimmed to
+# the fields the reader uses. Unlike tree.lua: nodes keyed by id string, a `root` entry with no
+# `skill`, ascendancies named only under `classes`, class starts marked by a list of class indexes,
+# and stat text carrying the game's display markup, several lines to one string.
+GGG_EXPORT = {
+    "classes": [
+        {"name": "Witch", "ascendancies": [{"id": "Witch3", "name": "Lich"}]},
+        {"name": "Ranger", "ascendancies": [{"id": "Ranger2", "name": None}]},
+        {"name": "Huntress", "ascendancies": [{"id": "Huntress3", "name": "Ritualist"}]},
+        {"name": "Mercenary", "ascendancies": [{"id": "Mercenary3", "name": "Gemling Legionnaire"}]},
+        {"name": "Warrior", "ascendancies": [{"id": "Warrior3", "name": "Smith of Kitava"}]},
+        {"name": "Monk", "ascendancies": [{"id": "Monk1", "name": "Martial Artist"}]},
+        {"name": "Templar", "ascendancies": []},
+    ],
+    "nodes": {
+        "root": {"group": 0, "orbit": 0, "orbitIndex": 0, "out": [], "in": []},
+        "21218": {"skill": 21218, "name": "Bow Damage", "stats": ["16% increased Damage with Bows"]},
+        "50459": {"skill": 50459, "name": "RANGER", "stats": [], "classStartIndex": [2, 8]},
+        "51749": {"skill": 51749, "name": "Blood Magic", "isKeystone": True, "stats": [
+            "You have no Mana\nSkill Mana Costs [StatConversion|Converted] to Life Costs"]},
+        "23710": {"skill": 23710, "name": "Necromancer", "stats": [], "ascendancyId": "Witch3",
+                  "isAscendancyStart": True},
+        "60287": {"skill": 60287, "name": "Implanted Gems", "stats": [], "isNotable": True,
+                  "ascendancyId": "Mercenary3", "isMultipleChoice": True},
+        "32952": {"skill": 32952, "name": "Bolstering Implants", "ascendancyId": "Mercenary3",
+                  "isMultipleChoiceOption": True, "multipleChoiceParent": 60287,
+                  "stats": ["+2 to Level of all Skills with a [Strength] requirement"]},
+        "30996": {"skill": 30996, "name": "Gem Studded", "isNotable": True, "ascendancyId": "Mercenary3",
+                  "stats": ["For each colour of Socketed Support Gem that is most numerous, gain:\n"
+                            "•Red: [Hit|Hits] against you have no [CriticalDamageBonus|Critical Damage Bonus]\n"
+                            "•Blue: Skills have 30% less cost\n"
+                            "•Green: 40% less Movement Speed Penalty from using Skills while Moving"]},
+        "39552": {"skill": 39552, "name": "Runic Meridians", "isNotable": True, "ascendancyId": "Monk1",
+                  "stats": ["Can tattoo [Rune|Runes] onto your body, gaining\n"
+                            "additional [Rune]-only sockets:\n• 1 Helmet socket\n• 2 Body Armour sockets\n"
+                            "• 1 Gloves socket\n• 1 Boots socket"]},
+        "22541": {"skill": 22541, "name": "Heat of the Forge", "isNotable": True, "ascendancyId": "Warrior3",
+                  "stats": ["Grants Skill: <underline>{Fire Spell on Hit}"]},
+        "9988": {"skill": 9988, "name": "Smith's Masterwork", "isNotable": True, "ascendancyId": "Warrior3",
+                 "isFree": True, "stats": [
+                     "Can only use a [ItemRarity|Normal] Body Armour",
+                     "+200 to [Armour] for each Connected Notable Passive Skill Allocated"]},
+        "30100": {"skill": 30100, "name": "", "stats": [], "ascendancyId": "Huntress3"},
+        "35715": {"skill": 35715, "name": "", "stats": [], "ascendancyId": "Templar1",
+                  "isAscendancyStart": True},
+        "24665": {"skill": 24665, "name": "", "stats": [], "ascendancyId": "Ranger2",
+                  "isAscendancyStart": True},
+    },
+}
+
+
+def test_from_ggg_export_names_the_nodes_pob_names():
+    # Not the root entry, the plain small passive, or the class start -- as tree.lua's extraction.
+    named = extract_named_nodes(from_ggg_export(GGG_EXPORT))
+    assert set(named) == {"51749", "23710", "60287", "32952", "30996", "39552", "22541", "9988", "30100"}
+
+
+def test_from_ggg_export_takes_ascendancy_names_from_classes():
+    named = extract_named_nodes(from_ggg_export(GGG_EXPORT))
+    assert named["51749"]["ascendancy"] is None
+    assert named["39552"]["ascendancy"] == "Martial Artist"
+    assert named["22541"]["ascendancy"] == "Smith of Kitava"
+
+
+def test_from_ggg_export_names_an_ascendancy_start_after_its_ascendancy():
+    # GGG's file carries an internal name on the start node ("Necromancer" on the Lich start).
+    named = extract_named_nodes(from_ggg_export(GGG_EXPORT))
+    assert named["23710"] == {"name": "Lich", "kind": "small", "ascendancy": "Lich", "stats": []}
+
+
+def test_from_ggg_export_kinds_match_tree_lua():
+    named = extract_named_nodes(from_ggg_export(GGG_EXPORT))
+    assert named["51749"]["kind"] == "keystone"
+    assert named["60287"]["kind"] == "notable"  # the choice parent costs the point
+    assert named["32952"]["kind"] == "choice"
+
+
+@pytest.mark.parametrize("node_id, stats", [
+    ("51749", ["You have no Mana", "Skill Mana Costs Converted to Life Costs"]),
+    ("32952", ["+2 to Level of all Skills with a Strength requirement"]),
+    ("30996", ["For each colour of Socketed Support Gem that is most numerous, gain:",
+               "Red: Hits against you have no Critical Damage Bonus",
+               "Blue: Skills have 30% less cost",
+               "Green: 40% less Movement Speed Penalty from using Skills while Moving"]),
+    ("39552", ["Can tattoo Runes onto your body, gaining", "additional Rune-only sockets:",
+               "1 Helmet socket", "2 Body Armour sockets", "1 Gloves socket", "1 Boots socket"]),
+    ("22541", ["Grants Skill: Fire Spell on Hit"]),
+    ("9988", ["Can only use a Normal Body Armour",
+              "+200 to Armour for each Connected Notable Passive Skill Allocated"]),
+])
+def test_from_ggg_export_strips_display_markup_and_splits_lines(node_id, stats):
+    # Expected text is what PoB's tree.lua holds for the same 0.5.5 node.
+    assert extract_named_nodes(from_ggg_export(GGG_EXPORT))[node_id]["stats"] == stats
+
+
+def test_from_ggg_export_keeps_a_blank_name_blank():
+    # GGG leaves some nodes unnamed (two Ritualist nodes in 0.5.5). Store that rather than borrowing a
+    # name from an older snapshot: GGG can reuse an id for a different node.
+    named = extract_named_nodes(from_ggg_export(GGG_EXPORT))
+    assert named["30100"] == {"name": "", "kind": "small", "ascendancy": "Ritualist", "stats": []}
+
+
+def test_from_ggg_export_skips_ascendancies_not_in_the_game():
+    # Placeholder starts for ascendancies with no name yet: one not listed under its class at all
+    # (Templar1), one listed with a null name (Ranger2). PoB leaves them out too.
+    tree = from_ggg_export(GGG_EXPORT)
+    assert {"35715", "24665"}.isdisjoint(extract_named_nodes(tree))
+    assert {35715, 24665}.isdisjoint(extract_uncounted(tree))
+
+
+def test_from_ggg_export_uncounted_matches_tree_lua_rules():
+    # Class start, ascendancy start, choice option, free node -- int ids in numeric order, as from
+    # tree.lua, so a snapshot generated from either source diffs cleanly against the other.
+    assert extract_uncounted(from_ggg_export(GGG_EXPORT)) == [9988, 23710, 32952, 50459]
+
+
+def test_main_reads_a_ggg_export_by_its_json_extension(tmp_path):
+    src = tmp_path / "data.json"
+    src.write_text(json.dumps(GGG_EXPORT), encoding="utf-8")
+    out = tmp_path / "tree_0_5.json"
+    main([str(src), "0_5", "fixture", str(out)])
+    snapshot = json.loads(out.read_text(encoding="utf-8"))
+    assert snapshot["nodes"]["23710"]["name"] == "Lich"
+    assert snapshot["uncounted"] == [9988, 23710, 32952, 50459]
+    assert list(snapshot["nodes"]) == sorted(snapshot["nodes"], key=int)  # numeric, as from tree.lua
