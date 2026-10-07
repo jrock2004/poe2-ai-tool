@@ -10,10 +10,15 @@ Run it from the repo root, e.g. after a per-patch refresh:
 
     mcp/.venv/bin/python scripts/smoke.py        # Windows: mcp\\.venv\\Scripts\\python scripts\\smoke.py
 
+The default checks are offline. `--live` adds one call to each price tool (poe2scout) and the trade
+stat lookup; `--trade` also runs one trade search (the trade site's undocumented endpoint, so only on
+request). They use the first current league `get_leagues` lists, or `--league NAME`.
+
 Prints one line per check, then the patch each snapshot reports. Exits 1 if any check failed.
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import base64
 import json
@@ -49,12 +54,15 @@ class Smoke:
         self.session = session
         self.failures = 0
         self.patches: dict[str, str] = {}
+        self.league: str | None = None
 
-    async def call(self, tool: str, **args: Any) -> dict[str, Any]:
+    async def call(self, tool: str, **args: Any) -> Any:
         result = await self.session.call_tool(tool, args)
         if result.isError:
             raise Failed(result.content[0].text if result.content else "error")
         out = result.structuredContent or {}
+        if set(out) == {"result"}:  # a tool that returns a list comes back wrapped
+            return out["result"]
         if out.get("valid") is False:
             raise Failed(out.get("error", "not valid"))
         return out
@@ -99,6 +107,13 @@ def nonempty(count: int, what: str) -> str:
     if not count:
         raise Failed(f"no {what}")
     return f"{count} {what}"
+
+
+def fresh(out: dict[str, Any], detail: str) -> str:
+    """`detail`, after checking the answer says how old its data is (every market tool should)."""
+    if not isinstance(out.get("ageSeconds"), (int, float)):
+        raise Failed("no ageSeconds")
+    return f"{detail}, {out['ageSeconds']}s old"
 
 
 async def offline_checks(s: Smoke) -> None:
@@ -173,7 +188,67 @@ async def offline_checks(s: Smoke) -> None:
     await s.check("build_trade_filter", trade_filter)
 
 
+async def live_checks(s: Smoke, league: str | None, trade: bool) -> None:
+    async def leagues() -> str:
+        current = [row["league"] for row in await s.call("get_leagues") if row["current"]]
+        if not current:
+            raise Failed("no current league")
+        s.league = league or current[0]
+        return f"{len(current)} current; using {s.league}" + ("" if league else " (first current; --league picks)")
+
+    async def currency_prices() -> str:
+        out = await s.call("get_currency_prices", category="currency", league=s.league)
+        return fresh(out, nonempty(len(out["items"]), "currency prices"))
+
+    async def movers() -> str:
+        out = await s.call("market_movers", league=s.league)
+        return fresh(out, nonempty(len(out["categories"]), "categories ranked"))
+
+    async def price() -> str:
+        out = await s.call("price_unique", name="Divine Orb", league=s.league)
+        if not out["match"] or not out["priceExalted"]:
+            raise Failed("Divine Orb not priced")
+        return fresh(out, f"Divine Orb {out['priceExalted']:.1f} ex")
+
+    async def value() -> str:
+        out = await s.call("value_currency", holdings=[{"name": "Divine Orb", "count": 2}], league=s.league)
+        if out["unmatched"] or not out["totalExalted"]:
+            raise Failed("2 Divine Orbs not valued")
+        return fresh(out, f"2 Divine Orbs {out['totalExalted']} ex")
+
+    stat_ids: list[str] = []
+
+    async def stat_filters() -> str:
+        matches = (await s.call("find_stat_filters", affix="+# to maximum Life"))["matches"]
+        stat_ids.extend(m["id"] for m in matches[:1])
+        return nonempty(len(matches), "stat filters for +# to maximum Life")
+
+    async def search() -> str:
+        if not stat_ids:
+            raise Failed("no stat id to search with (find_stat_filters failed)")
+        query = (await s.call("build_trade_filter", category="armour.boots",
+                              stats=[{"id": stat_ids[0], "min": 50}]))["query"]
+        out = await s.call("search_trade", query=query, league=s.league, limit=1)
+        if not out["url"]:
+            raise Failed("no search link")
+        return fresh(out, f"{out['matched']} matched")
+
+    await s.check("get_leagues", leagues)
+    await s.check("get_currency_prices currency", currency_prices)
+    await s.check("market_movers", movers)
+    await s.check("price_unique", price)
+    await s.check("value_currency", value)
+    await s.check("find_stat_filters", stat_filters)
+    if trade:
+        await s.check("search_trade", search)
+
+
 async def main() -> int:
+    parser = argparse.ArgumentParser(description="Smoke-test the poe2 MCP server the way the plugin runs it.")
+    parser.add_argument("--live", action="store_true", help="also call the price tools and the trade stat lookup")
+    parser.add_argument("--trade", action="store_true", help="also run one trade search (implies --live)")
+    parser.add_argument("--league", help="league for the live checks (default: the first current one)")
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory() as data_dir, tempfile.TemporaryFile("w+", encoding="utf-8") as log:
         server = StdioServerParameters(
             command="uv", args=["run", "--quiet", "--no-dev", "--project", str(PROJECT), "poe2-mcp"],
@@ -184,6 +259,8 @@ async def main() -> int:
                 await session.initialize()
                 smoke = Smoke(session)
                 await offline_checks(smoke)
+                if args.live or args.trade:
+                    await live_checks(smoke, args.league, args.trade)
         except Exception as e:  # the server didn't start, or died: its log says why
             print(f"FAIL server -- didn't start or stopped answering ({type(e).__name__})")
             return _show_log(log)
