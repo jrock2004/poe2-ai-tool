@@ -1,9 +1,11 @@
-"""Unit tests for the game-data snapshot generator (pure, no network)."""
+"""Unit tests for the game-data snapshot generator (no network: the fetch runs over a mock transport)."""
 import json
 
+import httpx
 import pytest
 
-from poe2_mcp.gamedata import build_items, clean_text, render_items
+from poe2_mcp import gamedata
+from poe2_mcp.gamedata import build_items, clean_text, fetch_export, main, render_items
 
 HELM = "Metadata/Items/Armours/Helmets/"
 BODY = "Metadata/Items/Armours/BodyArmours/"
@@ -167,3 +169,70 @@ def test_render_items_is_json_with_one_mod_per_line():
     assert {k: snapshot[k] for k in ("groups", "bases", "mods")} == _items()
     assert sum('"side":' in line for line in text.splitlines()) == len(snapshot["mods"])
     assert text.endswith("\n")
+
+
+COMMIT = "0123abcd"
+REPO = f"/repoe-fork/poe2/{COMMIT}"
+EXPORT = {"mods_by_base": MODS_BY_BASE, "mods": MODS, "base_items": BASE_ITEMS, "game_version": "4.5.5.2"}
+
+
+def _transport(calls: list[str], status: int = 200) -> httpx.MockTransport:
+    """GitHub's raw file host, serving the fixture export at COMMIT; records each URL asked for."""
+    served = {f"{REPO}/data/mods_by_base.json": MODS_BY_BASE, f"{REPO}/data/mods.json": MODS,
+              f"{REPO}/data/base_items.json": BASE_ITEMS}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if status != 200:
+            return httpx.Response(status)
+        if request.url.path == f"{REPO}/version.txt":
+            return httpx.Response(200, text="4.5.5.2\n")
+        return httpx.Response(200, json=served[request.url.path])
+
+    return httpx.MockTransport(handler)
+
+
+def test_fetch_export_reads_the_three_files_and_the_game_version_at_the_commit():
+    calls: list[str] = []
+    assert fetch_export(COMMIT, transport=_transport(calls)) == EXPORT
+    assert sorted(calls) == sorted(f"https://raw.githubusercontent.com{REPO}/{path}" for path in (
+        "data/mods_by_base.json", "data/mods.json", "data/base_items.json", "version.txt"))
+
+
+@pytest.mark.parametrize("ref", ["master", "develop", "v4.5.5", "abc12", ""])
+def test_fetch_export_takes_a_pinned_commit_only(ref):
+    # A branch or tag can move under you; the snapshot has to say exactly which export it came from.
+    with pytest.raises(ValueError, match="commit"):
+        fetch_export(ref, transport=_transport([]))
+
+
+def test_fetch_export_raises_on_an_http_error():
+    with pytest.raises(RuntimeError, match="HTTP 404"):
+        fetch_export(COMMIT, transport=_transport([], status=404))
+
+
+def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_source(monkeypatch, tmp_path):
+    # Written by main itself, not a shell redirect: PowerShell 5.1's `>` writes UTF-16.
+    monkeypatch.setattr(gamedata, "fetch_export", lambda commit: EXPORT)
+    out = tmp_path / "items_0_5_5.json"
+    main(["items", COMMIT, "0.5.5", str(out)])
+    raw = out.read_bytes()
+    assert not raw.startswith(b"\xef\xbb\xbf") and b"\r\n" not in raw
+    snapshot = json.loads(raw.decode("utf-8"))
+    assert snapshot["patch"] == "0.5.5"
+    assert snapshot["source"].startswith(f"repoe-fork/poe2@{COMMIT} (game 4.5.5.2)")
+    assert "Rusted Greathelm" in snapshot["bases"]
+
+
+@pytest.mark.parametrize("argv", [[], ["items", COMMIT, "0.5.5"], ["trees", COMMIT, "0.5.5", "out.json"]])
+def test_main_requires_its_arguments(argv):
+    with pytest.raises(SystemExit):
+        main(argv)
+
+
+@pytest.mark.parametrize("patch", ["latest", "0.5", "5"])
+def test_main_rejects_a_patch_that_isnt_a_version(monkeypatch, tmp_path, patch):
+    # Snapshots are per patch ("0.5.5", or a hotfix like "0.5.5e"); the tool picks the newest by it.
+    monkeypatch.setattr(gamedata, "fetch_export", lambda commit: EXPORT)
+    with pytest.raises(SystemExit):
+        main(["items", COMMIT, patch, str(tmp_path / "out.json")])

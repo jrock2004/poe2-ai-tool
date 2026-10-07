@@ -3,16 +3,23 @@
 Mod tiers, bases and their requirements come from repoe-fork/poe2 (`data/mods_by_base.json`,
 `mods.json`, `base_items.json`), which is processed from GGG's game files; the data remains GGG's. This
 module turns them into one compact snapshot per patch (`data/items_<patch>.json`) that the tools read at
-runtime: which mods each base can roll, and each tier's name, side, item-level gate and text.
+runtime: which mods each base can roll, and each tier's name, side, item-level gate and text. Regenerate
+per patch, from the export commit for that game version:
 
-Pure: nothing here touches the network. Text keeps the game's wording with its display markup stripped
-("[Resistances|Fire Resistance]" -> "Fire Resistance").
+    python -m poe2_mcp.gamedata items <commit> 0.5.5 src/poe2_mcp/data/items_0_5_5.json
+
+Build-time only: the command line fetches the export; nothing the tools call touches the network. Text
+keeps the game's wording with its display markup stripped ("[Resistances|Fire Resistance]" -> "Fire
+Resistance").
 """
 from __future__ import annotations
 
 import json
 import re
+import sys
 from typing import Any
+
+import httpx
 
 # Equipment, by mods_by_base's class names: what a player wears or wields that rolls prefixes/suffixes.
 PLAYER_CLASSES = (
@@ -23,6 +30,11 @@ PLAYER_CLASSES = (
     "Two Hand Swords", "Wands",
 )
 _SIDES = ("prefix", "suffix")
+EXPORT_REPO = "https://raw.githubusercontent.com/repoe-fork/poe2"
+EXPORT_FILES = ("mods_by_base", "mods", "base_items")
+USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
+_COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
+_PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
 # The game's display markup: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
 _DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
 _DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
@@ -121,3 +133,49 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"mods": {\n' + rows((f"{json.dumps(t)}: ", m) for t, m in items["mods"].items()) + "\n}\n"
         "}\n"
     )
+
+
+def fetch_export(commit: str, transport: httpx.BaseTransport | None = None) -> dict[str, Any]:
+    """Download repoe-fork/poe2's export at `commit`: {"mods_by_base", "mods", "base_items" (parsed),
+    "game_version"}. Build-time only -- the command line runs it, the tools never do.
+
+    `commit` must be a commit hash: a branch or tag can move, and the snapshot has to name exactly the
+    export it came from. An HTTP error raises RuntimeError.
+    """
+    if not _COMMIT_RE.fullmatch(commit or ""):
+        raise ValueError(f"Expected a commit hash (7-40 hex characters), not {commit!r}: a branch or tag can move")
+    with httpx.Client(base_url=f"{EXPORT_REPO}/{commit}/", headers={"User-Agent": USER_AGENT},
+                      timeout=60.0, transport=transport) as client:
+
+        def get(path: str) -> httpx.Response:
+            resp = client.get(path)
+            if resp.status_code != 200:
+                raise RuntimeError(f"repoe-fork/poe2@{commit} {path} -> HTTP {resp.status_code}")
+            return resp
+
+        export: dict[str, Any] = {name: get(f"data/{name}.json").json() for name in EXPORT_FILES}
+        export["game_version"] = get("version.txt").text.strip()
+    return export
+
+
+def main(argv: list[str]) -> None:
+    """CLI: gamedata items <commit> <patch> <out.json> -- fetch the export at <commit> and write the item
+    snapshot for game patch <patch> (e.g. 0.5.5) to <out.json>.
+
+    Writes the file itself (UTF-8, no BOM, LF) instead of printing for a shell redirect: Windows
+    PowerShell 5.1's `>` would write UTF-16, and text mode on Windows would turn LF into CRLF.
+    """
+    if len(argv) != 4 or argv[0] != "items":
+        sys.exit("usage: python -m poe2_mcp.gamedata items <commit> <patch> <out.json>")
+    _, commit, patch, out = argv
+    if not _PATCH_RE.fullmatch(patch):
+        sys.exit(f"patch must be a game patch like 0.5.5 (or a hotfix like 0.5.5e), not {patch!r}")
+    export = fetch_export(commit)
+    items = build_items(export["mods_by_base"], export["mods"], export["base_items"])
+    source = f"repoe-fork/poe2@{commit} (game {export['game_version']}) -- data is GGG's"
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(render_items(items, patch, source))
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
