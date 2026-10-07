@@ -1,5 +1,11 @@
 # Path of Exile 2 Decision Assistant — Build Plan
 
+> **Historical — not kept current.** This is the design as of Draft v10 (Oct 2026), kept for the
+> reasoning behind its decisions; its status, phases and "remaining work" are as of then. For how things
+> work now, see `README.md` (what it does, install, data sources), `CONTRIBUTING.md` (setup, tests, the
+> per-patch refresh) and `CLAUDE.md` (the working agreement). The skills and the tool docstrings are
+> the reference for behaviour.
+
 *Draft v10 (Oct 2026) — Phases 1–3 built, plus a hardening pass: confidence is now grounded in fields the tools return (§6), PoB parsing fixed (§9), and the client caches/rate limits are tested. Two v8 assumptions were overturned by live checks and are noted inline. Personal-use tool running inside Claude. **OAuth is currently unobtainable** — GGG isn't issuing new API clients — so character reading is screenshot/description-based (§3), not OAuth-primary as v8 assumed. Screenshots for currency (§2); one `poe2-character` skill owns the roster (§4.1); guides modeled as staged progressions (§5.1); beginner-friendly by default (§7). Reuse-vs-build: reuse poe2scout for currency/uniques, built a thin /trade2 adapter for rare search, and a robots/license-aware guide fetcher (§9). Build status is tracked in §9.*
 
 ---

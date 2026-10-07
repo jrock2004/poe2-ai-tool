@@ -60,7 +60,7 @@ the same in every Claude client and folder. `get_state` returns the whole docume
 changes it with a JSON Merge Patch: send only what changes, objects merge, `null` deletes a key,
 arrays replace. Four sections:
 
-- **player** — `experience_level` (tunes verbosity, §2).
+- **player** — `experience_level` (tunes verbosity, rule 2).
 - **characters** — keyed by name; each with class/ascendancy, build archetype, goal, guide link,
   league, `trade_mode`, and an `active` flag (`poe2-character`). Setting one `active` clears the rest.
 - **currency** — `currency[league][trade_mode]`, shared by every character in that pool, populated
@@ -81,18 +81,6 @@ still serve as a reference in SSF.
 
 ## Per-patch maintenance
 
-Game data drifts each patch. When a patch lands, refresh:
-
-- **Passive-tree snapshot** — `parse_pob_code` names nodes and counts points from
-  `mcp/src/poe2_mcp/data/tree_<version>.json`. A PoB built on a newer tree version gets ids only
-  (`tree.note` says so) until a matching snapshot exists. Get PoB2's
-  `src/TreeData/<version>/tree.lua`, then from `mcp/`:
-  `python -m poe2_mcp.treedata <tree.lua> <version> "<source note>" src/poe2_mcp/data/tree_<version>.json`
-  (it writes the file itself — don't redirect with `>`, which on Windows PowerShell writes UTF-16).
-  Keep the old snapshot — characters on the old tree still use it.
-- **Trials, farming, crafting knowledge** — served by `get_knowledge(topic)`. Players refresh them with
-  `/poe2-new-league` (`save_knowledge`); the maintainer refreshes the shipped copies per `CONTRIBUTING.md`.
-- **How-to steps** — `references/how-to.md`, where the game or PoB UI changed.
-- **League** — each player runs `/poe2-new-league` when a new league starts; it calls `set_league`.
-
-See `docs/plan.md` in the repo root for the full design.
+Game data drifts each patch. Players refresh their own copies with `/poe2-new-league` (the league, and
+the knowledge files through `save_knowledge`); the maintainer's refresh of what ships with the plugin
+is `CONTRIBUTING.md` ("Per-patch refresh") in the repo root.
