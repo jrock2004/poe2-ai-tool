@@ -75,7 +75,8 @@ Personal Path of Exile 2 decision assistant. Two parts:
     `QuestRewards.lua`, served by `campaign_rewards`. Also **generated, never hand-edited**:
     `python -m poe2_mcp.campaign` (see `CONTRIBUTING.md`).
 - `skills/` — one folder per skill (fourteen). The judgment lives here, not in the server.
-- `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux).
+- `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux); and
+  `smoke.py`, which runs the server the way the plugin does and calls each tool once (`CONTRIBUTING.md`).
 - `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
   install the repo as a plugin; it is not deployed anywhere else.
 
