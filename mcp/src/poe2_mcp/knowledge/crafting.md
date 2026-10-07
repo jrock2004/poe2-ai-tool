@@ -5,8 +5,8 @@ refreshed: 2026-10-07
 # Crafting knowledge (patch-dependent — verify against the live game)
 
 > **Freshness stamp: researched 2026-10-03; item rules re-sourced from game data 2026-10-06 (patch
-> 0.5.5e); mod tiers moved to `mod_tiers`, and currency text and essence modifiers to `item_text`,
-> 2026-10-07.** Affix limits
+> 0.5.5e); mod tiers moved to `mod_tiers`, and currency text, essence modifiers and augment effects to
+> `item_text`, 2026-10-07.** Affix limits
 > are from the game's `Rarity` table, and the corrupted-item error from its client strings, both in
 > repoe-fork/dat-export@16088913cc94 (game 4.5.5.2). The Greater/Perfect minimum modifier levels are
 > from poe2db's currency page. Sources: dat-export `Rarity.csv`, `ClientStrings.csv`; poe2db
@@ -44,6 +44,13 @@ changes, and how ("your next Chaos Orb will remove only prefix modifiers").
 Essences (and Expedition's alloys) add a known modifier: their `adds` gives it for each kind of item
 (`on`), with its value range and side. Their `text` says which rarity they take — some turn a Magic item
 Rare, others remove a random modifier from a Rare first.
+
+Runes, soul cores and idols (augments) go into an empty Augment socket; an Artificer's Orb adds one (its
+text says to what). Their `adds` gives the effect for each kind of item they fit (`on`; "All" is any
+equipment). A `bonded` effect is a Bonded modifier, which the game gives only to a Shaman who allocated
+Wisdom of the Maji. `limit` caps how many can be socketed — the game: no more than one Ancient Augment
+at a time — and `level` is the augment's level requirement. Read its text before socketing: most can be
+replaced but not taken back out, and some can't be replaced either.
 
 **Greater / Perfect tiers.** Transmutation, Augmentation, Regal, Exalted and Chaos come in Greater
 and Perfect versions with a **minimum modifier level**:
@@ -86,9 +93,9 @@ Skills`, and poe2db lists an "upgraded corruption" version at +2. Both make the 
 
 ## Not researched
 
-Mark these "not researched" if they come up rather than guessing: which modifier a rune adds (its text
-doesn't say); for an essence, whether its modifier needs the item's level, and what it does when the
-side its modifier needs is full; Desecrated mods, the crafting bench / recombinators, Divine on
+Mark these "not researched" if they come up rather than guessing: for an essence, whether its modifier
+needs the item's level, and what it does when the side its modifier needs is full; how many Augment
+sockets an item can have; Desecrated mods, the crafting bench / recombinators, Divine on
 implicits, how an item becomes corrupted twice (the trade site has a "twice corrupted" filter, so some
 way exists), and **odds** of hitting a specific mod (the game data the tools use marks which mods can
 roll, not how likely each is).
