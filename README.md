@@ -162,7 +162,9 @@ updates never touch it. When a new league starts, run `/poe2:poe2-new-league`.
 
 Clone the repo, then build the dev venv for the tests — `scripts\setup.ps1` (Windows, via
 `powershell -ExecutionPolicy Bypass -File scripts\setup.ps1`) or `scripts/setup.sh`. That needs
-**Python 3.10+** (Windows: `winget install Python.Python.3.13`; macOS: `brew install python`).
+**Python 3.10+** (Windows: `winget install Python.Python.3.13`; macOS: `brew install python`). To check
+the server the way the plugin runs it, run `scripts/smoke.py` with that venv's Python (see
+[CONTRIBUTING → Setup and tests](CONTRIBUTING.md#setup-and-tests)).
 
 To run your working copy in Claude Code, add the clone as a **local marketplace**; it loads in place, so
 edits apply after a restart (CLI and desktop Code tab alike):
@@ -188,7 +190,7 @@ poe2-ai-tools/
 ├── mcp/                   # the MCP server (data plumbing)
 │   ├── README.md          # modules, tools, trade2 notes, config
 │   └── src/
-├── scripts/               # dev setup (test venv): setup.ps1 (Windows), setup.sh (macOS/Linux)
+├── scripts/               # dev setup (test venv): setup.ps1 (Windows), setup.sh (macOS/Linux); smoke.py
 └── skills/                # one folder per skill, each with a SKILL.md
     ├── poe2-core/
     │   └── references/    # confidence rubric, currency glossary, how-to

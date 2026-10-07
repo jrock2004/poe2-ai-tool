@@ -14,6 +14,18 @@ from `mcp/`:
 
 Tests are pure — no network, no live API. Add fixtures under `mcp/tests/` rather than calling out.
 
+**Smoke test.** The tests don't run the server the way players do; `scripts/smoke.py` does. It starts it
+as the plugin does (`uv run --no-dev`, with a throwaway data dir, so your own state is never touched),
+calls each tool once, and prints the patch each snapshot reports. From the repo root:
+
+```bash
+mcp/.venv/bin/python scripts/smoke.py          # Windows: mcp\.venv\Scripts\python scripts\smoke.py
+```
+
+`--live` also calls the price tools (poe2scout) and the trade stat lookup; `--trade` adds one trade
+search. `--league NAME` picks their league — by default it's poe2scout's first current one, which can be
+an event rather than the league.
+
 ## Ground rules
 
 - **Read-only toward GGG.** Nothing may buy, list, or whisper. Tools generate searches and advice.
@@ -27,7 +39,9 @@ Tests are pure — no network, no live API. Add fixtures under `mcp/tests/` rath
 
 ## Per-patch refresh
 
-When a patch or new league lands, work through this list. Each item says how to tell it's needed.
+When a patch or new league lands, work through this list. Each item says how to tell it's needed. When
+you're done, run the smoke test with `--live` (see "Setup and tests"): it shows which snapshots still
+report the old patch, and catches one that regenerated empty.
 
 ### 1. Passive-tree snapshot
 
@@ -214,7 +228,8 @@ by hand and can lag a patch.
 one, Claude Code versions the plugin by commit. Players who turned on auto-update (README → Updates) get
 a push in the background at their next session; everyone else when they run `claude plugin update`. So
 keep `main` working where players run it: the `tests` workflow runs the suite on Windows and macOS, on
-Python 3.10 and 3.14, for every push — fix a red run before anything else.
+Python 3.10 and 3.14, for every push — fix a red run before anything else. CI doesn't run the smoke test,
+so run it before pushing a change to the server or a snapshot.
 
 **Don't add `version` on its own.** It keeps players on that string however many commits land, until it
 changes. Your own install — a local marketplace, loaded in place — ignores it, so a forgotten bump only
