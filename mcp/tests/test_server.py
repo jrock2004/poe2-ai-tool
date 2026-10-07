@@ -6,7 +6,7 @@ import time
 
 import pytest
 
-from poe2_mcp import server
+from poe2_mcp import gamedata, server
 from poe2_mcp._cache import Fetched
 
 
@@ -188,3 +188,21 @@ def test_get_currency_prices_search_still_matches_an_api_id(monkeypatch):
 def test_get_currency_prices_search_returns_up_to_per_page_and_counts_every_match(monkeypatch):
     out, _ = _prices(monkeypatch, "essences", search="essence", per_page=2)
     assert len(out["items"]) == 2 and out["total"] == 4
+
+
+# A loaded item snapshot, trimmed to one real row of its texts.
+ITEM_SNAPSHOT = {"patch": "0.5.5", "texts": {"Orb of Annulment": {
+    "class": "StackableCurrency", "text": "Removes a random modifier from an item",
+    "use": "Right click this item then left click on a magic or rare item to apply it."}}}
+
+
+def test_item_text_looks_the_search_up_in_the_installed_snapshot(monkeypatch):
+    monkeypatch.setattr(server, "load_items", lambda: ITEM_SNAPSHOT)
+    out = asyncio.run(server.item_text("orb of annulment"))
+    assert out == gamedata.item_text(ITEM_SNAPSHOT, "orb of annulment") and out["total"] == 1
+
+
+def test_item_text_says_when_no_snapshot_is_installed(monkeypatch):
+    monkeypatch.setattr(server, "load_items", lambda: None)
+    out = asyncio.run(server.item_text("orb of annulment"))
+    assert out["valid"] is False and out["error"] == "no item snapshot is installed"

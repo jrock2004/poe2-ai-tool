@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
-from .gamedata import load_items, mod_tiers as _mod_tiers
+from .gamedata import item_text as _item_text, load_items, mod_tiers as _mod_tiers
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
@@ -655,6 +655,11 @@ async def get_stash_layout(tab: str) -> dict[str, Any]:
     return stashlayout.stash_layout(tab)
 
 
+# What the item-data tools answer when no item snapshot ships.
+_NO_ITEM_SNAPSHOT = {"valid": False, "error": "no item snapshot is installed",
+                     "note": "Regenerate one with `python -m poe2_mcp.gamedata` (see CONTRIBUTING.md)."}
+
+
 @mcp.tool()
 async def mod_tiers(base: str, search: str | None = None, item_level: int | None = None) -> dict[str, Any]:
     """Which mods a Path of Exile 2 base can roll, from the game's own data: each mod family with its
@@ -670,9 +675,26 @@ async def mod_tiers(base: str, search: str | None = None, item_level: int | None
     """
     items = load_items()
     if items is None:
-        return {"valid": False, "error": "no item snapshot is installed",
-                "note": "Regenerate one with `python -m poe2_mcp.gamedata` (see CONTRIBUTING.md)."}
+        return {**_NO_ITEM_SNAPSHOT}
     return _mod_tiers(items, base, search, item_level)
+
+
+@mcp.tool()
+async def item_text(search: str) -> dict[str, Any]:
+    """What a Path of Exile 2 currency item does, in the game's own words: anything the Currency Exchange
+    trades -- orbs, omens, essences, catalysts, liquid emotions, runes, shards.
+
+    search: an item's name, or words from what it does, in any case. 'Chaos Orb' finds the orb and the
+    omens that change it; 'instil' finds what Instils amulets. Each match gives `text` (what it does) and
+    `use` (how it's used, and on what) -- quote them, don't paraphrase. Runes and essences: the text
+    doesn't say which modifier they add. An exact name comes first. Up to 20 matches; `total` counts
+    them all -- if it's more, narrow the search. No match returns `suggestions`. `patch` is the game
+    patch the data is from; if the league's is newer, it may be stale. Offline.
+    """
+    items = load_items()
+    if items is None:
+        return {**_NO_ITEM_SNAPSHOT}
+    return _item_text(items, search)
 
 
 _VENDOR_MODS = ", ".join(k + (" (n)" if "{n}" in v else "") for k, v in vendor_regex.MODS.items())
