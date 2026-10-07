@@ -64,6 +64,21 @@ async def _divine_change(league_value: str) -> tuple[Fetched[Any], float | None]
     return fetched, trend["changePct"] if trend else None
 
 
+async def _whole_category(league_value: str, category: str) -> tuple[list[dict[str, Any]], list[Fetched[Any]]]:
+    """Every item in a currency category -- all of poe2scout's pages, not just the first -- and the
+    fetches it took (for freshness)."""
+    items: list[dict[str, Any]] = []
+    fetches: list[Fetched[Any]] = []
+    page, pages = 1, 1
+    while page <= pages:
+        page_f = await _scout.get_currencies_by_category(league_value, category, page=page, per_page=250)
+        fetches.append(page_f)
+        items.extend(page_f.body.get("Items", []))
+        pages = page_f.body.get("Pages") or 0
+        page += 1
+    return items, fetches
+
+
 @mcp.tool()
 async def get_leagues() -> list[dict[str, Any]]:
     """List Path of Exile 2 leagues from poe2scout.
@@ -169,7 +184,8 @@ async def get_currency_prices(
 
     category: poe2scout currency category apiId, e.g. 'currency', 'essences', 'runes', 'fragments'
       (catalysts are under 'breach'; market_movers' description lists every category).
-    search: optional name filter, e.g. 'divine' or 'chaos'.
+    search: optional; part of an item's name or apiId, any case (e.g. 'divine', 'haste'). It's matched
+      across the whole category: `total` counts every match, and up to per_page come back.
     league: league value; defaults to the saved league (set_league).
     Prices are returned in both exalted and divine. Each item also carries `trend` -- its daily price
     history (usually ~7 days): min/max in exalted, the oldest -> newest change in percent, and
@@ -183,13 +199,25 @@ async def get_currency_prices(
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
-    resp_f = await _scout.get_currencies_by_category(
-        resolved["Value"], category, search=search, per_page=per_page
-    )
-    resp = resp_f.body
+    sources: list[Fetched[Any]] = [resolved_f]
+    if search:
+        # poe2scout's own search takes only an exact, case-sensitive name or apiId ("Divine" finds
+        # nothing), so match part of either, in any case, over the whole category instead.
+        everything, fetches = await _whole_category(resolved["Value"], category)
+        sources.extend(fetches)
+        needle = search.lower()
+        found = [c for c in everything
+                 if needle in (c.get("Text") or "").lower() or needle in (c.get("ApiId") or "").lower()]
+        listed, total, page, pages = found[:per_page], len(found), 1, (1 if found else 0)
+    else:
+        resp_f = await _scout.get_currencies_by_category(resolved["Value"], category, per_page=per_page)
+        sources.append(resp_f)
+        resp = resp_f.body
+        listed, total, page, pages = resp.get("Items", []), resp.get("Total"), resp.get("CurrentPage"), resp.get("Pages")
     divine_f, divine_change = await _divine_change(resolved["Value"])
+    sources.append(divine_f)
     items = []
-    for c in resp.get("Items", []):
+    for c in listed:
         price_ex = c.get("CurrentPrice")
         trend = price_trend(c.get("PriceLogs"))
         items.append(
@@ -211,7 +239,6 @@ async def get_currency_prices(
             }
         )
 
-    sources = [resolved_f, resp_f, divine_f]
     unknown: dict[str, Any] = {}
     note = "poe2scout reference prices (cached ~5 min). Currency/uniques only; no rare-affix search here."
     if not items:  # a real category with no match, or a name poe2scout doesn't have
@@ -229,9 +256,9 @@ async def get_currency_prices(
     return {
         "league": resolved["Value"],
         "divinePriceInExalted": divine_price,
-        "total": resp.get("Total"),
-        "page": resp.get("CurrentPage"),
-        "pages": resp.get("Pages"),
+        "total": total,
+        "page": page,
+        "pages": pages,
         **freshness(*sources),
         **unknown,
         "items": items,
@@ -265,14 +292,8 @@ async def market_movers(
 
     results: dict[str, Any] = {}
     for category in categories or DEFAULT_MOVER_CATEGORIES:
-        items: list[dict[str, Any]] = []
-        page, pages = 1, 1
-        while page <= pages:  # every item, not just page 1 -- a mover list must see the category
-            page_f = await _scout.get_currencies_by_category(league_value, category, page=page, per_page=250)
-            sources.append(page_f)
-            items.extend(page_f.body.get("Items", []))
-            pages = page_f.body.get("Pages") or 0
-            page += 1
+        items, fetches = await _whole_category(league_value, category)  # a mover list must see it all
+        sources.extend(fetches)
         if not items:
             results[category] = {"unknownCategory": True,
                                  "note": "poe2scout returned no items -- check the category apiId."}

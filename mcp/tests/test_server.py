@@ -1,6 +1,7 @@
 """Tests for the server's tool functions, with fakes standing in for the poe2scout and trade2 clients
 (pure, no network). The tools are thin glue; these pin how they behave when an upstream fails."""
 import asyncio
+import math
 import time
 
 import pytest
@@ -90,14 +91,24 @@ CATEGORIES = {"UniqueCategories": [{"ApiId": "armour"}],
               "CurrencyCategories": [{"ApiId": c} for c in ("currency", "essences", "breach", "runes")]}
 
 
-ESSENCE = {"Text": "Greater Essence of Haste", "ApiId": "greater-essence-of-haste", "CurrentPrice": 12,
-           "CurrentQuantity": 500, "PriceLogs": None}
-DIVINE = {"Text": "Divine Orb", "ApiId": "divine", "CurrentPrice": 700, "CurrentQuantity": 9000, "PriceLogs": None}
+def _currency(name: str, api_id: str, price: float) -> dict:
+    """One ByCategory item, trimmed to the fields the tool reads."""
+    return {"Text": name, "ApiId": api_id, "CurrentPrice": price, "CurrentQuantity": 500, "PriceLogs": None}
+
+
+# In poe2scout's order. Two to a page, so Greater Essence of Haste is on page 2.
+ESSENCES = [_currency("Lesser Essence of Haste", "lesser-essence-of-haste", 1),
+            _currency("Essence of Haste", "essence-of-haste", 4),
+            _currency("Essence of the Body", "essence-of-the-body", 3),
+            _currency("Greater Essence of Haste", "greater-essence-of-haste", 12)]
+CURRENCY = [_currency("Divine Orb", "divine", 700), _currency("Gemcutter's Prism", "gcp", 2)]
+PAGE_SIZE = 2  # poe2scout pages its answers (live: 82 essences come back as 3 pages of 40)
 
 
 class PricesScout:
-    """poe2scout for get_currency_prices: one essence and Divine are priced, every other category is
-    empty. Records the calls, so a test can see whether the category list was fetched."""
+    """poe2scout for get_currency_prices: essences and currency are priced, a page at a time; every
+    other category is empty. Records the calls, so a test can see whether the category list was
+    fetched."""
 
     def __init__(self, categories_down: bool = False) -> None:
         self.categories_down = categories_down
@@ -108,10 +119,12 @@ class PricesScout:
 
     async def get_currencies_by_category(self, league_value, category, search=None, page=1, per_page=25) -> Fetched:
         self.calls.append(f"category {category}")
-        pool = {"essences": [ESSENCE], "currency": [DIVINE]}.get(category, [])
+        pool = {"essences": ESSENCES, "currency": CURRENCY}.get(category, [])
         # As live: search is an exact, case-sensitive match on the name or the apiId, not a substring.
-        items = [i for i in pool if search is None or search in (i["Text"], i["ApiId"])]
-        return Fetched(body={"Items": items, "Total": len(items), "CurrentPage": 1, "Pages": 1},
+        matched = [i for i in pool if search is None or search in (i["Text"], i["ApiId"])]
+        size = min(per_page, PAGE_SIZE)
+        return Fetched(body={"Items": matched[(page - 1) * size:page * size], "Total": len(matched),
+                             "CurrentPage": page, "Pages": math.ceil(len(matched) / size)},
                        fetched_at=time.time())
 
     async def get_categories(self, league_value: str) -> Fetched:
@@ -121,10 +134,11 @@ class PricesScout:
         return Fetched(body=CATEGORIES, fetched_at=time.time())
 
 
-def _prices(monkeypatch, category: str, search: str | None = None, **scout_kw) -> tuple[dict, PricesScout]:
+def _prices(monkeypatch, category: str, search: str | None = None, per_page: int = 25,
+            **scout_kw) -> tuple[dict, PricesScout]:
     scout = PricesScout(**scout_kw)
     monkeypatch.setattr(server, "_scout", scout)
-    return asyncio.run(server.get_currency_prices(category, search=search)), scout
+    return asyncio.run(server.get_currency_prices(category, search=search, per_page=per_page)), scout
 
 
 def test_get_currency_prices_flags_a_category_poe2scout_does_not_have(monkeypatch):
@@ -149,3 +163,28 @@ def test_get_currency_prices_without_the_category_list_returns_the_plain_empty_r
     # The check is a nicety: if the list can't be fetched, answer as before rather than fail.
     out, _ = _prices(monkeypatch, "catalysts", categories_down=True)
     assert out["items"] == [] and "unknownCategory" not in out
+
+
+# poe2scout's own search takes only an exact name or apiId (live: "Divine" and "haste" find nothing).
+# The tool's search matches part of a name or apiId, in any case, across every page of the category.
+def test_get_currency_prices_search_matches_part_of_a_name_in_any_case(monkeypatch):
+    out, _ = _prices(monkeypatch, "essences", search="HASTE")
+    assert [i["name"] for i in out["items"]] == [
+        "Lesser Essence of Haste", "Essence of Haste", "Greater Essence of Haste"]  # the last from page 2
+
+
+def test_get_currency_prices_search_finds_divine_from_a_partial_name(monkeypatch):
+    # The currency glossary's own advice: normalize "div", then search "Divine".
+    out, _ = _prices(monkeypatch, "currency", search="Divine")
+    assert [i["name"] for i in out["items"]] == ["Divine Orb"]
+
+
+def test_get_currency_prices_search_still_matches_an_api_id(monkeypatch):
+    # Gemcutter's Prism's apiId is "gcp", which its name doesn't contain.
+    out, _ = _prices(monkeypatch, "currency", search="gcp")
+    assert [i["name"] for i in out["items"]] == ["Gemcutter's Prism"]
+
+
+def test_get_currency_prices_search_returns_up_to_per_page_and_counts_every_match(monkeypatch):
+    out, _ = _prices(monkeypatch, "essences", search="essence", per_page=2)
+    assert len(out["items"]) == 2 and out["total"] == 4
