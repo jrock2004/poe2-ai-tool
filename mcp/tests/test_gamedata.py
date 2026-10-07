@@ -731,4 +731,5 @@ def test_load_items_reads_the_committed_snapshot_once():
     items = load_items()
     assert items["patch"] == "0.5.5" and "Rusted Greathelm" in items["bases"]
     assert "Chaos Orb" in items["texts"] and "Orb of Scouring" not in items["texts"]  # a PoE1 leftover
+    assert items["texts"]["Greater Essence of the Body"]["adds"]
     assert load_items() is items
