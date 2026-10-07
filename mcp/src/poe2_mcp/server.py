@@ -682,14 +682,16 @@ async def mod_tiers(base: str, search: str | None = None, item_level: int | None
 @mcp.tool()
 async def item_text(search: str) -> dict[str, Any]:
     """What a Path of Exile 2 currency item does, in the game's own words: anything the Currency Exchange
-    trades -- orbs, omens, essences, catalysts, liquid emotions, runes, shards.
+    trades -- orbs, omens, essences, alloys, catalysts, liquid emotions, runes, shards.
 
     search: an item's name, or words from what it does, in any case. 'Chaos Orb' finds the orb and the
-    omens that change it; 'instil' finds what Instils amulets. Each match gives `text` (what it does) and
-    `use` (how it's used, and on what) -- quote them, don't paraphrase. Runes and essences: the text
-    doesn't say which modifier they add. An exact name comes first. Up to 20 matches; `total` counts
-    them all -- if it's more, narrow the search. No match returns `suggestions`. `patch` is the game
-    patch the data is from; if the league's is newer, it may be stale. Offline.
+    omens that change it; 'instil' finds what Instils amulets; 'maximum life' finds the essences that add
+    it. Each match gives `text` (what it does) and `use` (how it's used, and on what) -- quote them,
+    don't paraphrase. An essence or alloy also has `adds`: for each kind of item (`on`), the modifier it
+    adds (`text`) and whether that's a prefix or suffix (`side`). A rune's text doesn't say which
+    modifier it adds. An exact name comes first. Up to 20 matches; `total` counts them all -- if it's
+    more, narrow the search. No match returns `suggestions`. `patch` is the game patch the data is from;
+    if the league's is newer, it may be stale. Offline.
     """
     items = load_items()
     if items is None:
