@@ -177,6 +177,8 @@ async def get_currency_prices(
     exalted itself weakens everything looks like it rose; the divine-relative number is the item's
     real move and the one to judge volatility by. (Both windows are the endpoint's ~7 days, compared
     first-to-last point; a gap in one series can shift its window by a day.) Currency/uniques only.
+    If nothing comes back and poe2scout has no such category, `unknownCategory` is true and
+    `validCategories` lists the ones it has.
     """
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
@@ -208,15 +210,32 @@ async def get_currency_prices(
                 },
             }
         )
+
+    sources = [resolved_f, resp_f, divine_f]
+    unknown: dict[str, Any] = {}
+    note = "poe2scout reference prices (cached ~5 min). Currency/uniques only; no rare-affix search here."
+    if not items:  # a real category with no match, or a name poe2scout doesn't have
+        try:
+            categories_f = await _scout.get_categories(resolved["Value"])
+        except (RuntimeError, httpx.HTTPError, ValueError):
+            categories_f = None  # the check is a nicety: answer as before
+        if categories_f is not None:
+            valid = [c.get("ApiId") for c in categories_f.body.get("CurrencyCategories") or []]
+            if valid and category not in valid:
+                sources.append(categories_f)
+                unknown = {"unknownCategory": True, "validCategories": valid}
+                note = f'poe2scout has no currency category "{category}" -- use one of validCategories.'
+
     return {
         "league": resolved["Value"],
         "divinePriceInExalted": divine_price,
         "total": resp.get("Total"),
         "page": resp.get("CurrentPage"),
         "pages": resp.get("Pages"),
-        **freshness(resolved_f, resp_f, divine_f),
+        **freshness(*sources),
+        **unknown,
         "items": items,
-        "note": "poe2scout reference prices (cached ~5 min). Currency/uniques only; no rare-affix search here.",
+        "note": note,
     }
 
 

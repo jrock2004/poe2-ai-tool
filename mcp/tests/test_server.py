@@ -83,3 +83,69 @@ def test_search_trade_keeps_its_listings_when_poe2scout_is_down(monkeypatch):
     assert stats["converted"] == 2 and stats["unconvertedCurrencies"] == ["divine"]
     assert stats["minExalted"] == 40 and stats["maxExalted"] == 55
     assert "poe2scout" in out["note"]
+
+
+# poe2scout's live category list (Items/Categories), trimmed: unique categories, then currency ones.
+CATEGORIES = {"UniqueCategories": [{"ApiId": "armour"}],
+              "CurrencyCategories": [{"ApiId": c} for c in ("currency", "essences", "breach", "runes")]}
+
+
+ESSENCE = {"Text": "Greater Essence of Haste", "ApiId": "greater-essence-of-haste", "CurrentPrice": 12,
+           "CurrentQuantity": 500, "PriceLogs": None}
+DIVINE = {"Text": "Divine Orb", "ApiId": "divine", "CurrentPrice": 700, "CurrentQuantity": 9000, "PriceLogs": None}
+
+
+class PricesScout:
+    """poe2scout for get_currency_prices: one essence and Divine are priced, every other category is
+    empty. Records the calls, so a test can see whether the category list was fetched."""
+
+    def __init__(self, categories_down: bool = False) -> None:
+        self.categories_down = categories_down
+        self.calls: list[str] = []
+
+    async def resolve_league(self, league: str | None = None, *, strict: bool = False) -> Fetched:
+        return Fetched(body={"Value": "Forbidden Rites", "DivinePrice": 700}, fetched_at=time.time())
+
+    async def get_currencies_by_category(self, league_value, category, search=None, page=1, per_page=25) -> Fetched:
+        self.calls.append(f"category {category}")
+        pool = {"essences": [ESSENCE], "currency": [DIVINE]}.get(category, [])
+        # As live: search is an exact, case-sensitive match on the name or the apiId, not a substring.
+        items = [i for i in pool if search is None or search in (i["Text"], i["ApiId"])]
+        return Fetched(body={"Items": items, "Total": len(items), "CurrentPage": 1, "Pages": 1},
+                       fetched_at=time.time())
+
+    async def get_categories(self, league_value: str) -> Fetched:
+        self.calls.append("categories")
+        if self.categories_down:
+            raise RuntimeError("poe2scout /poe2/Leagues/Forbidden%20Rites/Items/Categories -> HTTP 503")
+        return Fetched(body=CATEGORIES, fetched_at=time.time())
+
+
+def _prices(monkeypatch, category: str, search: str | None = None, **scout_kw) -> tuple[dict, PricesScout]:
+    scout = PricesScout(**scout_kw)
+    monkeypatch.setattr(server, "_scout", scout)
+    return asyncio.run(server.get_currency_prices(category, search=search)), scout
+
+
+def test_get_currency_prices_flags_a_category_poe2scout_does_not_have(monkeypatch):
+    # 'catalysts' reads like a category, but poe2scout lists catalysts under 'breach'.
+    out, _ = _prices(monkeypatch, "catalysts")
+    assert out["items"] == [] and out["unknownCategory"] is True
+    assert out["validCategories"] == ["currency", "essences", "breach", "runes"]
+
+
+def test_get_currency_prices_empty_search_in_a_real_category_is_not_flagged(monkeypatch):
+    out, _ = _prices(monkeypatch, "essences", search="mirror")
+    assert out["items"] == [] and "unknownCategory" not in out
+
+
+def test_get_currency_prices_checks_the_categories_only_when_nothing_came_back(monkeypatch):
+    out, scout = _prices(monkeypatch, "essences", search="Greater Essence of Haste")
+    assert [i["name"] for i in out["items"]] == ["Greater Essence of Haste"]
+    assert "categories" not in scout.calls
+
+
+def test_get_currency_prices_without_the_category_list_returns_the_plain_empty_result(monkeypatch):
+    # The check is a nicety: if the list can't be fetched, answer as before rather than fail.
+    out, _ = _prices(monkeypatch, "catalysts", categories_down=True)
+    assert out["items"] == [] and "unknownCategory" not in out

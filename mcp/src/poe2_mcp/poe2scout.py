@@ -293,3 +293,8 @@ class Poe2ScoutClient:
     async def get_items(self, league_value: str) -> Fetched[list[dict[str, Any]]]:
         """GET /{realm}/Leagues/{league}/Items -> flat list of uniques + currencies with CurrentPrice."""
         return await self._get(f"/{REALM}/Leagues/{quote(league_value, safe='')}/Items")
+
+    async def get_categories(self, league_value: str) -> Fetched[dict[str, Any]]:
+        """GET /{realm}/Leagues/{league}/Items/Categories -> {UniqueCategories, CurrencyCategories},
+        each a list of categories with their ApiId: the live list of what the category routes accept."""
+        return await self._get(f"/{REALM}/Leagues/{quote(league_value, safe='')}/Items/Categories")
