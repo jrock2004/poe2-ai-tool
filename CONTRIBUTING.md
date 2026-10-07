@@ -84,13 +84,14 @@ Update `mcp/src/poe2_mcp/knowledge/farming.md`:
 
 ### 4. Crafting knowledge
 
-**Needed when** patch notes change what a currency does, add or remove a currency, or change mod tiers
-or their modifier levels.
+**Needed when** patch notes change an item rule (affix limits, what corruption allows), the Greater and
+Perfect orbs' minimum modifier levels, or how Divine Orbs work. What each currency does and mod tiers
+aren't in this file — they come from the item snapshot (step 9).
 Update `mcp/src/poe2_mcp/knowledge/crafting.md`:
 
-- Quote currency descriptions from poe2db's `Stackable_Currency` page rather than paraphrasing.
-- Re-check each tier table against the item class's poe2db page; its rendered tables may not load in a
-  fetcher, but the mod data is embedded in the page's HTML.
+- Take each rule from the source `poe2-core`'s `references/sources.md` gives for it, and name it in the
+  stamp.
+- Don't copy currency text into the file; point to `item_text`.
 - Never add odds or "1 in N" — mod weights haven't been pulled in. Re-stamp the date, patch, and
   sources.
 
@@ -111,8 +112,8 @@ players who skip their own refresh still get them on update.
 In `mcp/src/poe2_mcp/vendor_regex.py`:
 
 - **`TIERS`** — re-pull each mod's (item level, highest value) pairs from the poe2db item-class pages
-  named in its source comment. As with crafting, the tier data is embedded in the page's HTML. Use regular
-  tiers only, and take the highest value across slots. Re-stamp the patch in the comment.
+  named in its source comment; the tier data is embedded in the page's HTML. Use regular tiers only,
+  and take the highest value across slots. Re-stamp the patch in the comment.
 - **Stat-list fixture** — regenerate `mcp/tests/trade2_stat_texts.json` from trade2 `/data/stats`
   (Explicit + Implicit `text`s, sorted, deduplicated), then run the tests: a renamed mod fails
   `test_targets_and_traps_still_exist`, and a fragment that now catches the wrong mod fails its traps.
