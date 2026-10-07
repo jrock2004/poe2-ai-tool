@@ -37,7 +37,7 @@ You (in Claude)
    │
    ├── MCP server ── the data plumbing
    │     poe2scout (reuse) + GGG /trade2 adapter + guide fetcher + PoB parser
-   │     + vendor search-string builder
+   │     + vendor search-string builder + game-data snapshot (mod tiers)
    │
    └── Persistent state (saved by the MCP server, per user)
          your characters, currency inventory, league records, knowledge refreshes
@@ -52,6 +52,7 @@ Findings from the Phase 0 spike (read from source, not guessed):
 | **poe2scout** (`api.poe2scout.com`) | currency rates, unique-item prices, 7-day price history, net worth, market movers | **Reuse.** Its API is a price *reference* for currencies + uniques. **No rare-item-by-affix search** — the `/Items` route returns a flat priced list, no stat filters. |
 | **GGG `/trade2`** (undocumented) | rare-gear search, trade-filter generation | **Build a thin adapter.** This is the only source that can search rares by mods. It's the trade site's internal API, not part of GGG's documented one, and GGG's developer docs say using undocumented endpoints is against its Terms of Use (7i). Kept anyway, read-only: signed out, cached hard, rate limits honored, never auto-buy. |
 | **Path of Building** (export codes) | your character's and a guide's gear, gems, passive tree | **Build a parser.** Decodes a pasted PoB2 code offline; passive-tree names come from a committed snapshot of PoB2's tree data. |
+| **Game-data export** ([repoe-fork/poe2](https://github.com/repoe-fork/poe2)) | which mods a base can roll, and every tier's item-level gate (`mod_tiers`) | **Generate, don't research.** A processed export of GGG's game files, fetched at a pinned commit and turned into a per-patch snapshot (`CONTRIBUTING.md` step 9). |
 | **Build guides** (Mobalytics/Maxroll/poe-vault) | build targets, leveling/endgame plans | Tiered: PoB code > static fetch > browser-assisted read > paste. poe-vault fetches; Mobalytics bot-blocks server fetches (browser/paste); Maxroll's license forbids automated/AI use, so it's refused (paste). |
 | ~~GGG Character API~~ (OAuth) | your characters' gear/skills/passives | **Blocked** — GGG isn't issuing new API clients. Builds are read from PoB codes or screenshots instead. |
 | ~~poe.ninja~~ | economy cross-check, build popularity | **Not integrated.** poe2scout covers prices; a meta-builds view would need a check of its undocumented API and terms first. |
@@ -223,7 +224,10 @@ This project's code is MIT-licensed — see [`LICENSE`](LICENSE).
 (`src/TreeData/<version>/tree.lua`), used under its MIT License: Copyright (c) 2016 David Gowor.
 `mcp/src/poe2_mcp/data/stash_layouts_*.json` is derived from
 [repoe-fork/dat-export](https://github.com/repoe-fork/dat-export), an export of the game's data files
-that states no license. The underlying game data belongs to Grinding Gear Games.
+that states no license. `mcp/src/poe2_mcp/data/items_*.json` is generated from
+[repoe-fork/poe2](https://github.com/repoe-fork/poe2), a processed export of the game's data files that
+also states no license; the [RePoE](https://github.com/repoe-fork/repoe) tooling that produces it is
+MIT-licensed. The underlying game data belongs to Grinding Gear Games.
 
 **Not affiliated with Grinding Gear Games.** Path of Exile is a trademark of Grinding Gear Games;
 this project is not endorsed by or affiliated with GGG. It reads community price data (poe2scout)
