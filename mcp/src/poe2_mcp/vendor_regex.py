@@ -16,7 +16,7 @@ offline -- the judgment of *what* to want lives in the poe2-vendor-regex skill.
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 LIMIT = 250
@@ -59,18 +59,9 @@ MODS: dict[str, str] = {
     "flask_removes_recovery": "^removes",   # a flask downside -- meant for `avoid`
 }
 
-# "{n}" mod -> its tiers as (item level needed, highest value at that tier), ascending. The highest roll at an
-# item level caps the min_value pattern -- below 100 that keeps it short; at 100+ it also matches any
-# 3-digit number -- and a min_value no tier can reach at that level is reported as unreachable.
-# Source: poe2db.tw embedded mod data (us/Boots_*, Gloves_int, Helmets_int, Body_Armours_*, Rings, Amulets,
-# Belts, Shields_str), patch 0.5.5, regular tiers only (no essence/desecrated -- vendors don't sell them).
-# Life uses the same item-level gates on every slot; slots differ only in their top tier, so this is the
-# highest across slots (body armour). Refresh per patch: CONTRIBUTING.md.
-TIERS: dict[str, tuple[tuple[int, int], ...]] = {
-    "movement_speed": ((1, 10), (16, 15), (33, 20), (46, 25), (65, 30), (82, 35)),
-    "max_life": ((1, 19), (6, 29), (16, 39), (24, 59), (33, 69), (38, 84), (46, 99), (54, 119), (60, 149),
-                 (65, 174), (70, 189), (75, 199), (80, 214)),
-}
+# "{n}" mod -> its mod family in the game's data. The server takes each family's tiers from the item snapshot
+# (`gamedata.top_rolls`) and passes them in as `tiers`, so they follow the patch with no hand refresh.
+TIER_FAMILIES = {"movement_speed": "MovementVelocity", "max_life": "IncreasedLife"}
 
 
 @dataclass(frozen=True)
@@ -98,6 +89,7 @@ def build_vendor_regex(
     avoid: Sequence[str] = (),
     item_level: int | None = None,
     limit: int = LIMIT,
+    tiers: Mapping[str, Sequence[tuple[int, int]]] | None = None,
 ) -> VendorRegex:
     """Compose the search string. Pure.
 
@@ -108,10 +100,12 @@ def build_vendor_regex(
     item with an avoided mod never lights; like classes, it is never dropped. Unknown keys, or a
     min_value on a mod without "{n}", raise ValueError.
 
-    `item_level` is the level of the items the vendor sells. Each numeric want is capped at the highest
-    roll at that level (TIERS); a want whose min_value can't roll there is left out and listed in
-    `unreachable`. Without it, the cap is the mod's highest roll overall, and a min_value above that
-    raises ValueError.
+    `tiers` is each "{n}" mod's tiers: (item level needed, highest value at that tier), ascending
+    (`gamedata.top_rolls`). `item_level` is the level of the items the vendor sells. Each numeric want is
+    capped at the highest roll at that level -- below 100 that keeps the pattern short; at 100+ it also
+    matches any 3-digit number -- and a want whose min_value can't roll there is left out and listed in
+    `unreachable`. Without `item_level`, the cap is the mod's highest roll overall, and a min_value above
+    that raises ValueError. A mod with no tiers gets neither: no cap, never unreachable.
     """
     if item_level is not None and item_level < 1:
         raise ValueError(f"item_level {item_level} must be 1 or more")
@@ -119,10 +113,11 @@ def build_vendor_regex(
     _check(hide_classes, CLASSES, "item class")
     _check(slot_classes, CLASSES, "item class")
     _check(slot_defences, DEFENCES, "defence")
-    unreachable = [w.key for w in want if not _can_roll(w, item_level)]
+    tiers = tiers or {}
+    unreachable = [w.key for w in want if not _can_roll(w, item_level, tiers)]
     want = [w for w in want if w.key not in unreachable]
-    fragments = [_mod_fragment(w, item_level) for w in want]
-    avoided = [_mod_fragment(Want(key)) for key in avoid]
+    fragments = [_mod_fragment(w, item_level, tiers) for w in want]
+    avoided = [_mod_fragment(Want(key), None, tiers) for key in avoid]
 
     wants = list(zip(want, fragments))
     dropped: list[str] = []
@@ -142,29 +137,28 @@ def _check(keys: Sequence[str], table: dict[str, str], kind: str) -> None:
             raise ValueError(f'unknown {kind} "{key}"; known: {", ".join(table)}')
 
 
-def _top(key: str, item_level: int | None) -> int | None:
-    """The highest value `key` can roll at item_level (any level if None), or None if it has no TIERS."""
-    tiers = TIERS.get(key)
-    if not tiers:
+def _top(key: str, item_level: int | None, tiers: Mapping[str, Sequence[tuple[int, int]]]) -> int | None:
+    """The highest value `key` can roll at item_level (any level if None), or None if it has no tiers."""
+    if not tiers.get(key):
         return None
-    return max(v for lvl, v in tiers if item_level is None or lvl <= item_level)
+    return max(v for lvl, v in tiers[key] if item_level is None or lvl <= item_level)
 
 
-def _can_roll(w: Want, item_level: int | None) -> bool:
+def _can_roll(w: Want, item_level: int | None, tiers: Mapping[str, Sequence[tuple[int, int]]]) -> bool:
     """False only when item_level is given and no tier there reaches w.min_value."""
-    if item_level is None or w.min_value is None or w.key not in TIERS:
+    if item_level is None or w.min_value is None or not tiers.get(w.key):
         return True
-    return w.min_value <= _top(w.key, item_level)
+    return w.min_value <= _top(w.key, item_level, tiers)
 
 
-def _mod_fragment(w: Want, item_level: int | None = None) -> str:
+def _mod_fragment(w: Want, item_level: int | None, tiers: Mapping[str, Sequence[tuple[int, int]]]) -> str:
     _check([w.key], MODS, "mod")
     fragment = MODS[w.key]
     if "{n}" not in fragment:
         if w.min_value is not None:
             raise ValueError(f'"{w.key}" takes no min_value')
         return fragment
-    return fragment.replace("{n}", _at_least(w.min_value or 0, _top(w.key, item_level)))
+    return fragment.replace("{n}", _at_least(w.min_value or 0, _top(w.key, item_level, tiers)))
 
 
 def _at_least(n: int, top: int | None = None) -> str:

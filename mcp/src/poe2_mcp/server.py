@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
-from .gamedata import item_text as _item_text, load_items, mod_tiers as _mod_tiers
+from .gamedata import item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls
 from .guides import GuideFetcher
 from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
@@ -729,6 +729,14 @@ Defences: {", ".join(vendor_regex.DEFENCES)}
 """
 
 
+def _vendor_tiers() -> dict[str, tuple[tuple[int, int], ...]]:
+    """Each vendor-regex "{n}" mod's tiers, from the item snapshot; none -- no item-level cap -- without one."""
+    items = load_items()
+    if items is None:
+        return {}
+    return {key: top_rolls(items, family) for key, family in vendor_regex.TIER_FAMILIES.items()}
+
+
 @mcp.tool(description=_VENDOR_REGEX_DOC)
 async def build_vendor_regex(
     want: list[dict[str, Any]],
@@ -752,6 +760,7 @@ async def build_vendor_regex(
             slot_defences=slot_defences or (),
             avoid=avoid or (),
             item_level=item_level,
+            tiers=_vendor_tiers(),
         )
     except (KeyError, TypeError) as e:
         return {"valid": False, "error": f"each want needs a 'key': {e!r}"}

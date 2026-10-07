@@ -12,10 +12,18 @@ import pytest
 
 from poe2_mcp import server
 from poe2_mcp.vendor_regex import (
-    LIMIT, MODS, TIERS, VendorRegex, Want, _between, _fixed, build_vendor_regex,
+    LIMIT, MODS, TIER_FAMILIES, VendorRegex, Want, _between, _fixed, build_vendor_regex,
 )
 
 _GROUP = re.compile(r'"(!?)([^"]*)"')
+
+# What `tiers` carries: "{n}" mod -> (item level needed, highest value at that tier), ascending -- as the
+# server builds it from the item snapshot (gamedata.top_rolls). These are patch 0.5.5's.
+TIERS = {
+    "movement_speed": ((1, 10), (16, 15), (33, 20), (46, 25), (65, 30), (82, 35)),
+    "max_life": ((1, 19), (6, 29), (16, 39), (24, 59), (33, 69), (38, 84), (46, 99), (54, 119), (60, 149),
+                 (65, 174), (70, 189), (75, 199), (80, 214)),
+}
 
 
 def highlights(search: str, item_text: str) -> bool:
@@ -53,6 +61,7 @@ MINION = dict(
                   "quarterstaff"],
     slot_classes=["sceptre", "amulet", "ring", "belt"],
     slot_defences=["energy_shield"],
+    tiers=TIERS,  # the cap keeps "25%+ movement speed" short enough for everything to fit
 )
 
 ES_GLOVES = ("Gloves", "Energy Shield: 20")
@@ -168,7 +177,7 @@ def test_fixed_matches_exactly_its_three_digit_range():
 ])
 def test_life_100_and_up(item_level, yes, no):
     min_value = 120 if item_level == 80 else 100
-    out = build_vendor_regex(want=[Want("max_life", min_value=min_value)], item_level=item_level)
+    out = build_vendor_regex(want=[Want("max_life", min_value=min_value)], item_level=item_level, tiers=TIERS)
     assert out.unreachable == ()
     for v in yes:
         assert highlights(out.regex, f"+{v} to maximum Life"), v
@@ -177,48 +186,55 @@ def test_life_100_and_up(item_level, yes, no):
 
 
 def test_life_100_is_unreachable_below_its_tier():
-    assert build_vendor_regex(want=[Want("max_life", min_value=100)], item_level=50).unreachable == ("max_life",)
+    out = build_vendor_regex(want=[Want("max_life", min_value=100)], item_level=50, tiers=TIERS)
+    assert out.unreachable == ("max_life",)
 
 
 @pytest.mark.parametrize("min_value", [215, 1000])
 def test_life_above_its_highest_roll_raises(min_value):
     with pytest.raises(ValueError):
-        build_vendor_regex(want=[Want("max_life", min_value=min_value)])
+        build_vendor_regex(want=[Want("max_life", min_value=min_value)], tiers=TIERS)
 
 
 def test_movement_speed_stops_at_its_highest_roll():
-    rx = build_vendor_regex(want=[Want("movement_speed", min_value=25)]).regex
+    rx = build_vendor_regex(want=[Want("movement_speed", min_value=25)], tiers=TIERS).regex
     assert "\\d{3}" not in rx
     for v, lit in [(25, True), (30, True), (35, True), (24, False), (20, False)]:
         assert highlights(rx, f"{v}% increased Movement Speed") is lit, v
     with pytest.raises(ValueError):
-        build_vendor_regex(want=[Want("movement_speed", min_value=40)])     # nothing rolls that high
+        build_vendor_regex(want=[Want("movement_speed", min_value=40)], tiers=TIERS)     # nothing rolls that high
 
 
 # --- Item level: what the vendor's items can roll --------------------------------------------------------
 
 
-def test_tiers_ascend():
-    for key, tiers in TIERS.items():
-        levels, values = zip(*tiers)
-        assert list(levels) == sorted(set(levels)) and list(values) == sorted(set(values)), key
-        assert "{n}" in MODS[key], key
+def test_every_tier_family_is_a_min_value_mod():
+    assert all("{n}" in MODS[key] for key in TIER_FAMILIES)
+
+
+def test_without_tiers_nothing_is_capped_or_unreachable():
+    # No tiers for a mod (or none at all, with no item snapshot): no cap, so no "above the highest roll"
+    # and no unreachable -- nothing to judge them by.
+    out = build_vendor_regex(want=[Want("movement_speed", min_value=40)], item_level=60)
+    assert out.unreachable == ()
+    assert highlights(out.regex, "40% increased Movement Speed")
 
 
 def test_item_level_caps_the_pattern():
-    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=50).regex
+    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=50, tiers=TIERS).regex
     assert "\\d{3}" not in rx                                   # life tops out at 99 below item level 54
     for v, lit in [(40, True), (99, True), (39, False)]:
         assert highlights(rx, f"+{v} to maximum Life") is lit, v
 
 
 def test_item_level_past_100_still_matches_three_digits():
-    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=60).regex
+    rx = build_vendor_regex(want=[Want("max_life", min_value=40)], item_level=60, tiers=TIERS).regex
     assert highlights(rx, "+145 to maximum Life")
 
 
 def test_unreachable_wants_are_left_out():
-    out = build_vendor_regex(want=[Want("movement_speed", min_value=30), Want("spirit")], item_level=60)
+    out = build_vendor_regex(want=[Want("movement_speed", min_value=30), Want("spirit")], item_level=60,
+                             tiers=TIERS)
     assert out.unreachable == ("movement_speed",)
     assert out.dropped == ()
     assert not highlights(out.regex, "30% increased Movement Speed")
@@ -226,7 +242,7 @@ def test_unreachable_wants_are_left_out():
 
 
 def test_reachable_at_its_tier():
-    out = build_vendor_regex(want=[Want("movement_speed", min_value=25)], item_level=65)
+    out = build_vendor_regex(want=[Want("movement_speed", min_value=25)], item_level=65, tiers=TIERS)
     assert out.unreachable == ()
     for v, lit in [(25, True), (30, True), (20, False)]:
         assert highlights(out.regex, f"{v}% increased Movement Speed") is lit, v
@@ -242,6 +258,18 @@ def test_tool_passes_item_level_through():
     out = asyncio.run(server.build_vendor_regex(
         want=[{"key": "movement_speed", "min_value": 30}, {"key": "spirit"}], item_level=60))
     assert out["valid"] and out["unreachable"] == ["movement_speed"]
+
+
+def test_tool_takes_every_familys_tiers_from_the_item_snapshot():
+    # From the committed snapshot: a family a patch renamed would come back empty here.
+    tiers = server._vendor_tiers()
+    assert set(tiers) == set(TIER_FAMILIES) and all(tiers.values())
+
+
+def test_tool_without_an_item_snapshot_has_no_cap(monkeypatch):
+    monkeypatch.setattr(server, "load_items", lambda: None)
+    out = asyncio.run(server.build_vendor_regex(want=[{"key": "movement_speed", "min_value": 30}], item_level=60))
+    assert out["valid"] and out["unreachable"] == []
 
 
 # A spectre build that wants flask charges on any base, but never a flask that drains life or mana.
@@ -339,7 +367,7 @@ def test_tool_matches_the_pure_builder():
         slot_classes=["ring"], avoid=["flask_removes_recovery"],
     ))
     pure = build_vendor_regex(want=[Want("movement_speed", 25, any_base=True), Want("resistance")],
-                              slot_classes=["ring"], avoid=["flask_removes_recovery"])
+                              slot_classes=["ring"], avoid=["flask_removes_recovery"], tiers=server._vendor_tiers())
     assert out == {"valid": True, "regex": pure.regex, "length": pure.length, "limit": LIMIT, "dropped": [],
                    "unreachable": []}
 
