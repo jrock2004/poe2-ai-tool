@@ -347,6 +347,59 @@ def test_value_currency_says_so_when_poe2scout_and_the_exchange_are_both_down(mo
     assert out["valid"] is False and "poe2scout" in out["error"] and "currency exchange" in out["error"]
 
 
+# market_movers: moves are poe2scout's 7-day trend; each mover carries the exchange's last hour beside it.
+# (Two hours of the exchange a week apart are too noisy to rank moves by: consecutive hours differ by a
+# median ~10% even at 100+ units traded, live 2026-10-08.)
+def _logged(name: str, api_id: str, base: str | None, first: float, last: float) -> dict:
+    logs = [{"Price": first, "Time": "2026-10-01T00:00:00Z", "Quantity": 900},
+            {"Price": last, "Time": "2026-10-08T00:00:00Z", "Quantity": 900}]
+    return {**_currency(name, api_id, last, base), "PriceLogs": logs}
+
+
+MOVERS = {"currency": [_logged("Divine Orb", "divine", DIVINE_ID, 700, 700),
+                       _logged("Gemcutter's Prism", "gcp", GCP_ID, 2, 3)],
+          "breach": [_logged("Esh's Catalyst", "esh-catalyst", None, 20, 10)]}
+
+
+class MoversScout(PricesScout):
+    async def get_currencies_by_category(self, league_value, category, search=None, page=1, per_page=25) -> Fetched:
+        pool = [i for i in MOVERS.get(category, []) if search is None or search in (i["Text"], i["ApiId"])]
+        return Fetched(body={"Items": pool, "Total": len(pool), "CurrentPage": 1, "Pages": 1},
+                       fetched_at=time.time())
+
+
+def _movers(monkeypatch, exchange_down: bool = False) -> dict:
+    monkeypatch.setattr(server, "_scout", MoversScout())
+    monkeypatch.setattr(server, "_exchange", FakeExchange(down=exchange_down))
+    return asyncio.run(server.market_movers(["currency", "breach"]))
+
+
+def test_market_movers_put_the_exchanges_last_hour_beside_each_mover(monkeypatch):
+    out = _movers(monkeypatch)
+    divine = out["categories"]["currency"]["risers"]
+    assert [m["name"] for m in divine] == ["Gemcutter's Prism"]
+    assert divine[0]["changePctVsDivine"] == 50.0
+    assert divine[0]["exchange"] is None  # it traded only in HC that hour
+    faller = out["categories"]["breach"]["fallers"][0]
+    assert faller["name"] == "Esh's Catalyst" and faller["exchange"] is None  # no base id from poe2scout
+    assert 40 * 60 <= out["exchange"]["ageSeconds"] < 41 * 60 and out["ageSeconds"] < 60
+
+
+def test_market_movers_give_a_movers_exchange_price_by_its_base_id(monkeypatch):
+    MOVERS["currency"][1] = _logged("Gemcutter's Prism", "gcp", DIVINE_ID, 2, 3)  # priced as divine's market
+    try:
+        mover = _movers(monkeypatch)["categories"]["currency"]["risers"][0]
+    finally:
+        MOVERS["currency"][1] = _logged("Gemcutter's Prism", "gcp", GCP_ID, 2, 3)
+    assert (mover["exchange"]["lowExalted"], mover["exchange"]["highExalted"]) == (690, 776)
+
+
+def test_market_movers_keep_their_moves_when_the_exchange_is_down(monkeypatch):
+    out = _movers(monkeypatch, exchange_down=True)
+    assert out["categories"]["currency"]["risers"][0]["changePctVsDivine"] == 50.0
+    assert "503" in out["exchange"]["error"]
+
+
 # A loaded item snapshot, trimmed to one real row of its texts.
 ITEM_SNAPSHOT = {"patch": "0.5.5", "texts": {"Orb of Annulment": {
     "class": "StackableCurrency", "text": "Removes a random modifier from an item",

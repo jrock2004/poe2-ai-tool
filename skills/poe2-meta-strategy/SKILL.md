@@ -21,7 +21,9 @@ times, so never claim "X divine/hour". A mover is a price signal, not a farming 
    inflated or deflated — the moves below already strip that out.
 3. **Report per category, briefly:** the top couple of risers and fallers with `changePctVsDivine`
    and current price. Group the story where the data shows one ("refined catalysts are up 35–50%
-   while basic ones fell 30–44%") rather than listing rows.
+   while basic ones fell 30–44%") rather than listing rows. For the price, each mover's `exchange`
+   is what it traded for in the last hour: quote that range, with poe2scout's `priceExalted` as the
+   reference (the rubric says how to read the two). The move itself stays poe2scout's.
 4. **Disregard cheap movers.** An item worth under ~2 exalted (`priceExalted`) can double on a
    fraction of an exalted — the percentage is noise. Leave it out, or mention it only as noise.
 5. If a category comes back `unknownCategory`, say the name wasn't recognized and offer the valid
@@ -41,7 +43,8 @@ a currency-tab screenshot (one-line how-to from `poe2-core`).
 2. **Falling in divine terms** → lean *sell* (or spend it on their next upgrade) before it drops
    further. **Rising** → *hold* is reasonable; say it may reverse. **Flat (within ±10%)** → no
    market reason either way; let their needs decide.
-3. Weigh size: put the advice where the value is (`count × priceExalted`), not on a 2-exalted stack.
+3. Weigh size: put the advice where the value is (`count × exchange.highExalted`, else `count ×
+   priceExalted`), not on a 2-exalted stack.
 4. **Never trade for them.** Output is advice plus, if they want, `poe2-price-check` for a listing
    price. They list and sell themselves.
 

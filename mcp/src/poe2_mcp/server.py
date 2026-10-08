@@ -369,12 +369,18 @@ async def market_movers(
     'vaultkeys', 'uncutgems', 'lineagesupportgems', 'idol', 'incursion', 'verisium', 'vaal'.
     Moves are changePctVsDivine -- the item's own move with exalted's drift removed. Items listed
     fewer than 50 times are skipped as too thin to trust (`thin` counts them). Read-only; cached.
+
+    Each mover also carries `exchange`, GGG's Currency Exchange's last hour for it (as in
+    get_currency_prices: low/high/average exalted, volume), or None; the top-level `exchange` dates that
+    hour on its own, or holds `error`. Moves stay poe2scout's: two exchange hours a week apart are too
+    noisy to rank by (consecutive hours differ by a median ~10%).
     """
     resolved_f = await _scout.resolve_league(league)
     league_value = resolved_f.body["Value"]
     top = max(1, min(top, 20))
     divine_f, divine_change = await _divine_change(league_value)
     sources: list[Fetched[Any]] = [resolved_f, divine_f]
+    exchange_rates, exchange = await _exchange_hour(league_value)
 
     results: dict[str, Any] = {}
     for category in categories or DEFAULT_MOVER_CATEGORIES:
@@ -385,6 +391,7 @@ async def market_movers(
                                  "note": "poe2scout returned no items -- check the category apiId."}
             continue
         movers = rank_movers(items, divine_change, top=top)
+        base_ids = {it.get("ApiId"): it.get("BaseItemTypeId") for it in items if it.get("ApiId")}
 
         def shape(m: dict[str, Any]) -> dict[str, Any]:
             return {
@@ -393,6 +400,7 @@ async def market_movers(
                 "quantityListed": m["quantityListed"],
                 "changePct": _round(m["changePct"], 1),
                 "changePctVsDivine": _round(m["changePctVsDivine"], 1),
+                "exchange": _exchange_fields(exchange_rates.get(base_ids.get(m["apiId"]) or "")),
             }
 
         results[category] = {
@@ -406,6 +414,7 @@ async def market_movers(
         "league": league_value,
         "divineChangePct": _round(divine_change, 1),
         **freshness(*sources),
+        "exchange": exchange,
         "categories": results,
         "note": (
             "Moves are ~7-day, in divine terms. A mover is a price signal, not a profit rate -- no "
