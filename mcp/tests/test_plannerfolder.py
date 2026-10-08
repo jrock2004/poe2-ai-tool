@@ -197,29 +197,14 @@ def test_a_file_name_swaps_what_windows_refuses_for_a_dash_but_the_plan_keeps_it
     assert _read(planner / file) == {"name": name}
 
 
-def test_a_repeated_name_gets_a_number_in_the_plan_and_its_file(tmp_path):
-    # A PoB can repeat a spec title, or hold several untitled specs; the dropdown has to tell them apart.
+@pytest.mark.parametrize("names", [["Guide - Maps", "guide - maps"], ["A: B", "A/ B"]])
+def test_two_plans_for_one_file_are_refused_and_nothing_is_written(tmp_path, names):
+    # As the file system sees them: in any case, after cleaning. Stage numbers keep a guide's plan names apart,
+    # so this means a caller's mistake -- never silently let one plan overwrite the other.
     planner = _game(tmp_path / "Documents") / "BuildPlanner"
-    plans = [{"name": "Guide - Maps"}, {"name": "Guide - Act 1"}, {"name": "Guide - Maps"}, {"name": "Guide - Maps"}]
-    assert write_plans(planner, plans)["plans"] == [
-        {"name": "Guide - Maps", "file": "Guide - Maps.build"},
-        {"name": "Guide - Act 1", "file": "Guide - Act 1.build"},
-        {"name": "Guide - Maps (2)", "file": "Guide - Maps (2).build"},
-        {"name": "Guide - Maps (3)", "file": "Guide - Maps (3).build"},
-    ]
-    assert _read(planner / "Guide - Maps (2).build") == {"name": "Guide - Maps (2)"}
-    assert plans[2] == {"name": "Guide - Maps"}  # the caller's plans are left as they were
-
-
-def test_names_repeat_as_the_file_system_sees_them_in_any_case_and_after_cleaning(tmp_path):
-    planner = _game(tmp_path / "Documents") / "BuildPlanner"
-    plans = [{"name": "Guide - Maps"}, {"name": "guide - maps"}, {"name": "A: B"}, {"name": "A/ B"}]
-    assert write_plans(planner, plans)["plans"] == [
-        {"name": "Guide - Maps", "file": "Guide - Maps.build"},
-        {"name": "guide - maps (2)", "file": "guide - maps (2).build"},
-        {"name": "A: B", "file": "A- B.build"},
-        {"name": "A/ B (2)", "file": "A- B (2).build"},
-    ]
+    with pytest.raises(ValueError, match="same file"):
+        write_plans(planner, [{"name": "Guide - Act 1"}, *({"name": name} for name in names)])
+    assert not planner.exists()
 
 
 def test_nothing_is_written_while_any_file_is_already_there(tmp_path):

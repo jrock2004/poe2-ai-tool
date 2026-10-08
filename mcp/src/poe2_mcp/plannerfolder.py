@@ -94,8 +94,9 @@ def write_plans(folder: Path, plans: list[dict[str, Any]], *, overwrite: bool = 
     """Write each plan (a Build Planner Build, from buildplanner.plan_build) to <its name>.build in folder.
 
     A file name swaps what Windows refuses for "-" and drops trailing dots and spaces; the plan keeps its
-    name. Names repeat as the file system sees them -- in any case, after that cleaning -- and a repeat
-    gets " (2)", " (3)", ... in both its name and its file; the caller's plans are left as they were.
+    name. Two plans for one file -- as the file system sees it, in any case, after that cleaning -- raise
+    ValueError and nothing is written: stage numbers keep a guide's plans apart, so it's a caller's mistake,
+    and one plan must never silently overwrite the other.
 
     Never overwrites silently: if any file is already there, nothing is written unless `overwrite`.
     Files of other plans are left alone; nothing is deleted. Makes the BuildPlanner folder, never the
@@ -105,15 +106,13 @@ def write_plans(folder: Path, plans: list[dict[str, Any]], *, overwrite: bool = 
     plan, in order, whether or not it was written.
     """
     named: list[tuple[dict[str, Any], str]] = []
-    taken: set[str] = set()
+    taken: dict[str, str] = {}
     for plan in plans:
-        name, file, n = plan["name"], _file_name(plan["name"]), 1
-        while file.casefold() in taken:
-            n += 1
-            name = f"{plan['name']} ({n})"
-            file = _file_name(name)
-        taken.add(file.casefold())
-        named.append(({**plan, "name": name}, file))
+        file = _file_name(plan["name"])
+        if file.casefold() in taken:
+            raise ValueError(f"plans {taken[file.casefold()]!r} and {plan['name']!r} would be the same file, {file}")
+        taken[file.casefold()] = plan["name"]
+        named.append((plan, file))
 
     existing = [file for _, file in named if (folder / file).exists()]
     written = overwrite or not existing
