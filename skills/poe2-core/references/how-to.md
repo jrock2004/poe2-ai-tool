@@ -61,11 +61,16 @@ A loot filter hides junk drops and makes the good ones stand out. The popular on
 
 ## Follow a build guide in game (Build Planner)
 PoE2's Build Planner shows a guide's plan inside the game, on your passive tree. You can't make a plan
-there — you load one from a guide that offers it:
+in the game itself — it comes from outside, one of three ways:
 - **Subscribe:** if the guide has a Build Planner version on pathofexile2.com, sign in and subscribe. It
   shows up in game on PC and console, and updates when the author updates the guide.
+- **From the guide's PoB code** (PC): ask the assistant to put the guide in your Build Planner. It writes
+  one plan per stage of the guide, numbered in order, and updates them when the guide changes.
 - **A `.build` file** (PC): unzip it if needed and put it in this folder; the game picks it up while
-  running: `Documents\My Games\Path of Exile 2\BuildPlanner`
+  running: `Documents\My Games\Path of Exile 2\BuildPlanner` (with OneDrive, Documents may be inside
+  your OneDrive folder).
 
 To see it: press **P** to open the passive tree, click the **Build Planner** icon in the top-left
-corner, and pick the plan from its list.
+corner, and pick the plan from its list. Hover a plan's name for its stage and when it was written. The
+guide's notes show on your gems in the **Gemcutting** window, and on your gear slots. To remove plans, ask
+the assistant, or delete their `.build` files from that folder.

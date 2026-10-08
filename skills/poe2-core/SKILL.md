@@ -23,6 +23,8 @@ explain things to newcomers consistently.
   `poe2-build-switch`.
 - **`references/sources.md`** — where to look things up, per topic: which tool or site, the domains to
   search, sites to avoid, and build creators to trust.
+- **`references/build-planner.md`** — writing a guide into the in-game Build Planner and keeping it
+  current. Used by `poe2-character` and `poe2-build-review`.
 
 ## Rules every skill inherits
 
@@ -62,7 +64,9 @@ arrays replace. Four sections:
 
 - **player** — `experience_level` (tunes verbosity, rule 2).
 - **characters** — keyed by name; each with class/ascendancy, build archetype, goal, guide link,
-  league, `trade_mode`, and an `active` flag (`poe2-character`). Setting one `active` clears the rest.
+  league, `trade_mode`, `build_plan_name` (the name its guide was written into the Build Planner under —
+  `references/build-planner.md`), and an `active` flag (`poe2-character`). Setting one `active` clears
+  the rest.
 - **currency** — `currency[league][trade_mode]`, shared by every character in that pool, populated
   from screenshots (see `poe2-currency-tracker`). An SSF character has its own stash, so its currency
   never mixes with a trade character's in the same league.
