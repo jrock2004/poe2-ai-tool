@@ -1,12 +1,15 @@
 """Tests for the server's tool functions, with fakes standing in for the poe2scout and trade2 clients
 (pure, no network). The tools are thin glue; these pin how they behave when an upstream fails."""
 import asyncio
+import json
 import math
 import time
+from datetime import date
+from pathlib import Path
 
 import pytest
 
-from poe2_mcp import gamedata, server
+from poe2_mcp import gamedata, server, store
 from poe2_mcp._cache import Fetched
 
 
@@ -228,3 +231,150 @@ def test_trial_pool_says_when_no_snapshot_is_installed(monkeypatch):
     monkeypatch.setattr(server, "load_items", lambda: None)
     out = asyncio.run(server.trial_pool("chaos"))
     assert out["valid"] is False and out["error"] == "no item snapshot is installed"
+
+
+# write_build_plan: a guide's PoB with two loadouts, trimmed from a 0.5 Infernalist guide, and the item
+# snapshot's passive ids for its nodes. Every note is a marker that must stay in the files, out of the reply.
+PLAN_XML = """<PathOfBuilding2>
+  <Tree>
+    <Spec title="Act 2" treeVersion="0_5" ascendancyInternalId="Witch1" nodes="3823,99999">
+      <Notes><Note nodeId="3823">NOTE-passive</Note></Notes>
+    </Spec>
+    <Spec title="Mid Maps" treeVersion="0_5" ascendancyInternalId="Witch1" nodes="3823,51184"/>
+  </Tree>
+  <Skills>
+    <SkillSet title="Act 2">
+      <Skill source="Item:1:Withered Wand">
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SkillGemChaosbolt" nameSpec="Chaos Bolt"
+             skillId="WeaponGrantedChaosboltPlayer"/>
+      </Skill>
+    </SkillSet>
+    <SkillSet title="Mid Maps">
+      <Skill>
+        <Gem enabled="true" gemId="Metadata/Items/Gem/SkillGemRagingSpirits" nameSpec="Raging Spirits"
+             note="NOTE-skill"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items>
+    <ItemSet title="Act 2"><Slot itemId="0" name="Flask 1" note="NOTE-flask"/></ItemSet>
+    <ItemSet title="Mid Maps"><Slot itemId="0" name="Helmet" note="NOTE-helmet"/></ItemSet>
+  </Items>
+</PathOfBuilding2>"""
+PLAN_SNAPSHOT = {"patch": "0.5.5", "passives": {"3823": "cold34", "51184": "witch_sorceress_notable1"}}
+
+
+def _game(root: Path) -> Path:
+    """A "Path of Exile 2" folder under root/My Games, as the game's first launch makes it."""
+    game = root / "My Games" / "Path of Exile 2"
+    game.mkdir(parents=True)
+    return game
+
+
+def _write_plan(monkeypatch, tmp_path, code=PLAN_XML, **kwargs) -> dict:
+    """write_build_plan with the snapshot above, searching only tmp_path/Documents for the game folder."""
+    monkeypatch.setattr(server, "load_items", lambda: PLAN_SNAPSHOT)
+    monkeypatch.setattr(server, "documents_folders", lambda: [tmp_path / "Documents"])
+    return asyncio.run(server.write_build_plan(code, "Minion Leveling", **kwargs))
+
+
+def test_write_build_plan_writes_a_plan_per_loadout_into_the_game_folder(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    out = _write_plan(monkeypatch, tmp_path, author="Guide Author", link="https://example.test/guide")
+    assert (out["status"], out["folder"]) == ("written", str(planner))
+    assert sorted(p.name for p in planner.iterdir()) == ["Minion Leveling - Act 2.build",
+                                                         "Minion Leveling - Mid Maps.build"]
+    assert json.loads((planner / "Minion Leveling - Act 2.build").read_text(encoding="utf-8")) == {
+        "name": "Minion Leveling - Act 2", "author": "Guide Author", "link": "https://example.test/guide",
+        "description": f"Stage 1 of 2. Written {date.today().isoformat()} from the guide's PoB.",
+        "ascendancy": "Witch1", "passives": [{"id": "cold34", "additional_text": "NOTE-passive"}]}
+
+
+def test_write_build_plan_reports_each_plan_without_its_notes(monkeypatch, tmp_path):
+    # The notes go to the files, never into the reply: the skill tells the player what's in each plan.
+    _game(tmp_path / "Documents")
+    out = _write_plan(monkeypatch, tmp_path)
+    assert out["plans"] == [
+        {"name": "Minion Leveling - Act 2", "file": "Minion Leveling - Act 2.build",
+         "passives": 1, "skills": 0, "gear": 0,
+         "leftOut": [{"what": "passive node 99999", "why": "unmapped-passive"},
+                     {"what": "Chaos Bolt", "why": "item-granted"}, {"what": "Flask 1", "why": "unmapped-slot"}]},
+        {"name": "Minion Leveling - Mid Maps", "file": "Minion Leveling - Mid Maps.build",
+         "passives": 2, "skills": 1, "gear": 1, "leftOut": []},
+    ]
+    assert (out["replaced"], out["unpaired"]) == ([], {"skillSets": [], "itemSets": []})
+    assert "warning" not in out and "NOTE-" not in json.dumps(out)
+
+
+def test_write_build_plan_gives_a_single_loadout_no_stage(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    one = PLAN_XML.replace('<Spec title="Mid Maps" treeVersion="0_5" ascendancyInternalId="Witch1" '
+                           'nodes="3823,51184"/>', "")
+    out = _write_plan(monkeypatch, tmp_path, code=one)
+    plan = json.loads((planner / "Minion Leveling - Act 2.build").read_text(encoding="utf-8"))
+    assert plan["description"] == f"Written {date.today().isoformat()} from the guide's PoB."
+    assert not {"author", "link"} & set(plan)  # never invented when not given
+    assert out["unpaired"] == {"skillSets": ["Mid Maps"], "itemSets": ["Mid Maps"]}
+
+
+def test_write_build_plan_never_overwrites_until_told_to(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    planner.mkdir()
+    (planner / "Minion Leveling - Mid Maps.build").write_text("old", encoding="utf-8")
+    out = _write_plan(monkeypatch, tmp_path)
+    assert out == {"status": "exists", "folder": str(planner), "existing": ["Minion Leveling - Mid Maps.build"]}
+    assert [p.name for p in planner.iterdir()] == ["Minion Leveling - Mid Maps.build"]
+    out = _write_plan(monkeypatch, tmp_path, overwrite=True)
+    assert (out["status"], out["replaced"]) == ("written", ["Minion Leveling - Mid Maps.build"])
+    assert len(list(planner.iterdir())) == 2
+
+
+def test_write_build_plan_asks_for_the_folder_when_it_finds_none(monkeypatch, tmp_path):
+    store.write_config(tmp_path, {"buildPlannerFolder": str(tmp_path / "Gone" / "Path of Exile 2" / "BuildPlanner")})
+    out = _write_plan(monkeypatch, tmp_path)
+    assert out == {"status": "no-folder", "checked": [str(tmp_path / "Gone" / "Path of Exile 2"),
+                                                       str(tmp_path / "Documents" / "My Games" / "Path of Exile 2")]}
+
+
+def test_write_build_plan_saves_a_folder_the_player_names_and_uses_it_from_then_on(monkeypatch, tmp_path):
+    # A named folder wins over a found one, and is kept in config.json beside the league.
+    _game(tmp_path / "Documents")
+    game = _game(tmp_path / "Elsewhere")
+    store.write_config(tmp_path, {"league": "Runes of Aldur"})
+    out = _write_plan(monkeypatch, tmp_path, folder=f'"{game}"')
+    assert (out["status"], out["folder"]) == ("written", str(game / "BuildPlanner"))
+    assert store.read_config(tmp_path) == {"league": "Runes of Aldur", "buildPlannerFolder": str(game / "BuildPlanner")}
+    assert _write_plan(monkeypatch, tmp_path)["folder"] == str(game / "BuildPlanner")
+
+
+def test_write_build_plan_refuses_a_folder_the_game_would_not_read(monkeypatch, tmp_path):
+    (tmp_path / "Documents").mkdir()
+    out = _write_plan(monkeypatch, tmp_path, folder=str(tmp_path / "Documents"))
+    assert out["status"] == "no-folder" and "Path of Exile 2" in out["error"]
+    assert store.read_config(tmp_path) == {}
+
+
+def test_write_build_plan_warns_when_the_guides_tree_is_older_than_the_passive_ids(monkeypatch, tmp_path):
+    # Node ids mostly carry over between trees, so the plan is still written; the skill passes the warning on.
+    _game(tmp_path / "Documents")
+    out = _write_plan(monkeypatch, tmp_path, code=PLAN_XML.replace('treeVersion="0_5"', 'treeVersion="0_4"'))
+    assert out["status"] == "written" and "0.4" in out["warning"] and "0.5.5" in out["warning"]
+
+
+@pytest.mark.parametrize("code, error", [
+    ("not a code", "Not a valid Path of Building code"),
+    ("<PathOfBuilding2/>", "no passive tree"),
+])
+def test_write_build_plan_says_when_the_code_has_nothing_to_plan(monkeypatch, tmp_path, code, error):
+    game = _game(tmp_path / "Documents")
+    out = _write_plan(monkeypatch, tmp_path, code=code)
+    assert out["status"] == "invalid" and error in out["error"]
+    assert not (game / "BuildPlanner").exists()
+
+
+def test_write_build_plan_says_when_no_snapshot_is_installed(monkeypatch, tmp_path):
+    _game(tmp_path / "Documents")
+    monkeypatch.setattr(server, "documents_folders", lambda: [tmp_path / "Documents"])
+    monkeypatch.setattr(server, "load_items", lambda: None)
+    out = asyncio.run(server.write_build_plan(PLAN_XML, "Minion Leveling"))
+    assert out == {"status": "invalid", "error": "no item snapshot is installed"}

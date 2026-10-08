@@ -43,6 +43,7 @@ TOOLS = {
     "get_currency_prices", "market_movers", "price_unique", "value_currency", "find_stat_filters",
     "build_trade_filter", "search_trade", "fetch_guide", "parse_pob_code", "summarize_tree",
     "get_stash_layout", "mod_tiers", "item_text", "trial_pool", "campaign_rewards", "build_vendor_regex",
+    "write_build_plan",
 }
 KNOWLEDGE = ("trials", "farming", "crafting")
 
@@ -135,6 +136,19 @@ async def offline_checks(s: Smoke) -> None:
         out = await s.call("parse_pob_code", code=pob_code(version, list(sample)))
         return named(out["tree"], sample)
 
+    async def build_plan() -> str:
+        # Into a throwaway game folder; also checks the item snapshot names every sampled tree node.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as documents:
+            game = Path(documents) / "My Games" / "Path of Exile 2"
+            game.mkdir(parents=True)
+            out = await s.call("write_build_plan", code=pob_code(version, list(sample)), name="Smoke", folder=str(game))
+            if out["status"] != "written":
+                raise Failed(out.get("error") or out["status"])
+            unmapped = [x["what"] for x in out["plans"][0]["leftOut"] if x["why"] == "unmapped-passive"]
+            if unmapped or not list((game / "BuildPlanner").glob("*.build")):
+                raise Failed(f"unmapped: {', '.join(unmapped)}" if unmapped else "no .build file written")
+            return f"{out['plans'][0]['passives']} passives planned"
+
     async def mod_tiers() -> str:
         out = await s.call("mod_tiers", base="Cavalry Boots")
         s.patches["items"] = out["patch"]
@@ -178,6 +192,7 @@ async def offline_checks(s: Smoke) -> None:
     await s.check("server: tools registered", tools)
     await s.check(f"summarize_tree ({version})", summarize)
     await s.check("parse_pob_code", parse_pob)
+    await s.check("write_build_plan", build_plan)
     await s.check("mod_tiers", mod_tiers)
     await s.check("item_text", item_text)
     for name in ("chaos", "sekhemas"):

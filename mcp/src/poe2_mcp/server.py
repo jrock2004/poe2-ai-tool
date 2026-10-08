@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import math
+from datetime import date
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -19,11 +21,13 @@ from mcp.server.fastmcp import FastMCP
 
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
+from .buildplanner import plan_build
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
 from .guides import GuideFetcher
-from .pob import PobError, PobSelectionError, parse_pob_code as _parse_pob
+from .plannerfolder import GAME_FOLDER, accept_folder, documents_folders, find_planner_folder, write_plans
+from .pob import PobError, PobSelectionError, decode_pob_code, parse_loadouts, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
 from .poe2scout import (
     Poe2ScoutClient,
@@ -581,6 +585,9 @@ async def fetch_guide(url: str) -> dict[str, Any]:
     return await asyncio.to_thread(_guides.fetch, url)
 
 
+_PASTE_POB = "Paste the code from Path of Building: Import/Export -> Generate -> Copy."
+
+
 @mcp.tool()
 async def parse_pob_code(
     code: str,
@@ -610,11 +617,107 @@ async def parse_pob_code(
     except PobSelectionError as e:
         return {"valid": False, "error": str(e), "note": "Pick a position listed in `sets`."}
     except PobError as e:
-        return {
-            "valid": False,
-            "error": str(e),
-            "note": "Paste the code from Path of Building: Import/Export -> Generate -> Copy.",
-        }
+        return {"valid": False, "error": str(e), "note": _PASTE_POB}
+
+
+@mcp.tool()
+async def write_build_plan(
+    code: str,
+    name: str,
+    author: str | None = None,
+    link: str | None = None,
+    folder: str | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Write a guide's Path of Building code into the in-game Build Planner: one plan per tree spec (with
+    the skill set and item set sharing its title), named "<name> - <spec title>", carrying the guide's
+    notes on passives, gems and gear. In game: P -> the Build Planner icon at the top left -> pick the plan.
+
+    code: the guide's PoB code (or raw PoB XML), passed whole -- its notes go to the files, never into the
+    reply. name: the build's name; the export doesn't carry it. author: the guide's creator, only when
+    known -- never invent one. link: the guide's page. folder: only when the player named one after a
+    "no-folder" -- their "Path of Exile 2" folder or the BuildPlanner folder in it; it's kept for next time.
+
+    `status` says what happened and what comes next:
+      - "written": `plans` lists each plan in the guide's order -- name, file, how many passives, skills and
+        gear slots it holds, and `leftOut` ({what, why}: what had no place in the planner, as a code to put
+        in plain words). `replaced` names files overwritten; `unpaired` the PoB's skill and item sets no
+        tree spec took. A `warning`, when present, must be passed on.
+      - "exists": the plans in `existing` are already in the folder, and nothing was written. Ask the
+        player, then call again with overwrite=true to replace them.
+      - "no-folder": the planner folder wasn't found (`checked` lists where it looked), or the one named was
+        refused (`error`). Ask the player where their Documents\\My Games\\Path of Exile 2 folder is and
+        pass it as `folder`.
+      - "invalid": `error` says why -- not a PoB code, no passive tree, no item snapshot. Nothing written.
+    Offline; no network. Writes only into the planner folder, and never deletes.
+    """
+    try:
+        parsed = parse_loadouts(decode_pob_code(code))
+    except PobError as e:
+        return {"status": "invalid", "error": str(e), "note": _PASTE_POB}
+    loadouts = parsed["loadouts"]
+    if not loadouts:
+        return {"status": "invalid", "error": "This PoB has no passive tree to plan."}
+    items = load_items()
+    if items is None:
+        return {"status": "invalid", "error": "no item snapshot is installed"}
+
+    root = store.data_dir()
+    config = store.read_config(root)
+    if folder:
+        try:
+            planner = accept_folder(folder)
+        except ValueError as e:
+            return {"status": "no-folder", "error": str(e)}
+        config["buildPlannerFolder"] = str(planner)
+        store.write_config(root, config)
+    else:
+        saved = config.get("buildPlannerFolder")
+        documents = documents_folders()
+        found = find_planner_folder(saved, documents)
+        if found is None:
+            checked = ([Path(saved).parent] if saved else []) + [doc / "My Games" / GAME_FOLDER for doc in documents]
+            return {"status": "no-folder", "checked": [str(path) for path in checked]}
+        planner = found
+
+    today = date.today().isoformat()
+    results = [plan_build(loadout, name, items["passives"], author=author, link=link,
+                          description=_plan_description(stage, len(loadouts), today))
+               for stage, loadout in enumerate(loadouts, 1)]
+    out = write_plans(planner, [result["build"] for result in results], overwrite=overwrite)
+    if not out["written"]:
+        return {"status": "exists", "folder": str(planner), "existing": out["existing"]}
+
+    plans = []
+    for plan, result in zip(out["plans"], results):
+        build = result["build"]
+        plans.append({**plan, "passives": len(build.get("passives", [])), "skills": len(build.get("skills", [])),
+                      "gear": len(build.get("inventory_slots", [])), "leftOut": result["leftOut"]})
+    reply = {"status": "written", "folder": str(planner), "plans": plans, "replaced": out["existing"],
+             "unpaired": parsed["unpaired"]}
+    warning = _tree_warning(loadouts, items.get("patch"))
+    if warning:
+        reply["warning"] = warning
+    return reply
+
+
+def _plan_description(stage: int, stages: int, today: str) -> str:
+    """Shown when the player hovers the plan's name in game; the date tells a plan from a later guide update."""
+    written = f"Written {today} from the guide's PoB."
+    return f"Stage {stage} of {stages}. {written}" if stages > 1 else written
+
+
+def _tree_warning(loadouts: list[dict[str, Any]], patch: str | None) -> str | None:
+    """When a loadout's tree is another 0.x than the passive ids: nodes changed since may map wrong or not
+    at all. Node ids mostly carry over, so the plans are written anyway."""
+    if not patch:
+        return None
+    current = ".".join(patch.split(".")[:2])
+    other = sorted({lo["treeVersion"].replace("_", ".") for lo in loadouts if lo["treeVersion"]} - {current})
+    if not other:
+        return None
+    return (f"The guide's tree is {' and '.join(other)} but the passive ids are {patch}'s: passives changed "
+            "since then may be wrong or left out.")
 
 
 @mcp.tool()
