@@ -7,7 +7,7 @@ Inventories table's ids. No entry carries a level range -- in game, a ranged ski
 level vanishes from the Gemcutting window, and a ranged entry doesn't show its note.
 
 ``compare_plans`` sets a guide's new plans against the ones already in the planner folder, so a guide
-written before is updated instead of written again.
+written before is updated instead of written again; ``plan_changes`` says what changed inside a stage.
 
 Pure and offline -- no network. Finding the planner's folder and writing the file live elsewhere.
 """
@@ -192,3 +192,78 @@ def _without_description(plan: dict[str, Any]) -> dict[str, Any]:
 
 def _undated(plan: dict[str, Any]) -> str:
     return _DATE.sub("", plan.get("description") or "")
+
+
+def plan_changes(
+    old: dict[str, Any], new: dict[str, Any], *, passive_names: dict[str, str], gem_names: dict[str, str],
+) -> dict[str, Any]:
+    """What changed inside one stage, from its plan on disk to the guide's new one -- only the parts that
+    did; {} when nothing but the description did. Pure.
+
+    `passive_names` names the passives worth naming (notables and keystones, by PassiveSkills Id); the
+    rest are counted. `gem_names` names gems by id; a gem it can't name is given by its id.
+
+    {"passives": {"added", "removed": [names], "otherAdded", "otherRemoved": counts}, "skills": {"added",
+    "removed": [names]}, "supports": {"added", "removed": [{"skill", "support"}]} -- only under skills both
+    plans hold, since a new skill brings its supports --, "notes": how many notes changed on what both plans
+    hold (a gear slot's too when one plan has none), "uniques": [{"slot", "was", "now"}], "ascendancy":
+    {"was", "now"}}. Notes are counted, never quoted: they stay out of the reply. A passive that only moved
+    between weapon sets isn't a change yet.
+    """
+    def gem(gem_id: str) -> str:
+        return gem_names.get(gem_id, gem_id)
+
+    changes: dict[str, Any] = {}
+    notes = 0
+
+    old_passives, new_passives = _by_id(old.get("passives", [])), _by_id(new.get("passives", []))
+    added = [p for p in new_passives if p not in old_passives]
+    removed = [p for p in old_passives if p not in new_passives]
+    if added or removed:
+        changes["passives"] = {"added": [passive_names[p] for p in added if p in passive_names],
+                               "removed": [passive_names[p] for p in removed if p in passive_names],
+                               "otherAdded": sum(p not in passive_names for p in added),
+                               "otherRemoved": sum(p not in passive_names for p in removed)}
+    notes += sum(_text(old_passives[p]) != _text(new_passives[p]) for p in old_passives if p in new_passives)
+
+    old_skills, new_skills = _by_id(old.get("skills", [])), _by_id(new.get("skills", []))
+    added = [gem(s) for s in new_skills if s not in old_skills]
+    removed = [gem(s) for s in old_skills if s not in new_skills]
+    if added or removed:
+        changes["skills"] = {"added": added, "removed": removed}
+    supports: dict[str, list[dict[str, str]]] = {"added": [], "removed": []}
+    for skill in (s for s in new_skills if s in old_skills):
+        notes += _text(old_skills[skill]) != _text(new_skills[skill])
+        before = _by_id(old_skills[skill].get("support_skills", []))
+        after = _by_id(new_skills[skill].get("support_skills", []))
+        supports["added"] += [{"skill": gem(skill), "support": gem(s)} for s in after if s not in before]
+        supports["removed"] += [{"skill": gem(skill), "support": gem(s)} for s in before if s not in after]
+        notes += sum(_text(before[s]) != _text(after[s]) for s in before if s in after)
+    if supports["added"] or supports["removed"]:
+        changes["supports"] = supports
+
+    old_slots = {slot["inventory_id"]: slot for slot in old.get("inventory_slots", [])}
+    new_slots = {slot["inventory_id"]: slot for slot in new.get("inventory_slots", [])}
+    uniques = []
+    for slot in dict.fromkeys([*old_slots, *new_slots]):
+        was, now = old_slots.get(slot, {}), new_slots.get(slot, {})
+        notes += was.get("additional_text") != now.get("additional_text")
+        if was.get("unique_name") != now.get("unique_name"):
+            uniques.append({"slot": slot, "was": was.get("unique_name"), "now": now.get("unique_name")})
+
+    if notes:
+        changes["notes"] = notes
+    if uniques:
+        changes["uniques"] = uniques
+    if old.get("ascendancy") != new.get("ascendancy"):
+        changes["ascendancy"] = {"was": old.get("ascendancy"), "now": new.get("ascendancy")}
+    return changes
+
+
+def _by_id(entries: list[Any]) -> dict[str, Any]:
+    """A plan's passives, skills or supports by id: each a bare id or an object with one."""
+    return {entry if isinstance(entry, str) else entry["id"]: entry for entry in entries}
+
+
+def _text(entry: Any) -> str | None:
+    return None if isinstance(entry, str) else entry.get("additional_text")

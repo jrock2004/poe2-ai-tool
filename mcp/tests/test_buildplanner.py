@@ -1,12 +1,12 @@
-"""Unit tests for turning one PoB loadout into an in-game Build Planner .build, and for comparing a guide's new
-plans with the ones already in the planner folder (pure, no network).
+"""Unit tests for turning one PoB loadout into an in-game Build Planner .build, for comparing a guide's new
+plans with the ones already in the planner folder, and for what changed inside a stage (pure, no network).
 
 The loadout is shaped like pob.parse_loadouts' output for a real 0.5 Infernalist guide, trimmed; passive ids
 are the item snapshot's (dat-export PassiveSkills, game 4.5.5.2). What the planner accepts was checked in
 game with hand-made files built the same way: passives by PassiveSkills Id, gems by gemId, the ascendancy by
 PoB's ascendancyInternalId; notes show on skills and supports only without a level range, so none is set.
 """
-from poe2_mcp.buildplanner import compare_plans, plan_build
+from poe2_mcp.buildplanner import compare_plans, plan_build, plan_changes
 
 PASSIVE_IDS = {"3823": "cold34", "51184": "witch_sorceress_notable1", "55180": "minion_offence21_",
                "61419": "jewel_slot1972", "17754": "AscendancyWitch1Notable10"}
@@ -255,3 +255,88 @@ def test_this_builds_plans_from_another_guide_or_with_no_link_are_a_conflict():
     out = compare_plans(NEW, disk, "Infernalist", LINK)
     assert out["conflict"] == ["Infernalist - 2 Act 2", "Infernalist"]
     assert compare_plans(NEW, [staged(1, "Act 1")], "Infernalist", None)["conflict"] == ["Infernalist - 1 Act 1"]
+
+
+# plan_changes: what changed inside one stage between the plan on disk and the guide's new one. Names come from
+# lookups the caller builds -- notables and keystones from the tree snapshot, gems from the item snapshot.
+PASSIVE_NAMES = {"passive_keystone_zealots_oath": "Zealot's Oath", "ailments38": "Fast Acting Toxins",
+                 "mana_regeneration49": "Efficient Killing"}
+RAGING, FLAME_WALL = GEM + "SkillGemRagingSpirits", GEMS + "SkillGemFlameWall"
+SKELETAL, FIRE = GEMS + "SkillGemSkeletalWarriorWeaponSkill", GEMS + "SupportGemFireInfusion"
+UNLEASH, MEAT_SHIELD = GEMS + "SupportGemUnleash", GEMS + "SupportGemMeatShield"
+GEM_NAMES = {RAGING: "Raging Spirits", FLAME_WALL: "Flame Wall", SKELETAL: "Skeletal Warrior",
+             FIRE: "Fire Attunement", UNLEASH: "Unleash", MEAT_SHIELD: "Meat Shield I"}
+
+BEFORE = {
+    "name": "Minion Leveling - 4 Act 3", "ascendancy": "Witch1", "description": "Stage 4 of 9. Written 2026-09-01.",
+    "passives": ["attributes1", {"id": "ailments38", "additional_text": "Priority 1"},
+                 "passive_keystone_zealots_oath", "cold34"],
+    "skills": [{"id": RAGING, "additional_text": "order",
+                "support_skills": [FIRE, {"id": UNLEASH, "additional_text": "x"}]},
+               {"id": FLAME_WALL}],
+    "inventory_slots": [{"inventory_id": "Weapon1", "additional_text": "Any wand"},
+                        {"inventory_id": "Boots1", "unique_name": "Bones of Ullr"}],
+}
+AFTER = {
+    **BEFORE, "description": "Stage 4 of 10. Written 2026-10-08.",
+    "passives": ["attributes1", {"id": "ailments38", "additional_text": "Priority 2"}, "mana_regeneration49",
+                 "cold35"],
+    "skills": [{"id": RAGING, "additional_text": "order",
+                "support_skills": [{"id": FIRE, "additional_text": "now first"}, MEAT_SHIELD]},
+               {"id": SKELETAL, "additional_text": "from the sceptre", "support_skills": [UNLEASH]}],
+    "inventory_slots": [{"inventory_id": "Weapon1", "additional_text": "Any wand, or a sceptre"},
+                        {"inventory_id": "Helm1", "additional_text": "Any helmet"}],
+}
+
+
+def changes(before, after):
+    return plan_changes(before, after, passive_names=PASSIVE_NAMES, gem_names=GEM_NAMES)
+
+
+def test_plan_changes_names_what_a_stage_gained_and_lost():
+    # Notables and keystones by name, other passives counted; supports under the skill they serve; notes
+    # counted, never quoted -- they stay out of the reply.
+    assert changes(BEFORE, AFTER) == {
+        "passives": {"added": ["Efficient Killing"], "removed": ["Zealot's Oath"], "otherAdded": 1,
+                     "otherRemoved": 1},
+        "skills": {"added": ["Skeletal Warrior"], "removed": ["Flame Wall"]},
+        "supports": {"added": [{"skill": "Raging Spirits", "support": "Meat Shield I"}],
+                     "removed": [{"skill": "Raging Spirits", "support": "Unleash"}]},
+        "notes": 4,
+        "uniques": [{"slot": "Boots1", "was": "Bones of Ullr", "now": None}],
+    }
+
+
+def test_plan_changes_counts_only_notes_on_what_both_plans_hold():
+    # The notes: a passive's, a support's, and two gear slots' (one only now has a note). A skill that's new
+    # brings its own note and supports with it -- they're not counted or listed again.
+    out = changes(BEFORE, AFTER)
+    assert out["notes"] == 4
+    assert {"skill": "Skeletal Warrior", "support": "Unleash"} not in out["supports"]["added"]
+
+
+def test_plan_changes_of_a_stage_that_did_not_change_is_empty():
+    # Its description doesn't count: the stage count and the day are compare_plans' business.
+    assert changes(BEFORE, {**BEFORE, "description": "Stage 4 of 10. Written 2026-10-08."}) == {}
+
+
+def test_plan_changes_leaves_out_what_did_not_change():
+    after = {**BEFORE, "passives": [*BEFORE["passives"], "cold35"]}
+    assert changes(BEFORE, after) == {"passives": {"added": [], "removed": [], "otherAdded": 1, "otherRemoved": 0}}
+
+
+def test_plan_changes_falls_back_to_the_id_for_a_gem_it_cannot_name():
+    unknown = GEMS + "SkillGemSomethingNew"
+    after = {**BEFORE, "skills": [*BEFORE["skills"], {"id": unknown}]}
+    assert changes(BEFORE, after)["skills"] == {"added": [unknown], "removed": []}
+
+
+def test_plan_changes_reports_a_new_ascendancy():
+    assert changes(BEFORE, {**BEFORE, "ascendancy": "Witch2"}) == {"ascendancy": {"was": "Witch1", "now": "Witch2"}}
+
+
+def test_plan_changes_ignores_a_passive_only_moving_between_weapon_sets():
+    # Not in the first version: weapon sets aren't checked in game yet.
+    after = {**BEFORE, "passives": ["attributes1", {"id": "ailments38", "additional_text": "Priority 1",
+                                                     "weapon_set": 2}, "passive_keystone_zealots_oath", "cold34"]}
+    assert changes(BEFORE, after) == {}
