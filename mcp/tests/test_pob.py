@@ -628,6 +628,18 @@ Bones of Ullr
 Lattice Sandals
 Energy Shield: 38
     </Item>
+    <Item id="4">
+			Rarity: MAGIC
+Thawing Charm of the Verdant
+Crafted: true
+Prefix: None
+Suffix: {range:0.468}FlaskFillChargesPerMinute2
+Quality: 0
+LevelReq: 20
+Implicits: 1
+Used when you become Frozen
+{suffix}Gains 0.20 Charges per Second
+			</Item>
     <ItemSet id="1" title="Act 2">
       <Slot itemId="1" itemPbURL="" name="Weapon 1"
             note="&lt;u&gt;{&lt;b&gt;{Withered Wand}}
@@ -639,6 +651,7 @@ Energy Shield: 38
     </ItemSet>
     <ItemSet id="2" title="Mid Maps">
       <Slot itemId="3" itemPbURL="" name="Boots"/>
+      <Slot itemId="4" itemPbURL="" name="Charm 1"/>
     </ItemSet>
   </Items>
 </PathOfBuilding2>"""
@@ -699,15 +712,27 @@ def test_a_group_pob_marks_removed_is_not_part_of_the_loadout():
 
 
 def test_a_loadouts_gear_lists_slots_with_an_item_or_a_note():
-    # An empty slot with no note is left out; a note with no item stays.
+    # An empty slot with no note is left out; a note with no item stays. An item carries its mods, as
+    # parse_pob_code reads them (the trimmed Bones of Ullr's property line reads as one).
     assert _loadout("Act 2")["gear"] == [
-        {"slot": "Weapon 1", "item": {"rarity": "NORMAL", "name": "Withered Wand", "base": None},
+        {"slot": "Weapon 1", "item": {"rarity": "NORMAL", "name": "Withered Wand", "base": None,
+                                      "implicitMods": [], "explicitMods": []},
          "note": "<u>{<b>{Withered Wand}}\n\n- A shield might help"},
         {"slot": "Helmet", "item": None, "note": "<u>{<b>{Twig Circlet}}"},
     ]
-    assert _loadout("Mid Maps")["gear"] == [
-        {"slot": "Boots", "item": {"rarity": "UNIQUE", "name": "Bones of Ullr", "base": "Lattice Sandals"},
-         "note": None}]
+    assert _loadout("Mid Maps")["gear"][0] == {
+        "slot": "Boots", "item": {"rarity": "UNIQUE", "name": "Bones of Ullr", "base": "Lattice Sandals",
+                                  "implicitMods": [], "explicitMods": ["Energy Shield: 38"]},
+        "note": None}
+
+
+def test_a_loadouts_charm_carries_what_it_does():
+    # A guide often equips charms without a word; their mods say what each is for (the Build Planner names it).
+    assert _loadout("Mid Maps")["gear"][1] == {
+        "slot": "Charm 1", "item": {"rarity": "MAGIC", "name": "Thawing Charm of the Verdant", "base": None,
+                                    "implicitMods": ["Used when you become Frozen"],
+                                    "explicitMods": ["Gains 0.20 Charges per Second"]},
+        "note": None}
 
 
 def _retitle(xml, tag, old, new):

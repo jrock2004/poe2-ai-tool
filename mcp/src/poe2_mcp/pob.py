@@ -401,13 +401,13 @@ def parse_loadouts(xml: str) -> dict[str, Any]:
 
     Each loadout: {"title", "ascendancy" (the planner's id, e.g. "Witch1"), "treeVersion", "passives":
     [{"node", "weaponSet", "note"}], "skillGroups": [{"source", "actives", "supports"}], "gear": [{"slot",
-    "item": {"rarity", "name", "base"} | None, "note"}]}. A gem is {"gemId", "name", "enabled",
-    "weaponGranted", "note"}; supports are the .../SupportGem... ones. A group's `source` says when an item
-    or the tree grants its skill; a group PoB marks removed (an unequipped item's skill, kept so its supports
-    come back with the item) isn't part of the loadout and is left out. Notes stay in the planner's markup,
-    unescaped, each line trimmed, their line breaks kept; a note on a node the spec doesn't allocate has
-    nowhere to go and is dropped. Gear lists the slots that hold an item or carry a note. XML that doesn't
-    parse raises PobError.
+    "item": {"rarity", "name", "base", "implicitMods", "explicitMods"} | None, "note"}]}. A gem is {"gemId",
+    "name", "enabled", "weaponGranted", "note"}; supports are the .../SupportGem... ones. A group's `source`
+    says when an item or the tree grants its skill; a group PoB marks removed (an unequipped item's skill,
+    kept so its supports come back with the item) isn't part of the loadout and is left out. Notes stay in
+    the planner's markup, unescaped, each line trimmed, their line breaks kept; a note on a node the spec
+    doesn't allocate has nowhere to go and is dropped. Gear lists the slots that hold an item or carry a
+    note. XML that doesn't parse raises PobError.
     """
     try:
         root = ET.fromstring(_keep_attribute_line_breaks(xml))
@@ -519,7 +519,7 @@ def _loadout_gear(item_set: ET.Element | None, items: dict[str | None, str]) -> 
         item = None
         if item_id != "0" and item_id in items:
             summary = _item_summary(items[item_id])
-            item = {key: summary[key] for key in ("rarity", "name", "base")}
+            item = {key: summary[key] for key in ("rarity", "name", "base", "implicitMods", "explicitMods")}
         note = _note(slot.get("note"))
         if item or note:
             gear.append({"slot": slot.get("name"), "item": item, "note": note})
