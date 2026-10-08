@@ -168,15 +168,17 @@ currency tracker names items from it.
 6. **Restart the MCP server** — snapshots are cached per version, so a running server keeps serving
    the old one.
 
-### 9. Item data (mod tiers, bases, item text)
+### 9. Item data (mod tiers, bases, item text, Build Planner ids)
 
 **Needed when** [repoe-fork/poe2](https://github.com/repoe-fork/poe2) publishes a new game version — its
 `version.txt` changes. That follows a patch, and sometimes a lettered patch that changed the game's
 files; a server-side fix doesn't. `src/poe2_mcp/data/items_<patch>.json` holds which mods each base can
 roll and every tier's name, side, item level and text, plus the in-game text of everything PoE2's
 Currency Exchange trades, what each essence adds, what each rune, soul core and idol does (from
-repoe-fork/poe2's `augments.json`, traded or not), and the Trial of Chaos and Trial of the Sekhemas pools;
-its `source` names both export commits and the game version.
+repoe-fork/poe2's `augments.json`, traded or not), the Trial of Chaos and Trial of the Sekhemas pools, and
+what the in-game Build Planner names things by — each passive-tree node's `PassiveSkills` id and each gem's
+name by its id (from dat-export's `PassiveSkills` and `BaseItemTypes`); its `source` names both export
+commits and the game version.
 
 1. Take the commit hash of repoe-fork/poe2 (`master`) whose `version.txt` is the new game version — a
    commit, not `master`: the command refuses a branch, so the snapshot names exactly what it came from.
@@ -195,7 +197,13 @@ its `source` names both export commits and the game version.
    together — usually the two commits are from different game versions.
 5. Check it: run the tests, then compare one family you know with the game — e.g. a helmet's Fire
    Resistance tiers and their item levels — one currency's text with its tooltip, and one essence's
-   modifiers with its tooltip.
+   modifiers with its tooltip. Then run `scripts/smoke.py`: its `write_build_plan` check fails if a
+   sampled tree node has no Build Planner id. Gem names drop the ones the game marks `[DNT]` and turn
+   templates like `Spectre: {0}` into `Spectre`; check no new kind of template slipped through — this
+   should print `[]`:
+   ```bash
+   .venv/bin/python -c "from poe2_mcp.gamedata import load_items; print([n for n in load_items()['gems'].values() if set(n) & set('{}[]<>')])"
+   ```
 
 ### 10. Campaign rewards
 

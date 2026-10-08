@@ -67,13 +67,16 @@ Personal Path of Exile 2 decision assistant. Two parts:
   - `stashlayout.py` + `data/stash_layouts_<version>.json` — which item sits in each special stash-tab
     slot, served by `get_stash_layout` so the currency tracker names items from their slot. Also
     **generated, never hand-edited**: `python -m poe2_mcp.stashlayout` (see `CONTRIBUTING.md`).
-  - `gamedata.py` + `data/items_<patch>.json` — mod tiers, item text and both trial pools, from
-    repoe-fork's exports at pinned commits, served by `mod_tiers`, `item_text`, `trial_pool` and the
-    vendor regex's tiers. Also **generated, never hand-edited**: `python -m poe2_mcp.gamedata items …`
-    (see `CONTRIBUTING.md`).
+  - `gamedata.py` + `data/items_<patch>.json` — mod tiers, item text, both trial pools, and the Build
+    Planner's passive ids and gem names, from repoe-fork's exports at pinned commits, served by
+    `mod_tiers`, `item_text`, `trial_pool`, the vendor regex's tiers and `write_build_plan`. Also
+    **generated, never hand-edited**: `python -m poe2_mcp.gamedata items …` (see `CONTRIBUTING.md`).
   - `campaign.py` + `data/campaign_<version>.json` — the campaign's permanent rewards, from PoB2's
     `QuestRewards.lua`, served by `campaign_rewards`. Also **generated, never hand-edited**:
     `python -m poe2_mcp.campaign` (see `CONTRIBUTING.md`).
+  - `buildplanner.py` (pure) + `plannerfolder.py` — the in-game Build Planner: one plan per stage of a
+    guide's PoB, compared with what's already in the game's folder (found through Windows' Documents
+    known folder, OneDrive included), served by `write_build_plan` and `remove_build_plans`.
 - `skills/` — one folder per skill (fourteen). The judgment lives here, not in the server.
 - `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux); and
   `smoke.py`, which runs the server the way the plugin does and calls each tool once (`CONTRIBUTING.md`).
