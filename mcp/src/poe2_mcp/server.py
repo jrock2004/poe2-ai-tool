@@ -22,7 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .buildplanner import compare_plans, plan_build, plan_changes
-from .exchange import DIVINE, ExchangeClient, exalted_rates
+from .exchange import DIVINE, ExchangeClient, exalted_rates, value_on_exchange
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
@@ -476,11 +476,32 @@ async def value_currency(
     be canonical (normalize shorthand via poe2-core's currency glossary first). Returns per-line and
     total worth in exalted (the base unit) and divine, plus any names that didn't match a priced item.
     Use it for net worth and "can I afford this?" -- deterministic arithmetic, not estimated.
+
+    `exchange` values the same holdings at GGG's Currency Exchange's last hour (named from the item
+    snapshot): `lowExalted` (toward what selling fast fetches), `highExalted` (the game's market ratio
+    sits at the high end), `averageExalted`, per-line the same, `untraded` (traded on the exchange but
+    not that hour) and `unknown` (not an exchange item), plus its own `fetchedAt`/`ageSeconds` -- or
+    `error`. `source` is "poe2scout", or "exchange" when poe2scout is down (`poe2scoutError` says why):
+    then only `exchange` is filled in. With both down, `valid` is false.
     """
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
-    items_f = await _scout.get_items(resolved["Value"])
+    rates, exchange = await _exchange_hour(resolved["Value"])
+    if "error" not in exchange:
+        exchange = {**_exchange_valuation(rates, holdings), **exchange}
+    try:
+        items_f = await _scout.get_items(resolved["Value"])
+    except (RuntimeError, httpx.HTTPError, ValueError) as e:
+        if "error" in exchange:
+            return {"valid": False, "error": f"poe2scout: {e}; {exchange['error']}",
+                    "note": "Both price sources are down: try again later."}
+        divine = rates.get(DIVINE)
+        return {"league": resolved["Value"],
+                "divinePriceInExalted": _round(divine["exaltedPerUnit"], 2) if divine else None,
+                "lines": [], "totalExalted": None, "totalDivine": None, "unmatched": [],
+                "source": "exchange", "poe2scoutError": str(e), "exchange": exchange,
+                "note": "poe2scout is down: valued from the Currency Exchange's last hour alone (`exchange`)."}
     valued = value_holdings(items_f.body, holdings, divine_price)
     return {
         "league": resolved["Value"],
@@ -499,10 +520,26 @@ async def value_currency(
         "totalDivine": _round(valued["totalDivine"], 3),
         "unmatched": valued["unmatched"],
         **freshness(resolved_f, items_f),
+        "source": "poe2scout",
+        "exchange": exchange,
         "note": (
             "Valued at current poe2scout prices (cached ~5 min). Unmatched names weren't found as a "
             "priced item -- check spelling or normalize via the currency glossary."
         ),
+    }
+
+
+def _exchange_valuation(rates: dict[str, dict[str, Any]], holdings: list[dict[str, Any]]) -> dict[str, Any]:
+    """value_on_exchange over the item snapshot's names, rounded for the answer."""
+    valued = value_on_exchange(rates, ((load_items() or {}).get("exchange") or {}), holdings)
+    return {
+        "lowExalted": _round(valued["lowExalted"], 2),
+        "highExalted": _round(valued["highExalted"], 2),
+        "averageExalted": _round(valued["averageExalted"], 2),
+        "lines": [{**ln, **{k: _round(ln[k], 2) for k in ("lowExalted", "highExalted", "averageExalted")}}
+                  for ln in valued["lines"]],
+        "untraded": valued["untraded"],
+        "unknown": valued["unknown"],
     }
 
 

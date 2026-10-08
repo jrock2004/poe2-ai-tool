@@ -306,6 +306,47 @@ def test_get_currency_prices_says_so_when_poe2scout_and_the_exchange_are_both_do
     assert "poe2scout" in out["error"] and "currency exchange" in out["error"]
 
 
+# value_currency: poe2scout's valuation, with the exchange's last hour beside it (both ends of its range),
+# or alone when poe2scout is down.
+HOLDINGS = [{"name": "Divine Orb", "count": 2}, {"name": "Exalted Orb", "count": 40},
+            {"name": "Gemcutter's Prism", "count": 3}]
+
+
+def _value(monkeypatch, scout_down: bool = False, exchange_down: bool = False) -> dict:
+    monkeypatch.setattr(server, "_scout", FakeScout(down=scout_down))
+    monkeypatch.setattr(server, "_exchange", FakeExchange(down=exchange_down))
+    monkeypatch.setattr(server, "load_items", lambda: EXCHANGE_NAMES_SNAPSHOT)
+    return asyncio.run(server.value_currency(HOLDINGS))
+
+
+def test_value_currency_puts_the_exchanges_valuation_beside_poe2scouts(monkeypatch):
+    out = _value(monkeypatch)
+    assert out["source"] == "poe2scout" and out["totalExalted"] == 1440  # 2 x 700 + 40; no Gemcutter's
+    exchange = out["exchange"]
+    assert (exchange["lowExalted"], exchange["highExalted"]) == (1420, 1592)  # 2 x 690 + 40, 2 x 776 + 40
+    assert [ln["name"] for ln in exchange["lines"]] == ["Divine Orb", "Exalted Orb"]
+    assert exchange["untraded"] == ["Gemcutter's Prism"] and exchange["unknown"] == []
+    assert 40 * 60 <= exchange["ageSeconds"] < 41 * 60 and out["ageSeconds"] < 60
+
+
+def test_value_currency_keeps_poe2scouts_valuation_when_the_exchange_is_down(monkeypatch):
+    out = _value(monkeypatch, exchange_down=True)
+    assert out["totalExalted"] == 1440 and "503" in out["exchange"]["error"]
+
+
+def test_value_currency_values_from_the_exchange_alone_when_poe2scout_is_down(monkeypatch):
+    out = _value(monkeypatch, scout_down=True)
+    assert out["source"] == "exchange" and "503" in out["poe2scoutError"]
+    assert out["lines"] == [] and out["totalExalted"] is None and "ageSeconds" not in out
+    assert out["exchange"]["highExalted"] == 1592
+    assert out["divinePriceInExalted"] == round(1077202 / 1416, 2)
+
+
+def test_value_currency_says_so_when_poe2scout_and_the_exchange_are_both_down(monkeypatch):
+    out = _value(monkeypatch, scout_down=True, exchange_down=True)
+    assert out["valid"] is False and "poe2scout" in out["error"] and "currency exchange" in out["error"]
+
+
 # A loaded item snapshot, trimmed to one real row of its texts.
 ITEM_SNAPSHOT = {"patch": "0.5.5", "texts": {"Orb of Annulment": {
     "class": "StackableCurrency", "text": "Removes a random modifier from an item",
