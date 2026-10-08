@@ -24,6 +24,8 @@ import sys
 from importlib import resources
 from typing import Any
 
+from .gamedata import clean_text
+
 _TOKEN_RE = re.compile(
     r"""\s*(?:
         (?P<str>"(?:[^"\\]|\\.)*")
@@ -35,9 +37,6 @@ _TOKEN_RE = re.compile(
 )
 _VERSION_RE = re.compile(r"\d+_\d+")
 _ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t", "r": "\r"}
-# GGG's display markup in stat text: "<underline>{Fire Spell on Hit}", "[EnergyShield|Energy Shield]", "[Rune]".
-_DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
-_DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
 
 
 def _tokenize(text: str) -> list[tuple[str, str]]:
@@ -144,10 +143,9 @@ def parse_lua_table(text: str) -> Any:
 
 
 def _clean_stat_line(line: str) -> str:
-    """One line of GGG stat text as tree.lua has it: display markup and a leading bullet removed."""
-    line = _DISPLAY_TAG_RE.sub(lambda m: m.group(1), line)
-    line = _DISPLAY_LINK_RE.sub(lambda m: m.group(2) or m.group(1), line)
-    return line.lstrip("•").lstrip()
+    """One line of GGG stat text as tree.lua has it: display markup (gamedata.clean_text) and a leading bullet
+    removed."""
+    return clean_text(line).lstrip("•").lstrip()
 
 
 def from_ggg_export(data: dict[str, Any]) -> dict[str, Any]:
