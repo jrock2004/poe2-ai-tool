@@ -555,8 +555,10 @@ def test_summarize_tree_with_no_nodes():
 
 # parse_loadouts: every loadout of a guide's PoB -- a tree spec with the skill set and item set that share
 # its title -- for the in-game Build Planner. Shaped like a real PoB2 export (a 0.5 Infernalist guide),
-# trimmed: notes sit escaped and indented in the XML, in the planner's own markup; supports are
-# .../SupportGem... by gemId; a group's source says when an item or the tree grants its skill.
+# trimmed: notes sit escaped and indented in the XML, in the planner's own markup -- a gem's or slot's note
+# with real line breaks inside its attribute, as PoB writes it (an XML parser turns those into spaces), one
+# with &#10; instead; supports are .../SupportGem... by gemId; a group's source says when an item or the
+# tree grants its skill.
 LOADOUTS_XML = """<PathOfBuilding2>
   <Build level="87" className="Witch" ascendClassName="Infernalist"/>
   <Tree activeSpec="2">
@@ -585,7 +587,10 @@ LOADOUTS_XML = """<PathOfBuilding2>
       </Skill>
       <Skill enabled="true" label="">
         <Gem enabled="true" gemId="Metadata/Items/Gem/SkillGemRagingSpirits" level="4" nameSpec="Raging Spirits"
-             note="&lt;b&gt;{Skill Crafting Order}&#10;&#10;    1. Raging Spirits" skillId="RagingSpiritsPlayer"/>
+             note="
+    &lt;b&gt;{Skill Crafting Order}
+
+    1. Raging Spirits" skillId="RagingSpiritsPlayer"/>
         <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemFireInfusion" level="1" nameSpec="Fire Attunement"
              note="&lt;b&gt;{Support Crafting Order}&#10;    1. Fire Attunement"
              skillId="SupportAddedFireDamagePlayer"/>
@@ -625,7 +630,10 @@ Energy Shield: 38
     </Item>
     <ItemSet id="1" title="Act 2">
       <Slot itemId="1" itemPbURL="" name="Weapon 1"
-            note="&lt;u&gt;{&lt;b&gt;{Withered Wand}}&#10;&#10;- A shield might help"/>
+            note="&lt;u&gt;{&lt;b&gt;{Withered Wand}}
+
+- A shield might help
+"/>
       <Slot itemId="0" itemPbURL="" name="Weapon 2 Swap"/>
       <Slot itemId="0" itemPbURL="" name="Helmet" note="&lt;u&gt;{&lt;b&gt;{Twig Circlet}}"/>
     </ItemSet>

@@ -405,11 +405,12 @@ def parse_loadouts(xml: str) -> dict[str, Any]:
     "weaponGranted", "note"}; supports are the .../SupportGem... ones. A group's `source` says when an item
     or the tree grants its skill; a group PoB marks removed (an unequipped item's skill, kept so its supports
     come back with the item) isn't part of the loadout and is left out. Notes stay in the planner's markup,
-    unescaped, each line trimmed; a note on a node the spec doesn't allocate has nowhere to go and is
-    dropped. Gear lists the slots that hold an item or carry a note. XML that doesn't parse raises PobError.
+    unescaped, each line trimmed, their line breaks kept; a note on a node the spec doesn't allocate has
+    nowhere to go and is dropped. Gear lists the slots that hold an item or carry a note. XML that doesn't
+    parse raises PobError.
     """
     try:
-        root = ET.fromstring(xml)
+        root = ET.fromstring(_keep_attribute_line_breaks(xml))
     except ET.ParseError as e:
         raise PobError(f"PoB XML did not parse ({e}).") from e
 
@@ -449,6 +450,25 @@ def parse_loadouts(xml: str) -> dict[str, Any]:
     unpaired = {kind: [_title(s) for i, s in enumerate(sets) if i not in taken[kind]]
                 for kind, sets in (("skillSets", skill_sets), ("itemSets", item_sets))}
     return {"loadouts": loadouts, "unpaired": unpaired}
+
+
+_START_TAG = re.compile(r"<[A-Za-z][^<>]*>")
+_QUOTED = re.compile(r""""[^"]*"|'[^']*'""")
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def _keep_attribute_line_breaks(xml: str) -> str:
+    """xml with each line break inside a start tag's quoted value written as &#10;.
+
+    PoB writes a gem's or slot's note with real line breaks inside its note="..." attribute, and an XML
+    parser must turn those into spaces; written as &#10; they come through. Text between tags is left
+    alone, so quotes in it can't throw the matching off; a tag with a raw ">" in a value (PoB escapes
+    them) doesn't match and parses as before.
+    """
+    def value(quoted: re.Match[str]) -> str:
+        return _LINE_BREAK.sub("&#10;", quoted.group(0))
+
+    return _START_TAG.sub(lambda tag: _QUOTED.sub(value, tag.group(0)), xml)
 
 
 def _title(el: ET.Element) -> str | None:
