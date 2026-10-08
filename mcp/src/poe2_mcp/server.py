@@ -613,6 +613,12 @@ async def parse_pob_code(
     the active ones are parsed; pass `tree_spec` / `skill_set` / `item_set` (a position from `sets`)
     to parse another. Computed stats only exist for the active sets: `statsNote` says so when a
     selector picks a different one. An out-of-range position is an error, never a fallback.
+
+    `campaignRewards` gives the campaign's permanent rewards as PoB's config counts them -- `taken`,
+    `notTaken` (a pick-one with nothing chosen lists its `options`), and `unmatched` quest settings
+    our snapshot doesn't know. Weapon-set points are left out (the tree counts them). Only when
+    `fromCharacter` is true (PoB imported the character) does it say what the player took; otherwise
+    it's PoB's defaults or the guide's choices.
     Offline; no network.
     """
     try:

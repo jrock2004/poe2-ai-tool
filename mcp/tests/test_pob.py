@@ -494,6 +494,134 @@ def test_parse_code_passes_selectors_through():
     assert _gem_names(r) == ["Ice Shot"]
 
 
+# --- Campaign rewards from PoB's config ------------------------------------------------------------
+# PoB keys each reward "quest" + part + area + from, and saves only what differs from its default: a
+# fixed reward is taken unless saved boolean="false", a pick-one is Nothing unless an option is saved.
+# A character import sets them from GGG's quest_stats and leaves <Import lastCharacterHash>.
+
+CAMPAIGN_SNAPSHOT = {
+    "version": "0_5_5",
+    "source": "test",
+    "rewards": [
+        {"part": "Act 1", "area": "Clearfell", "from": "Beira", "areaLevel": 2, "stat": "+10% to Cold Resistance"},
+        {"part": "Act 1", "area": "Hunting Grounds", "from": "Crowbell", "areaLevel": 10,
+         "stat": "+2 Weapon Set Passive Skill Points", "weaponSetPoints": 2},
+        {"part": "Act 2", "area": "Valley of the Titans", "from": "Medallion", "areaLevel": 22,
+         "options": ["30% increased Charm Charges Gained\n+1 Charm Slot",
+                     "30% increased Charm Effect Duration\n+1 Charm Slot"]},
+        {"part": "Act 2", "area": "Spires of Deshar", "from": "Sisters of Garukhan Shrine", "areaLevel": 28,
+         "stat": "+10% to Lightning Resistance"},
+        {"part": "Act 4", "area": "Halls Of The Dead", "from": "Ngamahu's Test", "areaLevel": 40,
+         "options": ["+5 to Strength", "+5% to Fire Resistance"]},
+    ],
+}
+
+
+def _config_xml(inputs: str, imported: bool = True) -> str:
+    """A PoB with one config set holding `inputs`, imported from a character or not."""
+    import_el = '<Import lastCharacterHash="e68dc6" lastLeague="SSF Forbidden Rites" lastRealm="PoE2"/>'
+    return f"""<PathOfBuilding2>
+  <Build level="40" className="Witch"/>
+  <Config activeConfigSet="1">
+    <ConfigSet id="1">
+{inputs}
+      <Placeholder name="enemyLevel" number="82"/>
+    </ConfigSet>
+  </Config>
+  {import_el if imported else ""}
+</PathOfBuilding2>"""
+
+
+def _campaign(monkeypatch, xml: str) -> dict:
+    monkeypatch.setattr(pob, "_campaign_snapshot", lambda: CAMPAIGN_SNAPSHOT)
+    return parse_pob_xml(xml)["campaignRewards"]
+
+
+def _where(rewards: list[dict]) -> list[str]:
+    return [r["from"] for r in rewards]
+
+
+def test_campaign_rewards_from_a_character_import(monkeypatch):
+    # The line break inside the saved option is how PoB writes it; XML reads it back as a space.
+    xml = _config_xml("""      <Input name="questAct 2Valley of the TitansMedallion"
+             string="30% increased Charm Charges Gained
++1 Charm Slot"/>
+      <Input name="questAct 2Spires of DesharSisters of Garukhan Shrine" boolean="false"/>""")
+    rewards = _campaign(monkeypatch, xml)
+    assert rewards["fromCharacter"] is True
+    assert rewards["taken"] == [
+        {"part": "Act 1", "area": "Clearfell", "from": "Beira", "stat": "+10% to Cold Resistance"},
+        {"part": "Act 2", "area": "Valley of the Titans", "from": "Medallion",
+         "stat": "30% increased Charm Charges Gained\n+1 Charm Slot"},  # the snapshot's option, line break kept
+    ]
+    assert rewards["notTaken"] == [
+        {"part": "Act 2", "area": "Spires of Deshar", "from": "Sisters of Garukhan Shrine",
+         "stat": "+10% to Lightning Resistance"},
+        {"part": "Act 4", "area": "Halls Of The Dead", "from": "Ngamahu's Test",
+         "options": ["+5 to Strength", "+5% to Fire Resistance"]},
+    ]
+    assert rewards["unmatched"] == []
+
+
+def test_campaign_rewards_leave_out_weapon_set_points(monkeypatch):
+    # PoB has no setting for them (useConfig = false); the tree's point count already holds them.
+    rewards = _campaign(monkeypatch, _config_xml(""))
+    assert "Crowbell" not in _where(rewards["taken"]) + _where(rewards["notTaken"])
+
+
+def test_campaign_rewards_from_a_pob_never_imported_are_pobs_defaults(monkeypatch):
+    # A guide's PoB: nothing saved means every fixed reward on and every pick-one at Nothing. Reported as
+    # such, but not from a character, so a skill mustn't read it as what the player took.
+    rewards = _campaign(monkeypatch, _config_xml("", imported=False))
+    assert rewards["fromCharacter"] is False
+    assert _where(rewards["taken"]) == ["Beira", "Sisters of Garukhan Shrine"]
+    assert _where(rewards["notTaken"]) == ["Medallion", "Ngamahu's Test"]
+    assert rewards["note"]
+
+
+def test_campaign_rewards_quoted_names_match(monkeypatch):
+    # PoB escapes the apostrophe in "Ngamahu's Test" as &apos; in the saved name.
+    xml = _config_xml('      <Input name="questAct 4Halls Of The DeadNgamahu&apos;s Test" '
+                      'string="+5% to Fire Resistance"/>')
+    rewards = _campaign(monkeypatch, xml)
+    assert {"part": "Act 4", "area": "Halls Of The Dead", "from": "Ngamahu's Test",
+            "stat": "+5% to Fire Resistance"} in rewards["taken"]
+
+
+def test_campaign_rewards_list_quest_settings_the_snapshot_does_not_know(monkeypatch):
+    # A PoB from another patch can name a reward ours doesn't have, or an option it doesn't offer: listed,
+    # never guessed into taken or not taken.
+    xml = _config_xml("""      <Input name="questAct 5Some New AreaNew Boss" boolean="false"/>
+      <Input name="questAct 4Halls Of The DeadNgamahu&apos;s Test" string="+7% to Fire Resistance"/>""")
+    rewards = _campaign(monkeypatch, xml)
+    assert rewards["unmatched"] == ["questAct 4Halls Of The DeadNgamahu's Test",
+                                    "questAct 5Some New AreaNew Boss"]
+    assert "Ngamahu's Test" not in _where(rewards["taken"]) + _where(rewards["notTaken"])
+
+
+def test_campaign_rewards_read_only_the_active_config_set(monkeypatch):
+    xml = """<PathOfBuilding2>
+  <Config activeConfigSet="2">
+    <ConfigSet id="1"><Input name="questAct 1ClearfellBeira" boolean="false"/></ConfigSet>
+    <ConfigSet id="2"/>
+  </Config>
+</PathOfBuilding2>"""
+    assert "Beira" in _where(_campaign(monkeypatch, xml)["taken"])
+
+
+def test_campaign_rewards_without_a_config_are_pobs_defaults(monkeypatch):
+    rewards = _campaign(monkeypatch, "<PathOfBuilding2/>")
+    assert rewards["fromCharacter"] is False
+    assert _where(rewards["taken"]) == ["Beira", "Sisters of Garukhan Shrine"]
+
+
+def test_campaign_rewards_without_a_snapshot_say_why(monkeypatch):
+    monkeypatch.setattr(pob, "_campaign_snapshot", lambda: None)
+    rewards = parse_pob_xml(_config_xml(""))["campaignRewards"]
+    assert rewards == {"fromCharacter": True, "note": rewards["note"]}
+    assert "snapshot" in rewards["note"]
+
+
 # --- A tree from bare node ids (guides with no PoB, e.g. Mobalytics) ------------------------------
 # Same naming and point counting as a PoB tree, from id lists. Mobalytics' authored variants give
 # main / weapon set 1 / weapon set 2 / ascendancy as disjoint lists; PoB (and Mobalytics' imported

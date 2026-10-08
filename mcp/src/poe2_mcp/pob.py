@@ -21,6 +21,7 @@ import xml.etree.ElementTree as ET
 from collections import Counter
 from typing import Any, Callable
 
+from . import campaign
 from .treedata import load_snapshot
 
 # PoB annotation lines in item text that aren't readable stat mods -- dropped from the mod list.
@@ -212,7 +213,66 @@ def parse_pob_xml(
             [("tree", spec_i, spec_active), ("skills", skills_i, skills_active),
              ("items", items_i, items_active)]
         ),
+        "campaignRewards": _campaign_rewards(root),
     }
+
+
+def _campaign_snapshot() -> dict[str, Any] | None:
+    version = campaign.latest_version()
+    return campaign.load_snapshot(version) if version else None
+
+
+_IMPORTED_NOTE = ("PoB imported this from a character, which sets these from the game's record of the "
+                  "rewards it took.")
+_DEFAULTS_NOTE = ("Not imported from a character: these are the PoB's own settings (every fixed reward on and "
+                  "every pick-one at Nothing unless changed), not what a player took.")
+
+
+def _campaign_rewards(root: ET.Element) -> dict[str, Any]:
+    """The campaign rewards PoB's active config set counts, matched to our campaign snapshot. Pure.
+
+    PoB keys each reward "quest" + part + area + from and saves only what differs from its default: a
+    fixed reward is taken unless saved false, a pick-one is Nothing unless an option is saved. Rewards of
+    weapon-set points have no setting (the tree's point count holds them) and are left out. A saved key or
+    option the snapshot doesn't know goes in `unmatched`, never guessed into taken or not taken.
+    `fromCharacter` is whether PoB imported the build from a character (<Import lastCharacterHash>).
+    """
+    import_el = root.find("Import")
+    from_character = import_el is not None and bool(import_el.get("lastCharacterHash"))
+    snapshot = _campaign_snapshot()
+    if snapshot is None:
+        return {"fromCharacter": from_character, "note": "No campaign snapshot is installed to name the rewards."}
+
+    config = root.find("Config")
+    config_sets, config_active = _sets(config, "ConfigSet", _active_by_id("activeConfigSet"))
+    chosen = config_sets[config_active] if config_active is not None else config
+    saved = {} if chosen is None else {
+        el.get("name"): el.get("string", el.get("boolean")) for el in chosen.findall("Input")
+        if (el.get("name") or "").startswith("quest")
+    }
+
+    taken: list[dict[str, Any]] = []
+    not_taken: list[dict[str, Any]] = []
+    for reward in snapshot["rewards"]:
+        if reward.get("weaponSetPoints"):
+            continue
+        where = {"part": reward["part"], "area": reward["area"], "from": reward["from"]}
+        key = f"quest{reward['part']}{reward['area']}{reward['from']}"
+        value = saved.get(key)
+        if "options" in reward:
+            if value is None:
+                not_taken.append({**where, "options": reward["options"]})
+            else:
+                option = next((o for o in reward["options"] if o.split() == value.split()), None)
+                if option is not None:
+                    saved.pop(key)
+                    taken.append({**where, "stat": option})
+        else:
+            saved.pop(key, None)
+            (not_taken if value == "false" else taken).append({**where, "stat": reward["stat"]})
+
+    return {"fromCharacter": from_character, "taken": taken, "notTaken": not_taken, "unmatched": sorted(saved),
+            "note": _IMPORTED_NOTE if from_character else _DEFAULTS_NOTE}
 
 
 def _item_summary(text: str) -> dict[str, Any]:
