@@ -99,13 +99,20 @@ Names from `get_stash_layout` are the game's own names, so they price as-is thro
 ## Answering questions
 
 - **Net worth / "how much do I have?"** → call `value_currency(holdings, league)` with the summed
-  totals. It returns worth in exalted (base unit) and divine, per line and total. Report the total and
-  the biggest contributors; state confidence from `ageSeconds` (per the rubric's **Market signals**
-  table) and how confident the parsed counts were. If `unmatched` is non-empty, those lines weren't
-  priced, so the total is **understated** — name them and say so rather than presenting a full total.
+  totals. Lead with `exchange`, what the Currency Exchange traded at in its last hour: worth
+  `lowExalted`–`highExalted` (selling fast fetches toward the low end; the market ratio sits at the
+  high end), with poe2scout's `totalExalted` as the reference beside it — the rubric says how to read
+  the two. Name the biggest contributors; state confidence per the rubric's **Market signals** table
+  and how confident the parsed counts were. Lines left out — poe2scout's `unmatched`, the exchange's
+  `untraded` and `unknown` — make that total **understated**: name them rather than presenting a full
+  total. If `source` is "exchange", poe2scout was down and only the exchange's numbers exist; if
+  `exchange.error` is set, value from poe2scout alone.
 - **"Can I afford X?"** → compare X's price (from `poe2-price-check`; for a rare, its
-  `priceStats.medianExalted`) against `totalExalted` — both are exalted. Answer in the same unit the
-  item is quoted in. If the inventory is stale or was Low-confidence, say so and offer a re-screenshot.
+  `priceStats.medianExalted`) against `exchange.lowExalted` — what selling the holdings fast would
+  raise. Between that and `exchange.highExalted` it's in reach by selling at the market ratio, which
+  takes longer; say which. With no exchange numbers, use `totalExalted`. All are exalted. Answer in the
+  unit the item is quoted in. If the inventory is stale or was Low-confidence, say so and offer a
+  re-screenshot.
 - **Budget ceilings for trade filters** → hand the affordable amount to `build_trade_filter`'s
   `max_price` so searches only surface things the player can actually buy.
 - **"Should I sell or hold X?" / "what's moving?"** → that's `poe2-meta-strategy`: it reads this

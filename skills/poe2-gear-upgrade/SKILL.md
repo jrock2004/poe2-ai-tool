@@ -132,8 +132,9 @@ you'd need to free ~20 Spirit"), and reject outright any option that makes gear/
   one that adds marginal damage. The "currency" side is each slot's `priceStats.medianExalted`, so
   slots compare in one unit. Present the cheapest listing that genuinely fixes the slot (unless it's a
   lone outlier — see the rubric), then a step-up option if they want to spend more.
-- Mark each as **affordable now** vs **save up** by comparing `medianExalted` to `value_currency`'s
-  `totalExalted` — both are exalted, so no conversion. Give the trade `url` for each —
+- Mark each as **affordable now** vs **save up** by comparing `medianExalted` to what the holdings
+  would raise: `value_currency`'s `exchange.lowExalted` (selling fast), else its `totalExalted` — both
+  are exalted, so no conversion. Give the trade `url` for each —
   the player buys it themselves (never auto-buy/whisper).
 
 ## 5. Iterate
