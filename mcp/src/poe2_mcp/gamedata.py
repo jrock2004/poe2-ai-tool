@@ -352,6 +352,24 @@ def build_passives(tables: dict[str, list[dict[str, str]]]) -> dict[str, str]:
     return {node: passives[node] for node in sorted(passives, key=int)}
 
 
+def build_gems(tables: dict[str, list[dict[str, str]]]) -> dict[str, str]:
+    """Each skill and support gem's name, keyed by its `BaseItemTypes` id -- the id Path of Building's gemId
+    and the in-game Build Planner's .build files name it by, under Metadata/Items/Gems/ or, for some,
+    Metadata/Items/Gem/ -- in id order. Pure.
+
+    The name is the one the game shows, which the id doesn't always spell (SupportGemFireInfusion is Fire
+    Attunement). A name the game fills in ("Spectre: {0}", the monster) is the gem's own ("Spectre"). Rows
+    with no name, and unused gems the game marks [DNT] ("do not translate"), are left out.
+    """
+    gems = {}
+    for row in tables["BaseItemTypes"]:
+        name = row["Name"].replace(": {0}", "").strip()
+        if row["Id"].startswith(("Metadata/Items/Gem/", "Metadata/Items/Gems/")) and name \
+                and not name.startswith("[DNT"):
+            gems[row["Id"]] = name
+    return {gem_id: gems[gem_id] for gem_id in sorted(gems)}
+
+
 def _table_ref(rows: dict[str, Any], table: str, rownum: str, by: str) -> Any:
     """`rows[rownum]` -- a dat-export row reference -- or ValueError naming both rows. Pure."""
     if rownum not in rows:
@@ -373,7 +391,7 @@ def _game_text(raw: str | None) -> str:
 
 def render_items(items: dict[str, Any], patch: str, source: str) -> str:
     """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier,
-    Sekhemas effect and passive id per line, so a per-patch regeneration reads as a small diff. Pure; ends
+    Sekhemas effect, passive id and gem name per line, so a per-patch regeneration reads as a small diff. Pure; ends
     with a newline."""
 
     def rows(pairs: Any) -> str:
@@ -389,7 +407,8 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"texts": {\n' + rows((f"{json.dumps(n)}: ", t) for n, t in items["texts"].items()) + "\n},\n"
         '"chaos": [\n' + rows(("", c) for c in items["chaos"]) + "\n],\n"
         '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n],\n"
-        '"passives": {\n' + rows((f"{json.dumps(n)}: ", p) for n, p in items["passives"].items()) + "\n}\n"
+        '"passives": {\n' + rows((f"{json.dumps(n)}: ", p) for n, p in items["passives"].items()) + "\n},\n"
+        '"gems": {\n' + rows((f"{json.dumps(g)}: ", n) for g, n in items["gems"].items()) + "\n}\n"
         "}\n"
     )
 
@@ -639,6 +658,7 @@ def main(argv: list[str]) -> None:
     items["chaos"] = build_chaos(tables)
     items["sekhemas"] = build_sekhemas(tables)
     items["passives"] = build_passives(tables)
+    items["gems"] = build_gems(tables)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:

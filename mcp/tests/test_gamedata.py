@@ -12,6 +12,7 @@ from poe2_mcp.gamedata import (
     build_chaos,
     build_essences,
     build_items,
+    build_gems,
     build_passives,
     build_sekhemas,
     build_texts,
@@ -649,6 +650,48 @@ def test_build_passives_names_a_renamed_column():
         build_passives({"PassiveSkills": rows})
 
 
+def _base(rownum, base_id, name):
+    return {"rownum": rownum, "Id": base_id, "Name": name}
+
+
+# Shaped like dat-export's BaseItemTypes.csv (game 4.5.5.2), trimmed: real rows, fewer columns. A gem's Id is
+# what Path of Building's gemId and the Build Planner's .build files name it by -- under Gems/ or, for some,
+# Gem/ -- and its Name is the one the game shows, which the Id doesn't always spell (Fire Infusion). A few
+# names are templates the game fills in (a Spectre's monster); unused gems are marked [DNT] ("do not translate").
+GEM_TABLES = {"BaseItemTypes": [
+    _base("4210", "Metadata/Items/Gems/SupportGemMeatShieldTwo", "Meat Shield II"),
+    _base("4011", "Metadata/Items/Gems/SupportGemFireInfusion", "Fire Attunement"),
+    _base("5120", "Metadata/Items/Gem/SkillGemAscendancySummonInfernalHound", "Summon Infernal Hound"),
+    _base("17", "Metadata/Items/Currency/CurrencyRerollRare", "Chaos Orb"),
+    _base("4999", "Metadata/Items/Gems/SkillGemUnreleased", ""),
+    _base("4310", "Metadata/Items/Gem/SkillGemSpectre", "Spectre: {0}"),
+    _base("4402", "Metadata/Items/Gem/SkillGemFlameLink", "[DNT] Flame Link"),
+]}
+
+
+def test_build_gems_names_each_gem_by_its_planner_id():
+    # Both spellings of the path, in id order, so a regeneration reads as a small diff.
+    gems = build_gems(GEM_TABLES)
+    assert gems == {"Metadata/Items/Gem/SkillGemAscendancySummonInfernalHound": "Summon Infernal Hound",
+                    "Metadata/Items/Gem/SkillGemSpectre": "Spectre",
+                    "Metadata/Items/Gems/SupportGemFireInfusion": "Fire Attunement",
+                    "Metadata/Items/Gems/SupportGemMeatShieldTwo": "Meat Shield II"}
+    assert list(gems) == sorted(gems)
+
+
+def test_build_gems_leaves_out_other_items_and_gems_with_no_name_or_marked_unused():
+    left_out = {"Metadata/Items/Currency/CurrencyRerollRare", "Metadata/Items/Gems/SkillGemUnreleased",
+                "Metadata/Items/Gem/SkillGemFlameLink"}
+    assert not left_out & set(build_gems(GEM_TABLES))
+
+
+def test_build_gems_names_a_renamed_column():
+    # dat-export's column names are guesses that can change between runs (CONTRIBUTING.md step 9).
+    rows = [{("Title" if k == "Name" else k): v for k, v in row.items()} for row in GEM_TABLES["BaseItemTypes"]]
+    with pytest.raises(KeyError, match="Name"):
+        build_gems({"BaseItemTypes": rows})
+
+
 TRIALS = {"patch": "0.5.5", "chaos": build_chaos(CHAOS_TABLES), "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
 
 
@@ -688,11 +731,13 @@ def test_trial_pool_rejects_a_trial_it_doesnt_know(trial):
 
 def test_render_items_is_json_with_one_entry_per_line():
     items = {**_items(), "texts": _texts(), "chaos": build_chaos(CHAOS_TABLES),
-             "sekhemas": build_sekhemas(SEKHEMAS_TABLES), "passives": build_passives(PASSIVE_TABLES)}
+             "sekhemas": build_sekhemas(SEKHEMAS_TABLES), "passives": build_passives(PASSIVE_TABLES),
+             "gems": build_gems(GEM_TABLES)}
     text = render_items(items, "0.5.5", "repoe-fork/poe2@abc123 (game 4.5.5.2)")
     snapshot = json.loads(text)
     assert snapshot["patch"] == "0.5.5" and snapshot["source"] == "repoe-fork/poe2@abc123 (game 4.5.5.2)"
-    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas", "passives")} == items
+    assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas", "passives",
+                                     "gems")} == items
     assert list(snapshot["passives"]) == list(items["passives"])  # numeric order survives the round trip
     lines = text.splitlines()
     assert sum('"side":' in line for line in lines) == len(snapshot["mods"])
@@ -701,6 +746,8 @@ def test_render_items_is_json_with_one_entry_per_line():
     assert sum('"category":' in line for line in lines) == len(snapshot["sekhemas"])
     assert sum(f'"{node}": "{passive_id}"' in line
                for line in lines for node, passive_id in snapshot["passives"].items()) == len(snapshot["passives"])
+    assert sum(f'"{gem_id}": "{name}"' in line
+               for line in lines for gem_id, name in snapshot["gems"].items()) == len(snapshot["gems"])
     assert text.endswith("\n")
 
 
@@ -813,7 +860,8 @@ MAIN_TABLES = {
     **SEKHEMAS_TABLES,
     **PASSIVE_TABLES,
     "BaseItemTypes": [*ESSENCE_TABLES["BaseItemTypes"],
-                      {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"}],
+                      {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"},
+                      _base("4011", "Metadata/Items/Gems/SupportGemFireInfusion", "Fire Attunement")],
     "CurrencyExchange": [{"rownum": "12", "Item": "3"}, {"rownum": "76", "Item": "111"}],
 }
 
@@ -851,6 +899,8 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
         "Earned Honour", "Ghastly Scythe", "Iron Manacles", "Pledge to the Powerful"]
     # The Build Planner's passive ids, from the same fetch (PassiveSkills is in TABLE_NAMES).
     assert snapshot["passives"]["52"] == "passive_keystone_zealots_oath"
+    # And its gem names, from BaseItemTypes.
+    assert snapshot["gems"] == {"Metadata/Items/Gems/SupportGemFireInfusion": "Fire Attunement"}
 
 
 @pytest.mark.parametrize("argv", [
