@@ -21,7 +21,7 @@ from mcp.server.fastmcp import FastMCP
 
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
-from .buildplanner import compare_plans, plan_build
+from .buildplanner import compare_plans, plan_build, plan_changes
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
@@ -31,6 +31,7 @@ from .plannerfolder import (
 )
 from .pob import PobError, PobSelectionError, decode_pob_code, parse_loadouts, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
+from .treedata import load_snapshot as _tree_snapshot
 from .poe2scout import (
     Poe2ScoutClient,
     change_vs_divine,
@@ -649,9 +650,12 @@ async def write_build_plan(
       - "written" (something was written) or "unchanged" (the plans were already up to date): `plans` lists
         each plan in the guide's order -- name, file, `state` ("new", "changed" or "unchanged"), how many
         passives, skills and gear slots it holds, and `leftOut` ({what, why}: what had no place in the
-        planner, as a code to put in plain words). `gone` names this build's plan files the guide no
-        longer has -- left in place; ask the player, and remove them with remove_build_plans. `unpaired`
-        names the PoB's skill and item sets no tree spec took. A `warning`, when present, must be passed on.
+        planner, as a code to put in plain words). A "changed" plan's `changes` says what the guide changed
+        in that stage: notables and keystones by name (other passives counted), skills and supports added
+        or removed, how many notes changed, suggested uniques, the ascendancy. `gone` names this build's
+        plan files the guide no longer has -- left in place; ask the player, and remove them with
+        remove_build_plans. `unpaired` names the PoB's skill and item sets no tree spec took. A `warning`,
+        when present, must be passed on.
       - "exists": the files in `existing` are in the way and not provably this guide's (another link, no
         link, or not a plan), and nothing was written. Ask the player, then call again with overwrite=true
         to replace them.
@@ -702,13 +706,22 @@ async def write_build_plan(
             out = write_plans(planner, to_write, overwrite=True)
         written = {plan["name"]: plan["file"] for plan in out["plans"]}
 
+    plan_on_disk = {entry["plan"]["name"].casefold(): entry["plan"] for entry in on_disk}
+    passive_names: dict[str | None, dict[str, str]] = {}
     plans = []
-    for stage, result in zip(compared["stages"], results):
+    for stage, result, loadout in zip(compared["stages"], results, loadouts):
         build = result["build"]
-        plans.append({"name": build["name"], "file": written.get(build["name"]) or file_of[build["name"].casefold()],
-                      "state": stage["state"], "passives": len(build.get("passives", [])),
-                      "skills": len(build.get("skills", [])), "gear": len(build.get("inventory_slots", [])),
-                      "leftOut": result["leftOut"]})
+        plan = {"name": build["name"], "file": written.get(build["name"]) or file_of[build["name"].casefold()],
+                "state": stage["state"], "passives": len(build.get("passives", [])),
+                "skills": len(build.get("skills", [])), "gear": len(build.get("inventory_slots", [])),
+                "leftOut": result["leftOut"]}
+        if stage["state"] == "changed":
+            version = loadout["treeVersion"]
+            if version not in passive_names:
+                passive_names[version] = _passive_names(items["passives"], version)
+            plan["changes"] = plan_changes(plan_on_disk[build["name"].casefold()], build,
+                                           passive_names=passive_names[version], gem_names=items.get("gems", {}))
+        plans.append(plan)
     reply = {"status": "written" if to_write else "unchanged", "folder": str(planner), "plans": plans,
              "gone": [file_of[plan_name.casefold()] for plan_name in compared["gone"]],
              "unpaired": parsed["unpaired"]}
@@ -757,6 +770,15 @@ def _planner_folder(folder: str | None) -> tuple[Path | None, dict[str, Any]]:
         checked = ([Path(saved).parent] if saved else []) + [doc / "My Games" / GAME_FOLDER for doc in documents]
         return None, {"status": "no-folder", "checked": [str(path) for path in checked]}
     return found, {}
+
+
+def _passive_names(passive_ids: dict[str, str], tree_version: str | None) -> dict[str, str]:
+    """The passives worth naming in a change report -- notables and keystones, by the PassiveSkills Id a plan
+    names them by -- from the item snapshot's ids and the tree snapshot for the guide's tree version. None
+    for a version with no tree snapshot: its passives are counted instead."""
+    nodes = (_tree_snapshot(tree_version) or {}).get("nodes", {})
+    return {passive_id: nodes[node]["name"] for node, passive_id in passive_ids.items()
+            if node in nodes and nodes[node]["kind"] in ("notable", "keystone")}
 
 
 def _numbered(loadout: dict[str, Any], stage: int, stages: int) -> dict[str, Any]:

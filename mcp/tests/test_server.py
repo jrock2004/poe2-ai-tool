@@ -261,7 +261,9 @@ PLAN_XML = """<PathOfBuilding2>
     <ItemSet title="Mid Maps"><Slot itemId="0" name="Helmet" note="NOTE-helmet"/></ItemSet>
   </Items>
 </PathOfBuilding2>"""
-PLAN_SNAPSHOT = {"patch": "0.5.5", "passives": {"3823": "cold34", "51184": "witch_sorceress_notable1"}}
+PLAN_SNAPSHOT = {"patch": "0.5.5", "passives": {"3823": "cold34", "51184": "witch_sorceress_notable1"},
+                 "gems": {"Metadata/Items/Gem/SkillGemRagingSpirits": "Raging Spirits",
+                          "Metadata/Items/Gems/SupportGemUnleash": "Unleash"}}
 
 
 def _game(root: Path) -> Path:
@@ -477,3 +479,32 @@ def test_write_build_plan_says_when_no_snapshot_is_installed(monkeypatch, tmp_pa
     monkeypatch.setattr(server, "load_items", lambda: None)
     out = asyncio.run(server.write_build_plan(PLAN_XML, "Minion Leveling"))
     assert out == {"status": "invalid", "error": "no item snapshot is installed"}
+
+
+def test_write_build_plan_says_what_changed_inside_each_changed_stage(monkeypatch, tmp_path):
+    # Mid Maps drops a passive (the committed 0.5 tree names node 51184 Raw Power), gains a support, and its
+    # skill's note changes; Act 2 is untouched and says nothing. Notes are counted, never quoted.
+    _game(tmp_path / "Documents")
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    updated = (PLAN_XML.replace('nodes="3823,51184"', 'nodes="3823"')
+               .replace('note="NOTE-skill"/>', 'note="NOTE-skill, reworded"/>\n        <Gem enabled="true" '
+                        'gemId="Metadata/Items/Gems/SupportGemUnleash" nameSpec="Unleash"/>'))
+    out = _write_plan(monkeypatch, tmp_path, link=LINK, code=updated)
+    act2, mid_maps = out["plans"]
+    assert "changes" not in act2
+    assert mid_maps["changes"] == {
+        "passives": {"added": [], "removed": ["Raw Power"], "otherAdded": 0, "otherRemoved": 0},
+        "supports": {"added": [{"skill": "Raging Spirits", "support": "Unleash"}], "removed": []},
+        "notes": 1,
+    }
+    assert "NOTE-" not in json.dumps(out)
+
+
+def test_write_build_plan_counts_passives_it_cannot_name(monkeypatch, tmp_path):
+    # No tree snapshot for the guide's tree version: nothing to name the passives by, so they're counted.
+    _game(tmp_path / "Documents")
+    old_tree = PLAN_XML.replace('treeVersion="0_5"', 'treeVersion="0_1"')
+    _write_plan(monkeypatch, tmp_path, link=LINK, code=old_tree)
+    out = _write_plan(monkeypatch, tmp_path, link=LINK, code=old_tree.replace('nodes="3823,51184"', 'nodes="3823"'))
+    assert out["plans"][1]["changes"] == {"passives": {"added": [], "removed": [], "otherAdded": 0,
+                                                       "otherRemoved": 1}}
