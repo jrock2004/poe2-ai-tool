@@ -14,8 +14,8 @@ Which source the skills use for what: `skills/poe2-core/references/sources.md`.
   - `poe2scout.py` — currency and unique prices, price history.
   - `trade2.py` — the trade site's search, the only way to find rares by mods (notes below).
   - `guides.py` — build-guide fetch that respects robots.txt and content licenses.
-  - `exchange.py` — GGG's Currency Exchange API, a second source of currency rates. Built and tested,
-    not wired to a tool yet.
+  - `exchange.py` — GGG's Currency Exchange API: each currency's last traded hour (low, high, average,
+    volume), beside poe2scout's price in `get_currency_prices`.
 - **Pure** — `pob.py` (Path of Building codes) and `vendor_regex.py`.
 - **Snapshots** — `treedata.py`, `stashlayout.py`, `gamedata.py` and `campaign.py` each load a generated
   `data/*_<version>.json`, and regenerate it when run as a module (`CONTRIBUTING.md`, "Per-patch
@@ -37,8 +37,9 @@ call at all.
 - `get_knowledge` / `save_knowledge` — per-patch knowledge (`trials`, `farming`, `crafting`): the newer
   of the shipped copy and the player's refresh. Offline.
 
-**Prices (poe2scout)**
-- `get_currency_prices` — a category's currency prices, in exalted and divine.
+**Prices (poe2scout, and GGG's Currency Exchange for currency)**
+- `get_currency_prices` — a category's currency prices, in exalted and divine, each with the Currency
+  Exchange's last hour beside it.
 - `market_movers` — the biggest 7-day risers and fallers per category, measured in divine.
 - `price_unique` — a unique's (or a currency's) price by name, with close-name suggestions.
 - `value_currency` — what an inventory is worth, per line and in total.
