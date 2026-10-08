@@ -165,6 +165,8 @@ def parse_pob_xml(
     skills: list[dict[str, Any]] = []
     skill_parent = skill_sets[skills_i] if skills_i is not None else None
     for skill in (skill_parent.findall("Skill") if skill_parent is not None else []):
+        if skill.get("removed") == "true":  # an unequipped item's skill, kept for its supports: not the build's
+            continue
         gems = [
             {
                 "name": g.get("nameSpec") or g.get("skillId"),

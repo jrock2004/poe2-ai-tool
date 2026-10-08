@@ -141,6 +141,24 @@ def test_parse_skills_falls_back_to_the_first_skill_set():
     assert _gem_names(parse_pob_xml(_skill_sets_xml(""))) == ["Lightning Arrow"]
 
 
+def test_parse_skills_leaves_out_a_group_pob_marks_removed():
+    # An unequipped item's skill: PoB keeps the group so its supports come back with the item, but it isn't
+    # part of the build -- reviews would otherwise count supports the character doesn't have socketed.
+    xml = """<PathOfBuilding2>
+  <Build level="40" className="Witch"/>
+  <Skills>
+    <SkillSet id="1" title="Mid Maps">
+      <Skill label="Main"><Gem nameSpec="Raging Spirits" level="20"/></Skill>
+      <Skill enabled="true" label="" removed="true" removedSkillId="SummonSkeletalWarriorsPlayer"
+             removedSlot="Weapon 1" removedSource="Item:36:New Item, Rattling Sceptre">
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemMeatShield" nameSpec="Meat Shield I" level="1"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+</PathOfBuilding2>"""
+    assert _gem_names(parse_pob_xml(xml)) == ["Raging Spirits"]
+
+
 def _one_item_xml(item_text: str) -> str:
     return f"""<PathOfBuilding2>
   <Items activeItemSet="1">
