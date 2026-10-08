@@ -41,6 +41,7 @@ These thresholds are starting defaults; tune them here, not in individual skills
 | Exchange volume | `exchange.volume` (units traded, last hour) | ≥ 100 | 10–99 | < 10 |
 | Exchange range | `exchange.highExalted` ÷ `exchange.lowExalted` | ≤ 1.5 | 1.5–3 | > 3 |
 | Source agreement | `priceExalted` vs `exchange` low–high | within 1.25× of the range | 1.25–2× | > 2× outside |
+| Move agreement | `changePctVsDivine` vs the `exchange` one | same way, within 15 points | same way | opposite ways |
 | Conversion coverage | `priceStats.unconvertedCurrencies` | empty | some, < 25% of `count` | ≥ 25% of `count` |
 
 How to read them:
@@ -73,6 +74,11 @@ How to read them:
   `exchange.error` is set, the exchange was down: price from poe2scout alone and skip the exchange rows.
 - **No `exchange` on an item means it didn't trade that hour** — a thin market. Skip the exchange rows
   and let `quantityListed` carry depth; don't treat the gap as a disagreement.
+- **The exchange's move is its own measure.** `market_movers` gives each mover the exchange's 7-day
+  move (`exchange.changePctVsDivine`): the last 12 hours of trades against the same hours a week
+  before, for items with 100+ units traded in each. A None move means too thin — skip Move agreement.
+  The sources often disagree (about a third of items moved opposite ways, 2026-10-08): poe2scout's
+  figures aren't the exchange's trades, so a move only one source sees is a weak signal.
 - **Unique prices have no sample size.** `price_unique` is a poe2scout reference price with no
   listing volume, so it tops out at **Medium** ("reference price; listing volume unknown").
 - **Judge currency volatility in divine, not exalted.** Prices are quoted in exalted, so when exalted

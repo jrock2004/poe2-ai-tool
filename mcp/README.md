@@ -40,7 +40,9 @@ call at all.
 **Prices (poe2scout, and GGG's Currency Exchange for currency)**
 - `get_currency_prices` — a category's currency prices, in exalted and divine, each with the Currency
   Exchange's last hour beside it.
-- `market_movers` — the biggest 7-day risers and fallers per category, measured in divine.
+- `market_movers` — the biggest 7-day risers and fallers per category, measured in divine, each with the
+  Currency Exchange's own 7-day move beside it. Its first call fetches ~24 exchange hours (~25 s); they're
+  kept in the data dir's `exchange/` after that.
 - `price_unique` — a unique's (or a currency's) price by name, with close-name suggestions.
 - `value_currency` — what an inventory is worth, per line and in total.
 
