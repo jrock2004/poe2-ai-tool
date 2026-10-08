@@ -11,6 +11,7 @@ from poe2_mcp.gamedata import (
     build_augments,
     build_chaos,
     build_essences,
+    build_exchange_names,
     build_items,
     build_gems,
     build_passives,
@@ -279,6 +280,24 @@ def test_build_texts_refuses_two_traded_items_with_one_name():
     base_items = {**BASE_ITEMS, CURRENCY + "CurrencyRerollRareCopy": BASE_ITEMS[CURRENCY + "CurrencyRerollRare"]}
     with pytest.raises(ValueError, match="Chaos Orb"):
         build_texts(base_items, TRADED | {CURRENCY + "CurrencyRerollRareCopy"})
+
+
+def test_build_exchange_names_names_every_traded_item_text_or_not():
+    # The exchange prices by base id, so get_currency_prices needs a name for each -- the Reliquary Key
+    # too, which has no text. Only traded items: not the PoE1 leftover Orb of Scouring.
+    assert build_exchange_names(BASE_ITEMS, TRADED) == {
+        CURRENCY + "CurrencyJewelleryQualityLife": "Flesh Catalyst",
+        CURRENCY + "CurrencyRerollRare": "Chaos Orb",
+        CURRENCY + "CurrencyUpgradeToMagicShard": "Transmutation Shard",
+        CURRENCY + "OmenOnChaosPrefix": "Omen of Sinistral Erasure",
+        "Metadata/Items/MapFragments/VaultKeyWorldDrop": "Twilight Reliquary Key",
+        "Metadata/Items/SoulCores/RuneWarpingCreateJewelSocket": "Cadigan's Epiphany",
+    }
+
+
+def test_build_exchange_names_refuses_a_traded_item_it_cant_resolve():
+    with pytest.raises(ValueError, match="CurrencyNotInTheExport"):
+        build_exchange_names(BASE_ITEMS, TRADED | {CURRENCY + "CurrencyNotInTheExport"})
 
 
 def _essence_mod(rownum, essence, category, mod="", display="", text="", outcomes="[]", weights="[]"):
@@ -732,12 +751,12 @@ def test_trial_pool_rejects_a_trial_it_doesnt_know(trial):
 def test_render_items_is_json_with_one_entry_per_line():
     items = {**_items(), "texts": _texts(), "chaos": build_chaos(CHAOS_TABLES),
              "sekhemas": build_sekhemas(SEKHEMAS_TABLES), "passives": build_passives(PASSIVE_TABLES),
-             "gems": build_gems(GEM_TABLES)}
+             "gems": build_gems(GEM_TABLES), "exchange": build_exchange_names(BASE_ITEMS, TRADED)}
     text = render_items(items, "0.5.5", "repoe-fork/poe2@abc123 (game 4.5.5.2)")
     snapshot = json.loads(text)
     assert snapshot["patch"] == "0.5.5" and snapshot["source"] == "repoe-fork/poe2@abc123 (game 4.5.5.2)"
     assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas", "passives",
-                                     "gems")} == items
+                                     "gems", "exchange")} == items
     assert list(snapshot["passives"]) == list(items["passives"])  # numeric order survives the round trip
     lines = text.splitlines()
     assert sum('"side":' in line for line in lines) == len(snapshot["mods"])
@@ -748,6 +767,8 @@ def test_render_items_is_json_with_one_entry_per_line():
                for line in lines for node, passive_id in snapshot["passives"].items()) == len(snapshot["passives"])
     assert sum(f'"{gem_id}": "{name}"' in line
                for line in lines for gem_id, name in snapshot["gems"].items()) == len(snapshot["gems"])
+    assert sum(f'"{base_id}": {json.dumps(name)}' in line
+               for line in lines for base_id, name in snapshot["exchange"].items()) == len(snapshot["exchange"])
     assert text.endswith("\n")
 
 
@@ -901,6 +922,8 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
     assert snapshot["passives"]["52"] == "passive_keystone_zealots_oath"
     # And its gem names, from BaseItemTypes.
     assert snapshot["gems"] == {"Metadata/Items/Gems/SupportGemFireInfusion": "Fire Attunement"}
+    # And a name for everything the exchange trades, from the same CurrencyExchange table as the texts.
+    assert snapshot["exchange"][CURRENCY + "CurrencyRerollRare"] == "Chaos Orb"
 
 
 @pytest.mark.parametrize("argv", [
@@ -1134,6 +1157,7 @@ def test_load_items_reads_the_committed_snapshot_once():
     assert items["texts"]["Lesser Robust Rune"]["adds"]
     assert items["chaos"] and items["sekhemas"]
     assert items["passives"]["52"] == "passive_keystone_zealots_oath"
+    assert items["exchange"]["Metadata/Items/Currency/CurrencyModValues"] == "Divine Orb"
     assert load_items() is items
 
 

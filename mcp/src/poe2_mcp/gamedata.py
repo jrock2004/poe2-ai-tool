@@ -173,6 +173,20 @@ def build_texts(
     return dict(sorted(texts.items()))
 
 
+def build_exchange_names(base_items: dict[str, Any], ids: set[str]) -> dict[str, str]:
+    """The name of each item PoE2's Currency Exchange trades (`exchange_ids`): base id -> name, in id order.
+    Pure. Every traded item, text or not -- the exchange prices by base id, so this is how its prices get
+    names when poe2scout is down. An id that base_items doesn't have raises ValueError, as in build_texts.
+    """
+    names: dict[str, str] = {}
+    for base_id in sorted(ids):
+        base = base_items.get(base_id)
+        if base is None:
+            raise ValueError(f"{base_id} isn't in base_items.json")
+        names[base_id] = base["name"]
+    return names
+
+
 def build_essences(
     tables: dict[str, list[dict[str, str]]], mods: dict[str, Any]
 ) -> dict[str, dict[str, list[dict[str, str]]]]:
@@ -389,8 +403,8 @@ def _game_text(raw: str | None) -> str:
 
 def render_items(items: dict[str, Any], patch: str, source: str) -> str:
     """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier,
-    Sekhemas effect, passive id and gem name per line, so a per-patch regeneration reads as a small diff. Pure; ends
-    with a newline."""
+    Sekhemas effect, passive id, gem name and exchange name per line, so a per-patch regeneration reads as a
+    small diff. Pure; ends with a newline."""
 
     def rows(pairs: Any) -> str:
         return ",\n".join(f"  {key}{json.dumps(value, ensure_ascii=False)}" for key, value in pairs)
@@ -406,7 +420,8 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"chaos": [\n' + rows(("", c) for c in items["chaos"]) + "\n],\n"
         '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n],\n"
         '"passives": {\n' + rows((f"{json.dumps(n)}: ", p) for n, p in items["passives"].items()) + "\n},\n"
-        '"gems": {\n' + rows((f"{json.dumps(g)}: ", n) for g, n in items["gems"].items()) + "\n}\n"
+        '"gems": {\n' + rows((f"{json.dumps(g)}: ", n) for g, n in items["gems"].items()) + "\n},\n"
+        '"exchange": {\n' + rows((f"{json.dumps(b)}: ", n) for b, n in items["exchange"].items()) + "\n}\n"
         "}\n"
     )
 
@@ -647,11 +662,13 @@ def main(argv: list[str]) -> None:
     # Every augment gets an entry, traded or not; the exchange decides only for everything else.
     augments = build_augments(export["augments"])
     extras = {**build_essences(tables, export["mods"]), **augments}
-    items["texts"] = build_texts(export["base_items"], exchange_ids(tables) | set(augments), extras)
+    traded = exchange_ids(tables)
+    items["texts"] = build_texts(export["base_items"], traded | set(augments), extras)
     items["chaos"] = build_chaos(tables)
     items["sekhemas"] = build_sekhemas(tables)
     items["passives"] = build_passives(tables)
     items["gems"] = build_gems(tables)
+    items["exchange"] = build_exchange_names(export["base_items"], traded)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
