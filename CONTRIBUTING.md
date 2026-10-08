@@ -176,10 +176,10 @@ files; a server-side fix doesn't. `src/poe2_mcp/data/items_<patch>.json` holds w
 roll and every tier's name, side, item level and text, plus the in-game text of everything PoE2's
 Currency Exchange trades, what each essence adds, what each rune, soul core and idol does (from
 repoe-fork/poe2's `augments.json`, traded or not), the Trial of Chaos and Trial of the Sekhemas pools, and
-what the in-game Build Planner names things by — each passive-tree node's `PassiveSkills` id and each gem's
-name by its id (from dat-export's `PassiveSkills` and `BaseItemTypes`), and the name of everything the
-Currency Exchange trades by its base id (how `get_currency_prices` names the exchange's prices when
-poe2scout is down); its `source` names both export commits and the game version.
+what the in-game Build Planner names things by — each passive-tree node's `PassiveSkills` id, each gem's
+name by its id and every unique's name (from dat-export's `PassiveSkills`, `BaseItemTypes` and `Words`), and
+the name of everything the Currency Exchange trades by its base id (how `get_currency_prices` names the
+exchange's prices when poe2scout is down); its `source` names both export commits and the game version.
 
 1. Take the commit hash of repoe-fork/poe2 (`master`) whose `version.txt` is the new game version — a
    commit, not `master`: the command refuses a branch, so the snapshot names exactly what it came from.

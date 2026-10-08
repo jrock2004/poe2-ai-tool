@@ -39,7 +39,8 @@ date"). Something changed → say the guide was updated, and what changed (below
     wand's Chaos Bolt — it comes with the item); `disabled` switched off in the guide at that stage;
     `item-skill-support` / `no-skill` supports with no skill gem to sit under; `unmapped-slot` a slot the
     planner has no place for (the temple's Arm and Leg slots, lost on death); `unmapped-passive` a passive
-    this patch doesn't have.
+    this patch doesn't have; `unknown-unique` a unique the game doesn't know by that name — PoB's own
+    "New Item", or a variant like Sekhema's Resolve — so its slot shows the guide's note but no unique.
   - `gone` — stages the guide no longer has. Name them and ask (a choice) whether to remove them; yes →
     `remove_build_plans` with those files.
   - `warning` — pass it on in plain words. `unpaired` — setups in the guide (e.g. a boss swap) that belong
