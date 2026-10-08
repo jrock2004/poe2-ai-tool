@@ -18,12 +18,16 @@ from typing import Any
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
-# PoB's equipment slot -> the game's Inventories id. Flasks, charms and PoB's Arm/Leg slots have none yet.
+# PoB's equipment slot -> the game's Inventories id. PoB's Arm/Leg slots (a temple mechanic's, lost on death) have none.
 _INVENTORIES = {
     "Weapon 1": "Weapon1", "Weapon 2": "Offhand1", "Weapon 1 Swap": "Weapon2", "Weapon 2 Swap": "Offhand2",
     "Helmet": "Helm1", "Body Armour": "BodyArmour1", "Gloves": "Gloves1", "Boots": "Boots1",
     "Amulet": "Amulet1", "Ring 1": "Ring1", "Ring 2": "Ring2", "Ring 3": "Ring3", "Belt": "Belt1",
 }
+# The flask bar is one inventory, Flask1; slot_x is each slot's place in it (checked in game with a hand-made
+# file): the two flasks, then the three charms.
+_FLASK_BAR = {"Flask 1": 0, "Flask 2": 1, "Charm 1": 2, "Charm 2": 3, "Charm 3": 4}
+_FLASK_BAR_SLOT = {x: slot for slot, x in _FLASK_BAR.items()}
 
 
 def plan_build(
@@ -132,11 +136,13 @@ def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]])
         unique = item.get("name") if item.get("rarity") == "UNIQUE" else None
         if not (slot["note"] or unique):
             continue
-        inventory = _INVENTORIES.get(slot["slot"])
-        if inventory is None:
+        if slot["slot"] in _FLASK_BAR:
+            entry: dict[str, Any] = {"inventory_id": "Flask1", "slot_x": _FLASK_BAR[slot["slot"]]}
+        elif slot["slot"] in _INVENTORIES:
+            entry = {"inventory_id": _INVENTORIES[slot["slot"]]}
+        else:
             left_out.append({"what": slot["slot"], "why": "unmapped-slot"})
             continue
-        entry: dict[str, Any] = {"inventory_id": inventory}
         if slot["note"]:
             entry["additional_text"] = slot["note"]
         if unique:
@@ -206,9 +212,10 @@ def plan_changes(
     {"passives": {"added", "removed": [names], "otherAdded", "otherRemoved": counts}, "skills": {"added",
     "removed": [names]}, "supports": {"added", "removed": [{"skill", "support"}]} -- only under skills both
     plans hold, since a new skill brings its supports --, "notes": how many notes changed on what both plans
-    hold (a gear slot's too when one plan has none), "uniques": [{"slot", "was", "now"}], "ascendancy":
-    {"was", "now"}}. Notes are counted, never quoted: they stay out of the reply. A passive that only moved
-    between weapon sets isn't a change yet.
+    hold (a gear slot's too when one plan has none), "uniques": [{"slot", "was", "now"}] -- the slot is its
+    inventory, or PoB's name for a flask or charm, which share one --, "ascendancy": {"was", "now"}}. Notes
+    are counted, never quoted: they stay out of the reply. A passive that only moved between weapon sets
+    isn't a change yet.
     """
     def gem(gem_id: str) -> str:
         return gem_names.get(gem_id, gem_id)
@@ -242,14 +249,14 @@ def plan_changes(
     if supports["added"] or supports["removed"]:
         changes["supports"] = supports
 
-    old_slots = {slot["inventory_id"]: slot for slot in old.get("inventory_slots", [])}
-    new_slots = {slot["inventory_id"]: slot for slot in new.get("inventory_slots", [])}
+    old_slots, new_slots = _by_slot(old.get("inventory_slots", [])), _by_slot(new.get("inventory_slots", []))
     uniques = []
     for slot in dict.fromkeys([*old_slots, *new_slots]):
         was, now = old_slots.get(slot, {}), new_slots.get(slot, {})
         notes += was.get("additional_text") != now.get("additional_text")
         if was.get("unique_name") != now.get("unique_name"):
-            uniques.append({"slot": slot, "was": was.get("unique_name"), "now": now.get("unique_name")})
+            name = _FLASK_BAR_SLOT[slot[1]] if slot[0] == "Flask1" else slot[0]
+            uniques.append({"slot": name, "was": was.get("unique_name"), "now": now.get("unique_name")})
 
     if notes:
         changes["notes"] = notes
@@ -263,6 +270,11 @@ def plan_changes(
 def _by_id(entries: list[Any]) -> dict[str, Any]:
     """A plan's passives, skills or supports by id: each a bare id or an object with one."""
     return {entry if isinstance(entry, str) else entry["id"]: entry for entry in entries}
+
+
+def _by_slot(slots: list[dict[str, Any]]) -> dict[tuple[str, int], dict[str, Any]]:
+    """A plan's gear slots by inventory and place in it: the five flask-bar slots share one inventory."""
+    return {(slot["inventory_id"], slot.get("slot_x", 0)): slot for slot in slots}
 
 
 def _text(entry: Any) -> str | None:

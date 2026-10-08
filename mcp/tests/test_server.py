@@ -303,7 +303,8 @@ def test_write_build_plan_writes_a_plan_per_loadout_into_the_game_folder(monkeyp
     assert json.loads((planner / "Minion Leveling - 1 Act 2.build").read_text(encoding="utf-8")) == {
         "name": "Minion Leveling - 1 Act 2", "author": "Guide Author", "link": "https://example.test/guide",
         "description": f"Stage 1 of 2. Written {date.today().isoformat()} from the guide's PoB.",
-        "ascendancy": "Witch1", "passives": [{"id": "cold34", "additional_text": "NOTE-passive"}]}
+        "ascendancy": "Witch1", "passives": [{"id": "cold34", "additional_text": "NOTE-passive"}],
+        "inventory_slots": [{"inventory_id": "Flask1", "slot_x": 0, "additional_text": "NOTE-flask"}]}
 
 
 def test_write_build_plan_reports_each_plan_without_its_notes(monkeypatch, tmp_path):
@@ -312,9 +313,9 @@ def test_write_build_plan_reports_each_plan_without_its_notes(monkeypatch, tmp_p
     out = _write_plan(monkeypatch, tmp_path)
     assert out["plans"] == [
         {"name": "Minion Leveling - 1 Act 2", "file": "Minion Leveling - 1 Act 2.build", "state": "new",
-         "passives": 1, "skills": 0, "gear": 0,
+         "passives": 1, "skills": 0, "gear": 1,
          "leftOut": [{"what": "passive node 99999", "why": "unmapped-passive"},
-                     {"what": "Chaos Bolt", "why": "item-granted"}, {"what": "Flask 1", "why": "unmapped-slot"}]},
+                     {"what": "Chaos Bolt", "why": "item-granted"}]},
         {"name": "Minion Leveling - 2 Mid Maps", "file": "Minion Leveling - 2 Mid Maps.build", "state": "new",
          "passives": 2, "skills": 1, "gear": 1, "leftOut": []},
     ]

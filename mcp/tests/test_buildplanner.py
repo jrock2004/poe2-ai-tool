@@ -61,6 +61,7 @@ LOADOUT = {
          "note": None},
         {"slot": "Ring 3", "item": None, "note": "<u>{<b>{Any Ring}}"},
         {"slot": "Flask 1", "item": None, "note": "Life flask"},
+        {"slot": "Arm 1", "item": None, "note": "Temple augment"},  # a temple mechanic's, lost on death
     ],
 }
 
@@ -118,6 +119,18 @@ def test_gear_maps_pob_slots_to_the_games_inventories():
         {"inventory_id": "Weapon2", "additional_text": "<u>{<b>{Swap Wand}}"},
         {"inventory_id": "Boots1", "unique_name": "Bones of Ullr"},
         {"inventory_id": "Ring3", "additional_text": "<u>{<b>{Any Ring}}"},
+        {"inventory_id": "Flask1", "slot_x": 0, "additional_text": "Life flask"},
+    ]
+
+
+def test_flasks_and_charms_share_the_flask_inventory_each_at_its_own_position():
+    # Checked in game with a hand-made file: one Flask1 inventory, slot_x 0-1 the flasks and 2-4 the charms.
+    gear = [{"slot": "Charm 2", "item": {"rarity": "UNIQUE", "name": "Nascent Hope", "base": "Thawing Charm"},
+             "note": None},
+            {"slot": "Flask 2", "item": None, "note": "Mana flask"}]
+    assert plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"] == [
+        {"inventory_id": "Flask1", "slot_x": 3, "unique_name": "Nascent Hope"},
+        {"inventory_id": "Flask1", "slot_x": 1, "additional_text": "Mana flask"},
     ]
 
 
@@ -129,7 +142,7 @@ def test_left_out_says_what_and_why_in_the_order_met():
         {"what": "Elemental Armament II", "why": "disabled"},
         {"what": "Sacrificial Lamb I", "why": "item-skill-support"},
         {"what": "Flame Wall", "why": "disabled"},
-        {"what": "Flask 1", "why": "unmapped-slot"},
+        {"what": "Arm 1", "why": "unmapped-slot"},
     ]
 
 
@@ -141,12 +154,15 @@ def test_empty_sections_are_left_out_of_the_file():
 
 def test_every_pob_equipment_slot_has_an_inventory():
     slots = ["Weapon 1", "Weapon 2", "Weapon 1 Swap", "Weapon 2 Swap", "Helmet", "Body Armour", "Gloves",
-             "Boots", "Amulet", "Ring 1", "Ring 2", "Ring 3", "Belt"]
+             "Boots", "Amulet", "Ring 1", "Ring 2", "Ring 3", "Belt", "Flask 1", "Flask 2", "Charm 1", "Charm 2",
+             "Charm 3"]
     gear = [{"slot": s, "item": None, "note": "x"} for s in slots]
     out = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)
-    assert [s["inventory_id"] for s in out["build"]["inventory_slots"]] == [
-        "Weapon1", "Offhand1", "Weapon2", "Offhand2", "Helm1", "BodyArmour1", "Gloves1", "Boots1", "Amulet1",
-        "Ring1", "Ring2", "Ring3", "Belt1"]
+    assert [(s["inventory_id"], s.get("slot_x")) for s in out["build"]["inventory_slots"]] == [
+        ("Weapon1", None), ("Offhand1", None), ("Weapon2", None), ("Offhand2", None), ("Helm1", None),
+        ("BodyArmour1", None), ("Gloves1", None), ("Boots1", None), ("Amulet1", None), ("Ring1", None),
+        ("Ring2", None), ("Ring3", None), ("Belt1", None),
+        ("Flask1", 0), ("Flask1", 1), ("Flask1", 2), ("Flask1", 3), ("Flask1", 4)]
     assert not [x for x in out["leftOut"] if x["why"] == "unmapped-slot"]
 
 
@@ -340,3 +356,13 @@ def test_plan_changes_ignores_a_passive_only_moving_between_weapon_sets():
     after = {**BEFORE, "passives": ["attributes1", {"id": "ailments38", "additional_text": "Priority 1",
                                                      "weapon_set": 2}, "passive_keystone_zealots_oath", "cold34"]}
     assert changes(BEFORE, after) == {}
+
+
+def test_plan_changes_tells_the_flask_bar_slots_apart():
+    # Five slots share the Flask1 inventory; slot_x says which is which, and a unique is reported by PoB's name.
+    before = {**BEFORE, "inventory_slots": [{"inventory_id": "Flask1", "slot_x": 0, "additional_text": "Life"},
+                                            {"inventory_id": "Flask1", "slot_x": 2, "unique_name": "Nascent Hope"}]}
+    after = {**BEFORE, "inventory_slots": [{"inventory_id": "Flask1", "slot_x": 0, "additional_text": "Life"},
+                                           {"inventory_id": "Flask1", "slot_x": 2, "additional_text": "Any charm"}]}
+    assert changes(before, after) == {"notes": 1,
+                                      "uniques": [{"slot": "Charm 1", "was": "Nascent Hope", "now": None}]}
