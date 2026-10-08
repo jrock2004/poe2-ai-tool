@@ -1,11 +1,12 @@
-"""Unit tests for turning one PoB loadout into an in-game Build Planner .build (pure, no network).
+"""Unit tests for turning one PoB loadout into an in-game Build Planner .build, and for comparing a guide's new
+plans with the ones already in the planner folder (pure, no network).
 
 The loadout is shaped like pob.parse_loadouts' output for a real 0.5 Infernalist guide, trimmed; passive ids
 are the item snapshot's (dat-export PassiveSkills, game 4.5.5.2). What the planner accepts was checked in
 game with hand-made files built the same way: passives by PassiveSkills Id, gems by gemId, the ascendancy by
 PoB's ascendancyInternalId; notes show on skills and supports only without a level range, so none is set.
 """
-from poe2_mcp.buildplanner import plan_build
+from poe2_mcp.buildplanner import compare_plans, plan_build
 
 PASSIVE_IDS = {"3823": "cold34", "51184": "witch_sorceress_notable1", "55180": "minion_offence21_",
                "61419": "jewel_slot1972", "17754": "AscendancyWitch1Notable10"}
@@ -167,3 +168,90 @@ def test_a_switched_off_skills_supports_are_left_out_as_disabled_too():
         {"what": "Flame Wall", "why": "disabled"}, {"what": "Unleash", "why": "disabled"},
         {"what": "Skeletal Warrior", "why": "disabled"}, {"what": "Meat Shield I", "why": "disabled"},
     ]
+
+
+# compare_plans: a guide's plans, about to be written, against the plans already in the folder -- all of them,
+# as read from disk. Shaped like write_build_plan's output for a three-stage guide.
+LINK = "https://example.test/infernalist"
+
+
+def staged(n, title, of=3, day="2026-10-07", **content):
+    return {"name": f"Infernalist - {n} {title}", "link": LINK,
+            "description": f"Stage {n} of {of}. Written {day} from the guide's PoB.",
+            "passives": ["cold34"], **content}
+
+
+NEW = [staged(1, "Act 1"), staged(2, "Act 2"), staged(3, "Maps")]
+
+
+def states(out):
+    return [(s["name"], s["state"]) for s in out["stages"]]
+
+
+def test_with_nothing_of_this_build_on_disk_every_stage_is_new():
+    out = compare_plans(NEW, [], "Infernalist", LINK)
+    assert states(out) == [("Infernalist - 1 Act 1", "new"), ("Infernalist - 2 Act 2", "new"),
+                           ("Infernalist - 3 Maps", "new")]
+    assert (out["write"], out["gone"], out["conflict"]) == (
+        ["Infernalist - 1 Act 1", "Infernalist - 2 Act 2", "Infernalist - 3 Maps"], [], [])
+
+
+def test_a_stage_the_guide_did_not_change_is_left_alone_even_on_another_day():
+    # Its "Written" date then keeps meaning when the stage last changed.
+    disk = [staged(1, "Act 1", day="2026-09-01"), staged(2, "Act 2", day="2026-09-01"),
+            staged(3, "Maps", day="2026-09-01")]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert [state for _, state in states(out)] == ["unchanged"] * 3
+    assert out["write"] == []
+
+
+def test_a_stage_whose_passives_skills_or_gear_changed_is_rewritten():
+    disk = [staged(1, "Act 1"), staged(2, "Act 2", passives=["cold34", "witch_sorceress_notable1"]),
+            staged(3, "Maps", inventory_slots=[{"inventory_id": "Boots1", "unique_name": "Bones of Ullr"}])]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert states(out) == [("Infernalist - 1 Act 1", "unchanged"), ("Infernalist - 2 Act 2", "changed"),
+                           ("Infernalist - 3 Maps", "changed")]
+    assert out["write"] == ["Infernalist - 2 Act 2", "Infernalist - 3 Maps"]
+
+
+def test_a_new_stage_count_rewrites_the_descriptions_without_calling_them_changed():
+    # "Stage 1 of 2" has to become "of 3", but the player is only told about the stage that's new.
+    disk = [staged(1, "Act 1", of=2), staged(2, "Act 2", of=2)]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert states(out) == [("Infernalist - 1 Act 1", "unchanged"), ("Infernalist - 2 Act 2", "unchanged"),
+                           ("Infernalist - 3 Maps", "new")]
+    assert out["write"] == ["Infernalist - 1 Act 1", "Infernalist - 2 Act 2", "Infernalist - 3 Maps"]
+
+
+def test_this_builds_plans_the_guide_no_longer_has_are_gone():
+    # Matched by name, number and all: a renamed or renumbered stage is new, and its old plan is gone.
+    disk = [staged(1, "Act 1"), staged(2, "Act 2"), staged(3, "Early Maps"), staged(4, "Late Maps", of=4)]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert states(out)[2] == ("Infernalist - 3 Maps", "new")
+    assert out["gone"] == ["Infernalist - 3 Early Maps", "Infernalist - 4 Late Maps"]
+
+
+def test_names_match_in_any_case_as_the_file_system_sees_them():
+    # A guide fixing a title's case writes the same file; it must never be listed as gone.
+    disk = [staged(1, "act 1"), staged(2, "Act 2"), staged(3, "Maps")]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert states(out)[0] == ("Infernalist - 1 Act 1", "changed")
+    assert out["gone"] == []
+
+
+def test_other_builds_plans_are_never_counted():
+    other = [{**staged(1, "Act 1"), "name": "Deadeye - 1 Act 1"},
+             {**staged(1, "Act 1"), "name": "Infernalist Minions - 1 Act 1", "link": "https://example.test/other"}]
+    out = compare_plans(NEW, other, "Infernalist", LINK)
+    assert [state for _, state in states(out)] == ["new"] * 3
+    assert (out["gone"], out["conflict"]) == ([], [])
+
+
+def test_this_builds_plans_from_another_guide_or_with_no_link_are_a_conflict():
+    # Same name, but not provably the same guide: the tool asks before touching them. A single-stage plan
+    # is the build's name alone.
+    disk = [staged(1, "Act 1"), {**staged(2, "Act 2"), "link": "https://example.test/other"},
+            {"name": "Infernalist", "passives": ["cold34"]}]
+    out = compare_plans(NEW, disk, "Infernalist", LINK)
+    assert out["conflict"] == ["Infernalist - 2 Act 2", "Infernalist"]
+    assert compare_plans(NEW, [staged(1, "Act 1")], "Infernalist", None)["conflict"] == ["Infernalist - 1 Act 1"]

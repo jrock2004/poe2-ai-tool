@@ -6,11 +6,17 @@ their PassiveSkills Id, gems by PoB's gemId, the ascendancy by PoB's ascendancyI
 Inventories table's ids. No entry carries a level range -- in game, a ranged skill outside the player's
 level vanishes from the Gemcutting window, and a ranged entry doesn't show its note.
 
+``compare_plans`` sets a guide's new plans against the ones already in the planner folder, so a guide
+written before is updated instead of written again.
+
 Pure and offline -- no network. Finding the planner's folder and writing the file live elsewhere.
 """
 from __future__ import annotations
 
+import re
 from typing import Any
+
+_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 # PoB's equipment slot -> the game's Inventories id. Flasks, charms and PoB's Arm/Leg slots have none yet.
 _INVENTORIES = {
@@ -137,3 +143,52 @@ def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]])
             entry["unique_name"] = unique
         out.append(entry)
     return out
+
+
+def compare_plans(
+    new: list[dict[str, Any]], on_disk: list[dict[str, Any]], name: str, link: str | None,
+) -> dict[str, Any]:
+    """A guide's new plans against every plan already in the planner folder. Pure.
+
+    `name` is the build's: this build's plans on disk are the ones named it, or "<name> - ...", in any case
+    -- the file system's view, so another build's plans are never counted. Each new plan is matched to one
+    of them by name, in any case: "new" when there's none, "changed" when anything but its description
+    differs, else "unchanged". A description that differs only by a date doesn't count, so an unchanged
+    plan keeps the day it was written.
+
+    Returns {"stages": [{"name", "state"}] per new plan, in order; "write": the names to write -- new and
+    changed, and unchanged ones whose description differs by more than a date (a stage count); "gone":
+    this build's plans on disk the guide no longer has, in disk order; "conflict": this build's plans on
+    disk that aren't provably this guide's -- another link, or no link to compare.
+    """
+    def ours(plan: dict[str, Any]) -> bool:
+        plan_name = (plan.get("name") or "").casefold()
+        return plan_name == name.casefold() or plan_name.startswith(f"{name.casefold()} - ")
+
+    mine = [plan for plan in on_disk if ours(plan)]
+    by_name = {plan["name"].casefold(): plan for plan in mine}
+    stages, write = [], []
+    for plan in new:
+        old = by_name.get(plan["name"].casefold())
+        if old is None:
+            state, rewrite = "new", True
+        else:
+            same = _without_description(old) == _without_description(plan)
+            state = "unchanged" if same else "changed"
+            rewrite = not same or _undated(old) != _undated(plan)
+        stages.append({"name": plan["name"], "state": state})
+        if rewrite:
+            write.append(plan["name"])
+
+    names = {plan["name"].casefold() for plan in new}
+    return {"stages": stages, "write": write,
+            "gone": [plan["name"] for plan in mine if plan["name"].casefold() not in names],
+            "conflict": [plan["name"] for plan in mine if link is None or plan.get("link") != link]}
+
+
+def _without_description(plan: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in plan.items() if key != "description"}
+
+
+def _undated(plan: dict[str, Any]) -> str:
+    return _DATE.sub("", plan.get("description") or "")
