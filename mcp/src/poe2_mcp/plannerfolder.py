@@ -1,20 +1,26 @@
-"""Find the folder the in-game Build Planner reads its plans from. File system only -- no network.
+"""Find the folder the in-game Build Planner reads its plans from, and write plans into it. File system
+only -- no network.
 
 The game reads <Documents>\\My Games\\Path of Exile 2\\BuildPlanner and watches it while it runs. On Windows,
 Documents is wherever its known folder points -- OneDrive moves it, e.g. to C:\\Users\\<name>\\OneDrive\\Documents
 -- so it's asked for (SHGetKnownFolderPath) before the usual places are guessed. The game makes "Path of
-Exile 2" on first launch; BuildPlanner may not exist yet, and nothing here makes it -- writing does.
+Exile 2" on first launch; BuildPlanner may not exist yet, and only writing makes it.
 """
 from __future__ import annotations
 
 import os
+import re
 import sys
 import uuid
 from pathlib import Path
+from typing import Any
+
+from . import store
 
 GAME_FOLDER = "Path of Exile 2"
 PLANNER_FOLDER = "BuildPlanner"
 _FOLDERID_DOCUMENTS = "FDD39AD0-238F-46AF-ADB4-6C85480369C7"
+_NOT_IN_FILE_NAMES = re.compile(r'[<>:"/\\|?*\x00-\x1f]')  # what Windows refuses in a file name
 
 
 def known_documents_folder() -> Path | None:
@@ -81,3 +87,42 @@ def accept_folder(path: str) -> Path:
             f"{PLANNER_FOLDER} folder inside it."
         )
     return planner
+
+
+def write_plans(folder: Path, plans: list[dict[str, Any]], *, overwrite: bool = False) -> dict[str, Any]:
+    """Write each plan (a Build Planner Build, from buildplanner.plan_build) to <its name>.build in folder.
+
+    A file name swaps what Windows refuses for "-" and drops trailing dots and spaces; the plan keeps its
+    name. Names repeat as the file system sees them -- in any case, after that cleaning -- and a repeat
+    gets " (2)", " (3)", ... in both its name and its file; the caller's plans are left as they were.
+
+    Never overwrites silently: if any file is already there, nothing is written unless `overwrite`.
+    Files of other plans are left alone; nothing is deleted. Makes the BuildPlanner folder, never the
+    game folder above it (FileNotFoundError when that's gone). UTF-8, "\\n", each file swapped in whole.
+
+    Returns {"written", "existing": [file names already there], "plans": [{"name", "file"}]} with every
+    plan, in order, whether or not it was written.
+    """
+    named: list[tuple[dict[str, Any], str]] = []
+    taken: set[str] = set()
+    for plan in plans:
+        name, file, n = plan["name"], _file_name(plan["name"]), 1
+        while file.casefold() in taken:
+            n += 1
+            name = f"{plan['name']} ({n})"
+            file = _file_name(name)
+        taken.add(file.casefold())
+        named.append(({**plan, "name": name}, file))
+
+    existing = [file for _, file in named if (folder / file).exists()]
+    written = overwrite or not existing
+    if written:
+        folder.mkdir(exist_ok=True)  # no parents: a game folder that's gone is an error, not made here
+        for plan, file in named:
+            store.write_json(folder / file, plan)
+    return {"written": written, "existing": existing,
+            "plans": [{"name": plan["name"], "file": file} for plan, file in named]}
+
+
+def _file_name(name: str) -> str:
+    return _NOT_IN_FILE_NAMES.sub("-", name).rstrip(". ") + ".build"

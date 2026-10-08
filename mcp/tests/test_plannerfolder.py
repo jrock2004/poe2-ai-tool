@@ -1,17 +1,20 @@
-"""Unit tests for finding the in-game Build Planner's folder (no network; temp folders only).
+"""Unit tests for finding the in-game Build Planner's folder and writing plans into it (no network; temp
+folders only).
 
 The game reads plans from <Documents>\\My Games\\Path of Exile 2\\BuildPlanner and watches it while it runs.
 On Windows, Documents is wherever its known folder points -- OneDrive moves it, e.g. to
 C:\\Users\\<name>\\OneDrive\\Documents. The game makes "Path of Exile 2" on first launch; BuildPlanner may
-not exist yet, and finding the folder never makes it.
+not exist yet, and finding the folder never makes it -- writing does.
 """
+import codecs
+import json
 import sys
 from pathlib import Path
 
 import pytest
 
 from poe2_mcp import plannerfolder
-from poe2_mcp.plannerfolder import accept_folder, documents_folders, find_planner_folder
+from poe2_mcp.plannerfolder import accept_folder, documents_folders, find_planner_folder, write_plans
 
 GAME = Path("My Games") / "Path of Exile 2"
 
@@ -145,3 +148,96 @@ def test_a_relative_path_is_refused_even_when_it_resolves(monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)
     with pytest.raises(ValueError, match="Path of Exile 2"):
         accept_folder(str(GAME))
+
+
+def _read(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_each_plan_is_written_to_a_build_file_named_for_it(tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    plans = [{"name": "Minion Leveling - Act 1", "passives": ["cold34"]}, {"name": "Minion Leveling - Act 2"}]
+    assert write_plans(planner, plans) == {"written": True, "existing": [], "plans": [
+        {"name": "Minion Leveling - Act 1", "file": "Minion Leveling - Act 1.build"},
+        {"name": "Minion Leveling - Act 2", "file": "Minion Leveling - Act 2.build"},
+    ]}
+    assert [_read(planner / f"{plan['name']}.build") for plan in plans] == plans
+    assert sorted(p.name for p in planner.iterdir()) == ["Minion Leveling - Act 1.build",
+                                                         "Minion Leveling - Act 2.build"]
+
+
+def test_the_planner_folder_is_made_but_never_the_game_folder(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        write_plans(tmp_path / "Documents" / GAME / "BuildPlanner", [{"name": "Act 1"}])
+    assert not (tmp_path / "Documents").exists()
+
+
+def test_files_are_utf8_json_with_unix_newlines_and_no_bom(tmp_path):
+    # Notes are multi-line; a file written the Windows way would carry \r\n or a byte-order mark.
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    plan = {"name": "Act 2", "description": "Stage 3 of 9 – Act 2", "passives": [
+        {"id": "cold34", "additional_text": "<b>{Priority:}\nfirst"}]}
+    write_plans(planner, [plan])
+    raw = (planner / "Act 2.build").read_bytes()
+    assert b"\r" not in raw and not raw.startswith(codecs.BOM_UTF8)
+    assert json.loads(raw.decode("utf-8")) == plan
+
+
+@pytest.mark.parametrize("name, file", [
+    ("Act 3: Vaal Guards", "Act 3- Vaal Guards.build"),
+    ('Boss? "Yes"/No | <Maybe>*', "Boss- -Yes--No - -Maybe--.build"),
+    ("Tab\there", "Tab-here.build"),
+    ("Endgame. . .", "Endgame.build"),  # Windows drops trailing dots and spaces; the name reported must match
+])
+def test_a_file_name_swaps_what_windows_refuses_for_a_dash_but_the_plan_keeps_its_name(tmp_path, name, file):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    assert write_plans(planner, [{"name": name}])["plans"] == [{"name": name, "file": file}]
+    assert _read(planner / file) == {"name": name}
+
+
+def test_a_repeated_name_gets_a_number_in_the_plan_and_its_file(tmp_path):
+    # A PoB can repeat a spec title, or hold several untitled specs; the dropdown has to tell them apart.
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    plans = [{"name": "Guide - Maps"}, {"name": "Guide - Act 1"}, {"name": "Guide - Maps"}, {"name": "Guide - Maps"}]
+    assert write_plans(planner, plans)["plans"] == [
+        {"name": "Guide - Maps", "file": "Guide - Maps.build"},
+        {"name": "Guide - Act 1", "file": "Guide - Act 1.build"},
+        {"name": "Guide - Maps (2)", "file": "Guide - Maps (2).build"},
+        {"name": "Guide - Maps (3)", "file": "Guide - Maps (3).build"},
+    ]
+    assert _read(planner / "Guide - Maps (2).build") == {"name": "Guide - Maps (2)"}
+    assert plans[2] == {"name": "Guide - Maps"}  # the caller's plans are left as they were
+
+
+def test_names_repeat_as_the_file_system_sees_them_in_any_case_and_after_cleaning(tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    plans = [{"name": "Guide - Maps"}, {"name": "guide - maps"}, {"name": "A: B"}, {"name": "A/ B"}]
+    assert write_plans(planner, plans)["plans"] == [
+        {"name": "Guide - Maps", "file": "Guide - Maps.build"},
+        {"name": "guide - maps (2)", "file": "guide - maps (2).build"},
+        {"name": "A: B", "file": "A- B.build"},
+        {"name": "A/ B (2)", "file": "A- B (2).build"},
+    ]
+
+
+def test_nothing_is_written_while_any_file_is_already_there(tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    planner.mkdir()
+    (planner / "Guide - Act 2.build").write_text("old", encoding="utf-8")
+    out = write_plans(planner, [{"name": "Guide - Act 1"}, {"name": "Guide - Act 2"}])
+    assert (out["written"], out["existing"]) == (False, ["Guide - Act 2.build"])
+    assert [p["file"] for p in out["plans"]] == ["Guide - Act 1.build", "Guide - Act 2.build"]
+    assert [p.name for p in planner.iterdir()] == ["Guide - Act 2.build"]
+    assert (planner / "Guide - Act 2.build").read_text(encoding="utf-8") == "old"
+
+
+def test_overwrite_replaces_the_files_already_there_and_leaves_the_rest_alone(tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    planner.mkdir()
+    (planner / "Guide - Act 2.build").write_text("old", encoding="utf-8")
+    (planner / "Another Build.build").write_text("theirs", encoding="utf-8")
+    plans = [{"name": "Guide - Act 1"}, {"name": "Guide - Act 2", "passives": ["cold34"]}]
+    out = write_plans(planner, plans, overwrite=True)
+    assert (out["written"], out["existing"]) == (True, ["Guide - Act 2.build"])
+    assert _read(planner / "Guide - Act 2.build") == plans[1]
+    assert (planner / "Another Build.build").read_text(encoding="utf-8") == "theirs"
