@@ -129,12 +129,17 @@ def _skills(groups: list[dict[str, Any]], left_out: list[dict[str, str]]) -> lis
 
 
 def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]]) -> list[dict[str, Any]]:
-    """A slot's note as hover text and its unique by name; a slot with neither adds nothing."""
+    """A slot's note as hover text and its unique by name; a slot with neither adds nothing. A flask or charm
+    with neither is named by its item, so the player still sees which to use -- guides often equip one without
+    a word; elsewhere PoB's rares are mostly "New Item", which says nothing."""
     out = []
     for slot in gear:
         item = slot["item"] or {}
         unique = item.get("name") if item.get("rarity") == "UNIQUE" else None
-        if not (slot["note"] or unique):
+        note = slot["note"]
+        if not (note or unique) and slot["slot"] in _FLASK_BAR and item.get("name"):
+            note = f"<b>{{{item['name']}}}"
+        if not (note or unique):
             continue
         if slot["slot"] in _FLASK_BAR:
             entry: dict[str, Any] = {"inventory_id": "Flask1", "slot_x": _FLASK_BAR[slot["slot"]]}
@@ -143,8 +148,8 @@ def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]])
         else:
             left_out.append({"what": slot["slot"], "why": "unmapped-slot"})
             continue
-        if slot["note"]:
-            entry["additional_text"] = slot["note"]
+        if note:
+            entry["additional_text"] = note
         if unique:
             entry["unique_name"] = unique
         out.append(entry)

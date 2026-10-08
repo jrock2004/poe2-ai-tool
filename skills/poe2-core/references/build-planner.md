@@ -34,9 +34,9 @@ date"). Something changed → say the guide was updated, and what changed (below
   notes changed, a new suggested unique or ascendancy; new stages by name. Then, either way:
   - `leftOut`, grouped in plain words, not one line per stage: `item-granted` a skill the gear gives (a
     wand's Chaos Bolt — it comes with the item); `disabled` switched off in the guide at that stage;
-    `item-skill-support` / `no-skill` supports with no skill gem to sit under; `unmapped-slot` flask and
-    charm notes, which the planner has no place for yet; `unmapped-passive` a passive this patch doesn't
-    have.
+    `item-skill-support` / `no-skill` supports with no skill gem to sit under; `unmapped-slot` a slot the
+    planner has no place for (the temple's Arm and Leg slots, lost on death); `unmapped-passive` a passive
+    this patch doesn't have.
   - `gone` — stages the guide no longer has. Name them and ask (a choice) whether to remove them; yes →
     `remove_build_plans` with those files.
   - `warning` — pass it on in plain words. `unpaired` — setups in the guide (e.g. a boss swap) that belong
