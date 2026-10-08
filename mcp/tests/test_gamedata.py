@@ -17,6 +17,7 @@ from poe2_mcp.gamedata import (
     build_passives,
     build_sekhemas,
     build_texts,
+    build_unique_names,
     clean_text,
     exchange_ids,
     fetch_export,
@@ -711,6 +712,31 @@ def test_build_gems_names_a_renamed_column():
         build_gems({"BaseItemTypes": rows})
 
 
+# Words rows as csv.DictReader reads them (game 4.5.5.2), trimmed. Wordlist 6 is UniqueName -- what a .build
+# file's unique_name names; the others are the words rare names are made of.
+WORDS_TABLES = {"Words": [
+    {"rownum": "0", "Wordlist": "1", "Text": "Dire", "Text2": "Dire"},
+    {"rownum": "2177", "Wordlist": "6", "Text": "Bones of Ullr", "Text2": "Bones of Ullr"},
+    {"rownum": "2290", "Wordlist": "6", "Text": "Rigvald's Charge", "Text2": "Rigwald's Charge"},
+    {"rownum": "2301", "Wordlist": "6", "Text": "Nascent Hope", "Text2": "Nascent Hope"},
+    {"rownum": "2302", "Wordlist": "6", "Text": "Nascent Hope", "Text2": "Nascent Hope"},
+    {"rownum": "3100", "Wordlist": "5", "Text": " the Accursed", "Text2": " the Accursed"},
+]}
+
+
+def test_build_unique_names_lists_every_unique_name_in_either_spelling():
+    # Text2 is what the game shows; Text is an older spelling some rows keep. Either may be what a guide
+    # wrote, so both count. A name on several rows is listed once, in order.
+    assert build_unique_names(WORDS_TABLES) == ["Bones of Ullr", "Nascent Hope", "Rigvald's Charge",
+                                                "Rigwald's Charge"]
+
+
+def test_build_unique_names_refuses_a_table_with_no_unique_names():
+    # Wordlist 6 is a guess at dat-export's enum: if it ever holds nothing, the export changed shape.
+    with pytest.raises(ValueError, match="UniqueName"):
+        build_unique_names({"Words": [WORDS_TABLES["Words"][0]]})
+
+
 TRIALS = {"patch": "0.5.5", "chaos": build_chaos(CHAOS_TABLES), "sekhemas": build_sekhemas(SEKHEMAS_TABLES)}
 
 
@@ -751,12 +777,13 @@ def test_trial_pool_rejects_a_trial_it_doesnt_know(trial):
 def test_render_items_is_json_with_one_entry_per_line():
     items = {**_items(), "texts": _texts(), "chaos": build_chaos(CHAOS_TABLES),
              "sekhemas": build_sekhemas(SEKHEMAS_TABLES), "passives": build_passives(PASSIVE_TABLES),
-             "gems": build_gems(GEM_TABLES), "exchange": build_exchange_names(BASE_ITEMS, TRADED)}
+             "gems": build_gems(GEM_TABLES), "exchange": build_exchange_names(BASE_ITEMS, TRADED),
+             "uniques": build_unique_names(WORDS_TABLES)}
     text = render_items(items, "0.5.5", "repoe-fork/poe2@abc123 (game 4.5.5.2)")
     snapshot = json.loads(text)
     assert snapshot["patch"] == "0.5.5" and snapshot["source"] == "repoe-fork/poe2@abc123 (game 4.5.5.2)"
     assert {k: snapshot[k] for k in ("groups", "bases", "mods", "texts", "chaos", "sekhemas", "passives",
-                                     "gems", "exchange")} == items
+                                     "gems", "exchange", "uniques")} == items
     assert list(snapshot["passives"]) == list(items["passives"])  # numeric order survives the round trip
     lines = text.splitlines()
     assert sum('"side":' in line for line in lines) == len(snapshot["mods"])
@@ -769,6 +796,7 @@ def test_render_items_is_json_with_one_entry_per_line():
                for line in lines for gem_id, name in snapshot["gems"].items()) == len(snapshot["gems"])
     assert sum(f'"{base_id}": {json.dumps(name)}' in line
                for line in lines for base_id, name in snapshot["exchange"].items()) == len(snapshot["exchange"])
+    assert sum(json.dumps(name) in line for line in lines for name in snapshot["uniques"]) == len(snapshot["uniques"])
     assert text.endswith("\n")
 
 
@@ -880,6 +908,7 @@ MAIN_TABLES = {
     **CHAOS_TABLES,
     **SEKHEMAS_TABLES,
     **PASSIVE_TABLES,
+    **WORDS_TABLES,
     "BaseItemTypes": [*ESSENCE_TABLES["BaseItemTypes"],
                       {"rownum": "3", "Id": CURRENCY + "CurrencyRerollRare", "Name": "Chaos Orb"},
                       _base("4011", "Metadata/Items/Gems/SupportGemFireInfusion", "Fire Attunement")],
@@ -924,6 +953,8 @@ def test_main_writes_the_snapshot_as_utf8_with_lf_naming_its_sources(monkeypatch
     assert snapshot["gems"] == {"Metadata/Items/Gems/SupportGemFireInfusion": "Fire Attunement"}
     # And a name for everything the exchange trades, from the same CurrencyExchange table as the texts.
     assert snapshot["exchange"][CURRENCY + "CurrencyRerollRare"] == "Chaos Orb"
+    # And every unique's name, from Words (the Build Planner's unique_name).
+    assert "Bones of Ullr" in snapshot["uniques"]
 
 
 @pytest.mark.parametrize("argv", [
@@ -1158,6 +1189,7 @@ def test_load_items_reads_the_committed_snapshot_once():
     assert items["chaos"] and items["sekhemas"]
     assert items["passives"]["52"] == "passive_keystone_zealots_oath"
     assert items["exchange"]["Metadata/Items/Currency/CurrencyModValues"] == "Divine Orb"
+    assert "Bones of Ullr" in items["uniques"] and "New Item" not in items["uniques"]
     assert load_items() is items
 
 

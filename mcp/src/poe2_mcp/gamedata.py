@@ -52,7 +52,7 @@ TABLES_DIR = "current/poe2/heuristics/csv"
 # two trials' pools, and the Build Planner's passive ids.
 TABLE_NAMES = ("CurrencyExchange", "BaseItemTypes", "Essences", "EssenceMods", "EssenceTargetItemCategories",
                "Mods", "UltimatumModifiers", "UltimatumModifierTypes", "SanctumPersistentEffects",
-               "SanctumPersistentEffectCategories", "PassiveSkills")
+               "SanctumPersistentEffectCategories", "PassiveSkills", "Words")
 USER_AGENT = "poe2-ai-tools (game-data refresh; https://github.com/jrock2004/poe2-ai-tool)"
 _COMMIT_RE = re.compile(r"[0-9a-f]{7,40}")
 _PATCH_RE = re.compile(r"\d+\.\d+\.\d+[a-z]?")
@@ -185,6 +185,25 @@ def build_exchange_names(base_items: dict[str, Any], ids: set[str]) -> dict[str,
             raise ValueError(f"{base_id} isn't in base_items.json")
         names[base_id] = base["name"]
     return names
+
+
+_UNIQUE_NAME_WORDLIST = "6"  # dat-export writes the Wordlist enum as its number; 6 is UniqueName
+
+
+def build_unique_names(tables: dict[str, list[dict[str, str]]]) -> list[str]:
+    """Every unique item's name, from the Words table's UniqueName rows, in order. Pure.
+
+    A .build file names a unique by "a UniqueName entry from the Words table" (GGG's docs), so this is what
+    write_build_plan checks a guide's uniques against -- PoB's own custom items are "New Item". Both
+    spellings count: Text2 is what the game shows, and Text an older spelling a few rows keep (Rigvald's /
+    Rigwald's Charge). The list keeps PoE1's uniques too; a name isn't proof the unique drops in PoE2. No
+    UniqueName rows raises ValueError -- the enum moved, or the export changed shape.
+    """
+    names = {name.strip() for row in tables["Words"] if row["Wordlist"] == _UNIQUE_NAME_WORDLIST
+             for name in (row["Text"], row["Text2"]) if name.strip()}
+    if not names:
+        raise ValueError(f"Words has no UniqueName rows (Wordlist {_UNIQUE_NAME_WORDLIST})")
+    return sorted(names)
 
 
 def build_essences(
@@ -403,8 +422,8 @@ def _game_text(raw: str | None) -> str:
 
 def render_items(items: dict[str, Any], patch: str, source: str) -> str:
     """The snapshot JSON text: patch, source, then one pool, base, tier, item text, Trial of Chaos modifier,
-    Sekhemas effect, passive id, gem name and exchange name per line, so a per-patch regeneration reads as a
-    small diff. Pure; ends with a newline."""
+    Sekhemas effect, passive id, gem name, exchange name and unique name per line, so a per-patch regeneration
+    reads as a small diff. Pure; ends with a newline."""
 
     def rows(pairs: Any) -> str:
         return ",\n".join(f"  {key}{json.dumps(value, ensure_ascii=False)}" for key, value in pairs)
@@ -421,7 +440,8 @@ def render_items(items: dict[str, Any], patch: str, source: str) -> str:
         '"sekhemas": [\n' + rows(("", e) for e in items["sekhemas"]) + "\n],\n"
         '"passives": {\n' + rows((f"{json.dumps(n)}: ", p) for n, p in items["passives"].items()) + "\n},\n"
         '"gems": {\n' + rows((f"{json.dumps(g)}: ", n) for g, n in items["gems"].items()) + "\n},\n"
-        '"exchange": {\n' + rows((f"{json.dumps(b)}: ", n) for b, n in items["exchange"].items()) + "\n}\n"
+        '"exchange": {\n' + rows((f"{json.dumps(b)}: ", n) for b, n in items["exchange"].items()) + "\n},\n"
+        '"uniques": [\n' + rows(("", n) for n in items["uniques"]) + "\n]\n"
         "}\n"
     )
 
@@ -669,6 +689,7 @@ def main(argv: list[str]) -> None:
     items["passives"] = build_passives(tables)
     items["gems"] = build_gems(tables)
     items["exchange"] = build_exchange_names(export["base_items"], traded)
+    items["uniques"] = build_unique_names(tables)
     source = (f"{EXPORT_REPO}@{commit} (game {export['game_version']}), "
               f"{TABLES_REPO}@{tables_commit} {TABLES_DIR} -- data is GGG's")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
