@@ -5,7 +5,14 @@ import zlib
 import pytest
 
 from poe2_mcp import pob
-from poe2_mcp.pob import PobError, decode_pob_code, parse_pob_code, parse_pob_xml, summarize_tree
+from poe2_mcp.pob import (
+    PobError,
+    decode_pob_code,
+    parse_loadouts,
+    parse_pob_code,
+    parse_pob_xml,
+    summarize_tree,
+)
 
 SAMPLE_XML = """<?xml version="1.0" encoding="UTF-8"?>
 <PathOfBuilding2>
@@ -544,3 +551,176 @@ def test_summarize_tree_with_no_nodes():
     assert tree["nodes"] == []
     assert tree["allocatedCount"] == 0
     assert tree["weaponSetNodes"] == {"1": [], "2": []}
+
+
+# parse_loadouts: every loadout of a guide's PoB -- a tree spec with the skill set and item set that share
+# its title -- for the in-game Build Planner. Shaped like a real PoB2 export (a 0.5 Infernalist guide),
+# trimmed: notes sit escaped and indented in the XML, in the planner's own markup; supports are
+# .../SupportGem... by gemId; a group's source says when an item or the tree grants its skill.
+LOADOUTS_XML = """<PathOfBuilding2>
+  <Build level="87" className="Witch" ascendClassName="Infernalist"/>
+  <Tree activeSpec="2">
+    <Spec title="Act 2" treeVersion="0_5" ascendClassId="1" ascendancyInternalId="Witch1" classId="1"
+          nodes="3823,51184,55180">
+      <URL>https://www.pathofexile.com/passive-skill-tree/AAAABgEB</URL>
+      <Notes>
+        <Note nodeId="51184">
+          &lt;b&gt;{Priority:} 1
+        </Note>
+        <Note nodeId="3823">
+          &lt;b&gt;{Priority:} 2
+        </Note>
+      </Notes>
+    </Spec>
+    <Spec title="Mid Maps" treeVersion="0_5" ascendClassId="1" ascendancyInternalId="Witch1" classId="1"
+          nodes="3823,51184,55180,17754,61419">
+      <WeaponSet1 nodes="61419"/>
+    </Spec>
+  </Tree>
+  <Skills activeSkillSet="2">
+    <SkillSet id="1" title="Act 2">
+      <Skill enabled="true" label="" slot="Weapon 1" source="Item:1:Withered Wand">
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SkillGemChaosbolt" level="1" nameSpec="Chaos Bolt"
+             skillId="WeaponGrantedChaosboltPlayer"/>
+      </Skill>
+      <Skill enabled="true" label="">
+        <Gem enabled="true" gemId="Metadata/Items/Gem/SkillGemRagingSpirits" level="4" nameSpec="Raging Spirits"
+             note="&lt;b&gt;{Skill Crafting Order}&#10;&#10;    1. Raging Spirits" skillId="RagingSpiritsPlayer"/>
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemFireInfusion" level="1" nameSpec="Fire Attunement"
+             note="&lt;b&gt;{Support Crafting Order}&#10;    1. Fire Attunement" skillId="SupportAddedFireDamagePlayer"/>
+        <Gem enabled="false" gemId="Metadata/Items/Gems/SupportGemPrimalArmamentTwo" level="1"
+             nameSpec="Elemental Armament II" skillId="SupportElementalArmamentPlayerTwo"/>
+      </Skill>
+    </SkillSet>
+    <SkillSet id="2" title="Mid Maps">
+      <Skill enabled="true" label="" source="Tree:17754">
+        <Gem enabled="true" gemId="Metadata/Items/Gem/SkillGemAscendancySummonInfernalHound" level="9"
+             nameSpec="Summon Infernal Hound" skillId="SummonInfernalHoundPlayer"/>
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemMeatShield" level="1" nameSpec="Meat Shield I"
+             skillId="SupportMeatShieldPlayer"/>
+      </Skill>
+      <Skill enabled="true" label="" slot="Weapon 1" source="Item:2:New Item, Rattling Sceptre">
+        <Gem enabled="true" gemId="Metadata/Items/Gem/SupportGemSacrificialLamb" level="1"
+             nameSpec="Sacrificial Lamb I" skillId="SupportSacrificialLambPlayer"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Items activeItemSet="2">
+    <Item id="1">
+Rarity: NORMAL
+Withered Wand
+Quality: 0
+    </Item>
+    <Item id="3">
+Rarity: UNIQUE
+Bones of Ullr
+Lattice Sandals
+Energy Shield: 38
+    </Item>
+    <ItemSet id="1" title="Act 2">
+      <Slot itemId="1" itemPbURL="" name="Weapon 1"
+            note="&lt;u&gt;{&lt;b&gt;{Withered Wand}}&#10;&#10;- A shield might help"/>
+      <Slot itemId="0" itemPbURL="" name="Weapon 2 Swap"/>
+      <Slot itemId="0" itemPbURL="" name="Helmet" note="&lt;u&gt;{&lt;b&gt;{Twig Circlet}}"/>
+    </ItemSet>
+    <ItemSet id="2" title="Mid Maps">
+      <Slot itemId="3" itemPbURL="" name="Boots"/>
+    </ItemSet>
+  </Items>
+</PathOfBuilding2>"""
+
+
+def _loadout(title, xml=LOADOUTS_XML):
+    return next(lo for lo in parse_loadouts(xml)["loadouts"] if lo["title"] == title)
+
+
+def test_loadouts_follow_the_tree_specs_in_order():
+    out = parse_loadouts(LOADOUTS_XML)
+    assert [lo["title"] for lo in out["loadouts"]] == ["Act 2", "Mid Maps"]
+    assert {(lo["ascendancy"], lo["treeVersion"]) for lo in out["loadouts"]} == {("Witch1", "0_5")}
+    assert out["unpaired"] == {"skillSets": [], "itemSets": []}
+
+
+def test_a_loadouts_passives_carry_their_weapon_set_and_note():
+    # In the spec's order. The note is the planner's markup, unescaped, its PoB indentation trimmed.
+    assert _loadout("Act 2")["passives"] == [
+        {"node": 3823, "weaponSet": None, "note": "<b>{Priority:} 2"},
+        {"node": 51184, "weaponSet": None, "note": "<b>{Priority:} 1"},
+        {"node": 55180, "weaponSet": None, "note": None},
+    ]
+    assert _loadout("Mid Maps")["passives"][-1] == {"node": 61419, "weaponSet": 1, "note": None}
+
+
+def test_a_loadouts_skill_groups_split_actives_from_supports():
+    groups = _loadout("Act 2")["skillGroups"]
+    assert groups[0] == {"source": "Item:1:Withered Wand", "supports": [], "actives": [
+        {"gemId": "Metadata/Items/Gems/SkillGemChaosbolt", "name": "Chaos Bolt", "enabled": True,
+         "weaponGranted": True, "note": None}]}
+    assert groups[1]["source"] is None
+    assert groups[1]["actives"] == [
+        {"gemId": "Metadata/Items/Gem/SkillGemRagingSpirits", "name": "Raging Spirits", "enabled": True,
+         "weaponGranted": False, "note": "<b>{Skill Crafting Order}\n\n1. Raging Spirits"}]
+    assert groups[1]["supports"] == [
+        {"gemId": "Metadata/Items/Gems/SupportGemFireInfusion", "name": "Fire Attunement", "enabled": True,
+         "weaponGranted": False, "note": "<b>{Support Crafting Order}\n1. Fire Attunement"},
+        {"gemId": "Metadata/Items/Gems/SupportGemPrimalArmamentTwo", "name": "Elemental Armament II",
+         "enabled": False, "weaponGranted": False, "note": None},
+    ]
+
+
+def test_a_group_keeps_its_source_even_with_no_active_gem():
+    # Supports socketed into a skill the tree or an item grants: the builder decides what to do with them.
+    groups = _loadout("Mid Maps")["skillGroups"]
+    assert [(g["source"], [a["name"] for a in g["actives"]], [s["name"] for s in g["supports"]]) for g in groups] == [
+        ("Tree:17754", ["Summon Infernal Hound"], ["Meat Shield I"]),
+        ("Item:2:New Item, Rattling Sceptre", [], ["Sacrificial Lamb I"]),
+    ]
+
+
+def test_a_loadouts_gear_lists_slots_with_an_item_or_a_note():
+    # An empty slot with no note is left out; a note with no item stays.
+    assert _loadout("Act 2")["gear"] == [
+        {"slot": "Weapon 1", "item": {"rarity": "NORMAL", "name": "Withered Wand", "base": None},
+         "note": "<u>{<b>{Withered Wand}}\n\n- A shield might help"},
+        {"slot": "Helmet", "item": None, "note": "<u>{<b>{Twig Circlet}}"},
+    ]
+    assert _loadout("Mid Maps")["gear"] == [
+        {"slot": "Boots", "item": {"rarity": "UNIQUE", "name": "Bones of Ullr", "base": "Lattice Sandals"},
+         "note": None}]
+
+
+def _retitle(xml, tag, old, new):
+    return xml.replace(f'<{tag} id="{"1" if old == "Act 2" else "2"}" title="{old}"', f'<{tag} id="9" title="{new}"', 1)
+
+
+def test_one_set_with_no_title_match_is_shared_by_every_loadout():
+    # A guide with a tree per stage but one skill set and one item set.
+    xml = LOADOUTS_XML
+    xml = xml[:xml.index('<SkillSet id="2"')] + xml[xml.index("</SkillSet>", xml.index('<SkillSet id="2"')) + 11:]
+    xml = _retitle(xml, "SkillSet", "Act 2", "Default")
+    out = parse_loadouts(xml)
+    assert [len(lo["skillGroups"]) for lo in out["loadouts"]] == [2, 2]
+    assert out["unpaired"]["skillSets"] == []
+
+
+def test_a_set_matching_no_tree_is_unpaired_and_its_loadout_goes_without():
+    out = parse_loadouts(_retitle(LOADOUTS_XML, "ItemSet", "Mid Maps", "Endgame"))
+    assert out["unpaired"] == {"skillSets": [], "itemSets": ["Endgame"]}
+    assert [lo["gear"] == [] for lo in out["loadouts"]] == [False, True]
+
+
+def test_duplicate_titles_pair_with_nothing():
+    # Two item sets titled "Act 2": which one is the loadout's? Neither, and the player is asked.
+    out = parse_loadouts(_retitle(LOADOUTS_XML, "ItemSet", "Mid Maps", "Act 2"))
+    assert out["unpaired"]["itemSets"] == ["Act 2", "Act 2"]
+    assert all(lo["gear"] == [] for lo in out["loadouts"])
+
+
+def test_an_untitled_tree_is_a_loadout_with_no_title():
+    xml = LOADOUTS_XML.replace('title="Act 2" treeVersion', 'treeVersion', 1)
+    assert [lo["title"] for lo in parse_loadouts(xml)["loadouts"]] == [None, "Mid Maps"]
+
+
+def test_parse_loadouts_rejects_xml_that_does_not_parse():
+    with pytest.raises(PobError):
+        parse_loadouts("<PathOfBuilding2>")

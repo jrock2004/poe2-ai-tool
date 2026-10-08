@@ -8,6 +8,9 @@ mapped by the active `<ItemSet>`'s `<Slot name itemId>`.
 
 Pure and offline -- no network. This is what lets a pasted PoB code feed poe2-gear-upgrade /
 poe2-build-review without a screenshot.
+
+`parse_loadouts` reads every stage of a guide's PoB at once -- each tree spec with its skill set and item
+set, and the guide's notes on passives, gems and gear -- for writing the in-game Build Planner's files.
 """
 from __future__ import annotations
 
@@ -15,6 +18,7 @@ import base64
 import re
 import zlib
 import xml.etree.ElementTree as ET
+from collections import Counter
 from typing import Any, Callable
 
 from .treedata import load_snapshot
@@ -384,6 +388,120 @@ def _stats_note(chosen: list[tuple[str, int | None, int | None]]) -> str | None:
     active = ", ".join(f"{kind} {a + 1}" for kind, _, a in chosen if a is not None)
     return (f"Stats (resistances, life, DPS) are for the active sets ({active}); PoB only stores "
             "computed stats for those, so they don't reflect the sets selected here.")
+
+
+def parse_loadouts(xml: str) -> dict[str, Any]:
+    """Every loadout of a guide's PoB, for the in-game Build Planner: a tree spec with the skill set and
+    item set that share its title. Pure.
+
+    One loadout per <Spec>, in order -- the guide's progression. A spec's skill set (and item set) is the
+    one with its title; with no title match, a build's only set is shared by every loadout; otherwise it
+    gets none. Sets no loadout took are listed by title in `unpaired` -- so are sets whose title repeats,
+    since which one belongs where is the player's call.
+
+    Each loadout: {"title", "ascendancy" (the planner's id, e.g. "Witch1"), "treeVersion", "passives":
+    [{"node", "weaponSet", "note"}], "skillGroups": [{"source", "actives", "supports"}], "gear": [{"slot",
+    "item": {"rarity", "name", "base"} | None, "note"}]}. A gem is {"gemId", "name", "enabled",
+    "weaponGranted", "note"}; supports are the .../SupportGem... ones. A group's `source` says when an item
+    or the tree grants its skill. Notes stay in the planner's markup, unescaped, each line trimmed; a note
+    on a node the spec doesn't allocate has nowhere to go and is dropped. Gear lists the slots that hold
+    an item or carry a note. XML that doesn't parse raises PobError.
+    """
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as e:
+        raise PobError(f"PoB XML did not parse ({e}).") from e
+
+    specs = root.findall("Tree/Spec")
+    skill_sets = root.findall("Skills/SkillSet")
+    item_sets = root.findall("Items/ItemSet")
+    items = {item.get("id"): (item.text or "") for item in root.findall("Items/Item")}
+    spec_titles = Counter(_title(spec) for spec in specs)
+    taken: dict[str, set[int]] = {"skillSets": set(), "itemSets": set()}
+
+    def pick(sets: list[ET.Element], kind: str, title: str | None) -> ET.Element | None:
+        if title is not None and spec_titles[title] == 1:
+            matches = [i for i, s in enumerate(sets) if _title(s) == title]
+            if len(matches) == 1:
+                taken[kind].add(matches[0])
+                return sets[matches[0]]
+        if len(sets) == 1:
+            taken[kind].add(0)
+            return sets[0]
+        return None
+
+    loadouts = []
+    for spec in specs:
+        title = _title(spec)
+        skill_set = pick(skill_sets, "skillSets", title)
+        item_set = pick(item_sets, "itemSets", title)
+        loadouts.append({
+            "title": title,
+            "ascendancy": spec.get("ascendancyInternalId") or None,
+            "treeVersion": spec.get("treeVersion"),
+            "passives": _loadout_passives(spec),
+            "skillGroups": [_skill_group(skill) for skill in
+                            (skill_set.findall("Skill") if skill_set is not None else [])],
+            "gear": _loadout_gear(item_set, items),
+        })
+    unpaired = {kind: [_title(s) for i, s in enumerate(sets) if i not in taken[kind]]
+                for kind, sets in (("skillSets", skill_sets), ("itemSets", item_sets))}
+    return {"loadouts": loadouts, "unpaired": unpaired}
+
+
+def _title(el: ET.Element) -> str | None:
+    return (el.get("title") or "").strip() or None
+
+
+def _note(text: str | None) -> str | None:
+    """A PoB note as the planner shows it: each line trimmed, blank lines at either end dropped."""
+    lines = [line.strip() for line in (text or "").splitlines()]
+    while lines and not lines[0]:
+        lines.pop(0)
+    while lines and not lines[-1]:
+        lines.pop()
+    return "\n".join(lines) or None
+
+
+def _loadout_passives(spec: ET.Element) -> list[dict[str, Any]]:
+    weapon_sets = {
+        node: int(child.tag.removeprefix("WeaponSet"))
+        for child in spec
+        if child.tag.startswith("WeaponSet") and child.tag.removeprefix("WeaponSet").isdigit()
+        for node in _node_ids(child.get("nodes"))
+    }
+    notes = {note.get("nodeId"): _note(note.text) for note in spec.findall("Notes/Note")}
+    return [{"node": node, "weaponSet": weapon_sets.get(node), "note": notes.get(str(node))}
+            for node in _node_ids(spec.get("nodes"))]
+
+
+def _skill_group(skill: ET.Element) -> dict[str, Any]:
+    gems = skill.findall("Gem")
+    supports = [g for g in gems if (g.get("gemId") or "").rsplit("/", 1)[-1].startswith("SupportGem")]
+    return {"source": skill.get("source") or None,
+            "actives": [_loadout_gem(g) for g in gems if g not in supports],
+            "supports": [_loadout_gem(g) for g in supports]}
+
+
+def _loadout_gem(gem: ET.Element) -> dict[str, Any]:
+    return {"gemId": gem.get("gemId"), "name": gem.get("nameSpec") or gem.get("skillId"),
+            "enabled": gem.get("enabled") != "false",
+            "weaponGranted": (gem.get("skillId") or "").startswith("WeaponGranted"),
+            "note": _note(gem.get("note"))}
+
+
+def _loadout_gear(item_set: ET.Element | None, items: dict[str | None, str]) -> list[dict[str, Any]]:
+    gear = []
+    for slot in (item_set.findall("Slot") if item_set is not None else []):
+        item_id = slot.get("itemId", "0")
+        item = None
+        if item_id != "0" and item_id in items:
+            summary = _item_summary(items[item_id])
+            item = {key: summary[key] for key in ("rarity", "name", "base")}
+        note = _note(slot.get("note"))
+        if item or note:
+            gear.append({"slot": slot.get("name"), "item": item, "note": note})
+    return gear
 
 
 def parse_pob_code(
