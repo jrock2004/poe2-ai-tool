@@ -403,9 +403,10 @@ def parse_loadouts(xml: str) -> dict[str, Any]:
     [{"node", "weaponSet", "note"}], "skillGroups": [{"source", "actives", "supports"}], "gear": [{"slot",
     "item": {"rarity", "name", "base"} | None, "note"}]}. A gem is {"gemId", "name", "enabled",
     "weaponGranted", "note"}; supports are the .../SupportGem... ones. A group's `source` says when an item
-    or the tree grants its skill. Notes stay in the planner's markup, unescaped, each line trimmed; a note
-    on a node the spec doesn't allocate has nowhere to go and is dropped. Gear lists the slots that hold
-    an item or carry a note. XML that doesn't parse raises PobError.
+    or the tree grants its skill; a group PoB marks removed (an unequipped item's skill, kept so its supports
+    come back with the item) isn't part of the loadout and is left out. Notes stay in the planner's markup,
+    unescaped, each line trimmed; a note on a node the spec doesn't allocate has nowhere to go and is
+    dropped. Gear lists the slots that hold an item or carry a note. XML that doesn't parse raises PobError.
     """
     try:
         root = ET.fromstring(xml)
@@ -441,7 +442,8 @@ def parse_loadouts(xml: str) -> dict[str, Any]:
             "treeVersion": spec.get("treeVersion"),
             "passives": _loadout_passives(spec),
             "skillGroups": [_skill_group(skill) for skill in
-                            (skill_set.findall("Skill") if skill_set is not None else [])],
+                            (skill_set.findall("Skill") if skill_set is not None else [])
+                            if skill.get("removed") != "true"],
             "gear": _loadout_gear(item_set, items),
         })
     unpaired = {kind: [_title(s) for i, s in enumerate(sets) if i not in taken[kind]]

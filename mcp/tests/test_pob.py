@@ -587,7 +587,8 @@ LOADOUTS_XML = """<PathOfBuilding2>
         <Gem enabled="true" gemId="Metadata/Items/Gem/SkillGemRagingSpirits" level="4" nameSpec="Raging Spirits"
              note="&lt;b&gt;{Skill Crafting Order}&#10;&#10;    1. Raging Spirits" skillId="RagingSpiritsPlayer"/>
         <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemFireInfusion" level="1" nameSpec="Fire Attunement"
-             note="&lt;b&gt;{Support Crafting Order}&#10;    1. Fire Attunement" skillId="SupportAddedFireDamagePlayer"/>
+             note="&lt;b&gt;{Support Crafting Order}&#10;    1. Fire Attunement"
+             skillId="SupportAddedFireDamagePlayer"/>
         <Gem enabled="false" gemId="Metadata/Items/Gems/SupportGemPrimalArmamentTwo" level="1"
              nameSpec="Elemental Armament II" skillId="SupportElementalArmamentPlayerTwo"/>
       </Skill>
@@ -602,6 +603,11 @@ LOADOUTS_XML = """<PathOfBuilding2>
       <Skill enabled="true" label="" slot="Weapon 1" source="Item:2:New Item, Rattling Sceptre">
         <Gem enabled="true" gemId="Metadata/Items/Gem/SupportGemSacrificialLamb" level="1"
              nameSpec="Sacrificial Lamb I" skillId="SupportSacrificialLambPlayer"/>
+      </Skill>
+      <Skill enabled="true" label="" removed="true" removedSkillId="SummonSkeletalWarriorsPlayer"
+             removedSlot="Weapon 1" removedSource="Item:36:New Item, Rattling Sceptre">
+        <Gem enabled="true" gemId="Metadata/Items/Gems/SupportGemMeatShield" level="1" nameSpec="Meat Shield I"
+             skillId="SupportMeatShieldPlayer"/>
       </Skill>
     </SkillSet>
   </Skills>
@@ -675,6 +681,13 @@ def test_a_group_keeps_its_source_even_with_no_active_gem():
         ("Tree:17754", ["Summon Infernal Hound"], ["Meat Shield I"]),
         ("Item:2:New Item, Rattling Sceptre", [], ["Sacrificial Lamb I"]),
     ]
+
+
+def test_a_group_pob_marks_removed_is_not_part_of_the_loadout():
+    # PoB keeps an unequipped item's skill as removed="true", holding its supports in case the item comes
+    # back. It isn't in the loadout: nothing of it reaches the Build Planner.
+    names = [s["name"] for g in _loadout("Mid Maps")["skillGroups"] for s in g["supports"]]
+    assert names == ["Meat Shield I", "Sacrificial Lamb I"]  # one Meat Shield: the hound's, not the removed one
 
 
 def test_a_loadouts_gear_lists_slots_with_an_item_or_a_note():
