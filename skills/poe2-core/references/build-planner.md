@@ -16,7 +16,10 @@ conversation after a no. Asked for directly, just do it.
 - **name** — ask once, as a choice: a short name from the guide (its ascendancy, e.g. "Infernalist"),
   the guide's own short title if it has one, or Other. About 15 characters at most — the game's list
   shows about 30, and the stage number and title follow the name. Store it on the character as
-  `build_plan_name`, and always reuse it: a different name writes a second set of plans.
+  `build_plan_name`, and always reuse it: a different name writes a second set of plans. Before asking,
+  check the roster: if another character already follows this guide (the same guide link) and has a
+  `build_plan_name`, reuse that name and say so in a line ("Using your existing 'minions' plans") — the
+  plans belong to the guide, so the characters share them. A different guide gets its own name.
 - **author** — the guide's creator: the one matched under `sources.md` → "Build creators", else the
   author the guide page shows. Neither → ask; no answer → leave it out. Never invent one.
 - **link** — the guide's page, whenever there is one. The same link is how a later write knows it's the
