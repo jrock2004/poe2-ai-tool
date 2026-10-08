@@ -62,8 +62,9 @@ How to read them:
   unrecognized currency were left out") rather than letting them silently shrink the sample.
 - **For currency, the exchange is the market; poe2scout is the reference.** `exchange` is what GGG's
   Currency Exchange traded in its last hour. Buying costs about `highExalted`: the game's market ratio
-  sat at the high end in an in-game check (2026-10-08). `lowExalted` is the cheapest that traded —
-  roughly what a quick sale fetches (not yet checked in game). `averageExalted` mixes the two, so on
+  sat at the high end in an in-game check (2026-10-08). Selling fast fetches about `lowExalted`: the
+  same check sold Greater Jeweller's Orb at 1 ex each, the hour's low, beside a 5 ex buy price.
+  `averageExalted` mixes the two, so on
   cheap bulk items it lands far below what a buyer pays: quote the range, never the average alone.
   One stray trade can stretch an end (a 1:135 divine beside 1:715): if the range is wide but
   `averageExalted` sits near one end on high volume, call the far end a stray rather than the market.
