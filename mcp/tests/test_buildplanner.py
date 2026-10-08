@@ -154,6 +154,49 @@ def test_a_flask_or_charm_with_no_note_is_named_by_its_item_and_what_it_does():
     ]
 
 
+# A .build names a unique by its UniqueName in the Words table (the item snapshot's "uniques"). PoB's own
+# custom uniques are "New Item", which the game can't match: it isn't written, the slot's note still is.
+UNIQUES = {"Bones of Ullr", "Nascent Hope"}
+
+
+def _unique_slot(slot: str, name: str, note: str | None = None, **item: object) -> dict:
+    return {"slot": slot, "item": {"rarity": "UNIQUE", "name": name, "base": "Some Base", **item}, "note": note}
+
+
+def _unknown(result: dict) -> list[dict]:
+    return [entry for entry in result["leftOut"] if entry["why"] == "unknown-unique"]
+
+
+def test_a_unique_the_game_knows_is_written_by_name():
+    gear = [_unique_slot("Boots", "Bones of Ullr")]
+    result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
+    assert result["build"]["inventory_slots"] == [{"inventory_id": "Boots1", "unique_name": "Bones of Ullr"}]
+    assert _unknown(result) == []
+
+
+def test_a_unique_name_the_game_doesnt_know_is_left_out_but_the_note_stays():
+    gear = [_unique_slot("Helmet", "New Item", note="<b>{Any ES helmet}"), _unique_slot("Gloves", "New Item")]
+    result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
+    assert result["build"]["inventory_slots"] == [{"inventory_id": "Helm1", "additional_text": "<b>{Any ES helmet}"}]
+    assert _unknown(result) == [{"what": "New Item", "why": "unknown-unique"},
+                                {"what": "New Item", "why": "unknown-unique"}]
+
+
+def test_an_unknown_unique_on_the_flask_bar_is_named_by_its_item_like_any_other():
+    gear = [_unique_slot("Charm 1", "New Item", implicitMods=["Used when you become Frozen"], explicitMods=[])]
+    result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
+    assert result["build"]["inventory_slots"] == [
+        {"inventory_id": "Flask1", "slot_x": 2, "additional_text": "<b>{New Item}\n\nUsed when you become Frozen"}]
+    assert _unknown(result) == [{"what": "New Item", "why": "unknown-unique"}]
+
+
+def test_without_unique_names_every_unique_is_written():
+    # No snapshot list to check against (an older snapshot): written as before.
+    gear = [_unique_slot("Boots", "New Item")]
+    assert plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"] == [
+        {"inventory_id": "Boots1", "unique_name": "New Item"}]
+
+
 def test_left_out_says_what_and_why_in_the_order_met():
     # Codes, not sentences: the skill tells the player in plain words.
     assert plan()["leftOut"] == [

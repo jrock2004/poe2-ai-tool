@@ -891,8 +891,10 @@ async def write_build_plan(
         return refusal
 
     today = date.today().isoformat()
+    uniques = set(items["uniques"]) if "uniques" in items else None  # an older snapshot has no list to check
     results = [plan_build(_numbered(loadout, stage, len(loadouts)), name, items["passives"], author=author,
-                          link=link, description=_plan_description(stage, len(loadouts), today))
+                          link=link, description=_plan_description(stage, len(loadouts), today),
+                          unique_names=uniques)
                for stage, loadout in enumerate(loadouts, 1)]
     on_disk = read_plans(planner)
     file_of = {entry["plan"]["name"].casefold(): entry["file"] for entry in on_disk}

@@ -14,6 +14,7 @@ Pure and offline -- no network. Finding the planner's folder and writing the fil
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from typing import Any
 
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -38,6 +39,7 @@ def plan_build(
     author: str | None = None,
     link: str | None = None,
     description: str | None = None,
+    unique_names: Collection[str] | None = None,
 ) -> dict[str, Any]:
     """One loadout as a Build Planner plan. Pure.
 
@@ -47,9 +49,13 @@ def plan_build(
     game shows the description, with the author under it.
 
     Returns {"build": the plan, "leftOut": [{"what", "why"}]} in the order met: passives, skills, gear.
-    `why` is a code -- "unmapped-passive", "item-granted", "disabled", "item-skill-support", "no-skill" or
-    "unmapped-slot" -- for the calling skill to put in plain words. Sections with nothing in them are
-    left out of the plan.
+    `why` is a code -- "unmapped-passive", "item-granted", "disabled", "item-skill-support", "no-skill",
+    "unmapped-slot" or "unknown-unique" -- for the calling skill to put in plain words. Sections with nothing
+    in them are left out of the plan.
+
+    `unique_names` is every name the game knows a unique by (the item snapshot's "uniques", from the Words
+    table): a unique named otherwise -- PoB's custom items are "New Item" -- isn't written by name, and is
+    left out as "unknown-unique"; its slot's note still is. None writes every unique's name unchecked.
     """
     left_out: list[dict[str, str]] = []
     title = loadout.get("title")
@@ -61,7 +67,7 @@ def plan_build(
 
     sections = (("passives", _passives(loadout["passives"], passive_ids, left_out)),
                 ("skills", _skills(loadout["skillGroups"], left_out)),
-                ("inventory_slots", _inventory_slots(loadout["gear"], left_out)))
+                ("inventory_slots", _inventory_slots(loadout["gear"], left_out, unique_names)))
     build.update((key, value) for key, value in sections if value)
     return {"build": build, "leftOut": left_out}
 
@@ -128,7 +134,9 @@ def _skills(groups: list[dict[str, Any]], left_out: list[dict[str, str]]) -> lis
     return out
 
 
-def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]]) -> list[dict[str, Any]]:
+def _inventory_slots(
+    gear: list[dict[str, Any]], left_out: list[dict[str, str]], unique_names: Collection[str] | None
+) -> list[dict[str, Any]]:
     """A slot's note as hover text and its unique by name; a slot with neither adds nothing. A flask or charm
     with neither is named by its item, then its mods, so the player still sees which to use and when it fires
     -- guides often equip one without a word; elsewhere PoB's rares are mostly "New Item", which says nothing."""
@@ -136,6 +144,9 @@ def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]])
     for slot in gear:
         item = slot["item"] or {}
         unique = item.get("name") if item.get("rarity") == "UNIQUE" else None
+        if unique and unique_names is not None and unique not in unique_names:
+            left_out.append({"what": unique, "why": "unknown-unique"})
+            unique = None
         note = slot["note"]
         if not (note or unique) and slot["slot"] in _FLASK_BAR and item.get("name"):
             mods = [*item.get("implicitMods", []), *item.get("explicitMods", [])]
