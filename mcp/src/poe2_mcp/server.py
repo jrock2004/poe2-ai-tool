@@ -22,7 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .buildplanner import compare_plans, plan_build, plan_changes
-from .exchange import ExchangeClient, exalted_rates
+from .exchange import DIVINE, ExchangeClient, exalted_rates
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
@@ -232,26 +232,35 @@ async def get_currency_prices(
     buyers and sellers, low on cheap bulk items), `volume` (units traded) and `via` ("divine" when
     priced through divine). None when it didn't trade that hour. The top-level `exchange` dates that hour on its own
     (`fetchedAt`/`ageSeconds`, kept out of poe2scout's), or holds `error` if the exchange is down.
+
+    `source` is "poe2scout", or "exchange" when poe2scout is down (`poe2scoutError` says why): then the
+    exchange answers alone, named from the item snapshot -- every poe2scout field is None, there's no
+    top-level `ageSeconds`, and `search` is needed, covering everything the exchange trades whatever the
+    category. With both down, `valid` is false.
     """
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
     divine_price = resolved.get("DivinePrice") or 0
     sources: list[Fetched[Any]] = [resolved_f]
-    if search:
-        # poe2scout's own search takes only an exact, case-sensitive name or apiId ("Divine" finds
-        # nothing), so match part of either, in any case, over the whole category instead.
-        everything, fetches = await _whole_category(resolved["Value"], category)
-        sources.extend(fetches)
-        needle = search.lower()
-        found = [c for c in everything
-                 if needle in (c.get("Text") or "").lower() or needle in (c.get("ApiId") or "").lower()]
-        listed, total, page, pages = found[:per_page], len(found), 1, (1 if found else 0)
-    else:
-        resp_f = await _scout.get_currencies_by_category(resolved["Value"], category, per_page=per_page)
-        sources.append(resp_f)
-        resp = resp_f.body
-        listed, total, page, pages = resp.get("Items", []), resp.get("Total"), resp.get("CurrentPage"), resp.get("Pages")
-    divine_f, divine_change = await _divine_change(resolved["Value"])
+    try:
+        if search:
+            # poe2scout's own search takes only an exact, case-sensitive name or apiId ("Divine" finds
+            # nothing), so match part of either, in any case, over the whole category instead.
+            everything, fetches = await _whole_category(resolved["Value"], category)
+            sources.extend(fetches)
+            needle = search.lower()
+            found = [c for c in everything
+                     if needle in (c.get("Text") or "").lower() or needle in (c.get("ApiId") or "").lower()]
+            listed, total, page, pages = found[:per_page], len(found), 1, (1 if found else 0)
+        else:
+            resp_f = await _scout.get_currencies_by_category(resolved["Value"], category, per_page=per_page)
+            sources.append(resp_f)
+            resp = resp_f.body
+            listed, total = resp.get("Items", []), resp.get("Total")
+            page, pages = resp.get("CurrentPage"), resp.get("Pages")
+        divine_f, divine_change = await _divine_change(resolved["Value"])
+    except (RuntimeError, httpx.HTTPError, ValueError) as e:
+        return await _exchange_only(resolved["Value"], search, per_page, str(e))
     sources.append(divine_f)
     exchange_rates, exchange = await _exchange_hour(resolved["Value"])
     items = []
@@ -299,8 +308,45 @@ async def get_currency_prices(
         "page": page,
         "pages": pages,
         **freshness(*sources),
+        "source": "poe2scout",
         "exchange": exchange,
         **unknown,
+        "items": items,
+        "note": note,
+    }
+
+
+async def _exchange_only(league_value: str, search: str | None, per_page: int, scout_error: str) -> dict[str, Any]:
+    """get_currency_prices with poe2scout down: the Currency Exchange's last hour alone, named from the item
+    snapshot. The exchange has no categories, so a search covers everything it trades; with no search
+    there's nothing to list. No poe2scout price, depth or trend, and no poe2scout freshness to report."""
+    rates, exchange = await _exchange_hour(league_value)
+    if "error" in exchange:
+        return {"valid": False, "error": f"poe2scout: {scout_error}; {exchange['error']}",
+                "note": "Both price sources are down: try again later."}
+    snapshot = load_items()
+    names = (snapshot or {}).get("exchange") or {}
+    needle = (search or "").lower()
+    found = sorted((name, base_id) for base_id, name in names.items() if needle and needle in name.lower())
+    items = [{"name": name, "apiId": None, "priceExalted": None, "priceDivine": None, "quantityListed": None,
+              "trend": None, "exchange": _exchange_fields(rates.get(base_id))} for name, base_id in found[:per_page]]
+    divine = rates.get(DIVINE)
+    if not names:
+        note = "poe2scout is down, and there's no item snapshot to name the Currency Exchange's items."
+    elif not search:
+        note = "poe2scout is down and the Currency Exchange has no categories: search by name to price from it."
+    else:
+        note = ("poe2scout is down: these are the Currency Exchange's last hour alone -- no poe2scout price, "
+                "depth or trend. The search covers everything the exchange trades, whatever the category.")
+    return {
+        "league": league_value,
+        "divinePriceInExalted": _round(divine["exaltedPerUnit"], 2) if divine else None,
+        "total": len(found),
+        "page": 1,
+        "pages": 1 if found else 0,
+        "source": "exchange",
+        "poe2scoutError": scout_error,
+        "exchange": exchange,
         "items": items,
         "note": note,
     }

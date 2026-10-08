@@ -117,8 +117,9 @@ class PricesScout:
     other category is empty. Records the calls, so a test can see whether the category list was
     fetched."""
 
-    def __init__(self, categories_down: bool = False) -> None:
+    def __init__(self, categories_down: bool = False, down: bool = False) -> None:
         self.categories_down = categories_down
+        self.down = down
         self.calls: list[str] = []
 
     async def resolve_league(self, league: str | None = None, *, strict: bool = False) -> Fetched:
@@ -126,6 +127,8 @@ class PricesScout:
 
     async def get_currencies_by_category(self, league_value, category, search=None, page=1, per_page=25) -> Fetched:
         self.calls.append(f"category {category}")
+        if self.down:
+            raise RuntimeError("poe2scout /poe2/Leagues/Forbidden%20Rites/Currencies/ByCategory -> HTTP 503")
         pool = {"essences": ESSENCES, "currency": CURRENCY}.get(category, [])
         # As live: search is an exact, case-sensitive match on the name or the apiId, not a substring.
         matched = [i for i in pool if search is None or search in (i["Text"], i["ApiId"])]
@@ -250,6 +253,57 @@ def test_get_currency_prices_keeps_poe2scouts_answer_when_the_exchange_is_down(m
     assert [(i["name"], i["priceExalted"], i["exchange"]) for i in out["items"]] == [
         ("Divine Orb", 700, None), ("Gemcutter's Prism", 2, None)]
     assert "503" in out["exchange"]["error"]
+    assert out["source"] == "poe2scout"
+
+
+# When poe2scout is down, the exchange answers alone, named from the item snapshot (it has no names or
+# categories of its own). Shaped like the real snapshot's `exchange` section: base id -> name.
+EXCHANGE_NAMES_SNAPSHOT = {"patch": "0.5.5", "exchange": {
+    GCP_ID: "Gemcutter's Prism", DIVINE_ID: "Divine Orb", EXALTED_ID: "Exalted Orb"}}
+
+
+def _fallback(monkeypatch, category: str = "currency", search: str | None = None, **kw) -> dict:
+    monkeypatch.setattr(server, "load_items", lambda: EXCHANGE_NAMES_SNAPSHOT)
+    out, _ = _prices(monkeypatch, category, search=search, down=True, **kw)
+    return out
+
+
+def test_get_currency_prices_falls_back_to_the_exchange_when_poe2scout_is_down(monkeypatch):
+    out = _fallback(monkeypatch, search="divine")
+    assert out["source"] == "exchange" and "503" in out["poe2scoutError"]
+    assert out["items"] == [{"name": "Divine Orb", "apiId": None, "priceExalted": None, "priceDivine": None,
+                             "quantityListed": None, "trend": None,
+                             "exchange": {"lowExalted": 690, "highExalted": 776,
+                                          "averageExalted": round(1077202 / 1416, 2), "volume": 1416,
+                                          "via": "exalted"}}]
+    assert out["divinePriceInExalted"] == round(1077202 / 1416, 2)  # the exchange's own divine rate
+    assert out["exchange"]["ageSeconds"] >= 40 * 60
+    assert "ageSeconds" not in out  # no poe2scout answer to date
+
+
+def test_get_currency_prices_fallback_searches_every_exchange_item_whatever_the_category(monkeypatch):
+    # The exchange has no categories: the search covers all it trades, and the note says so. An item it
+    # didn't trade this hour in the league still comes back, with no exchange price.
+    out = _fallback(monkeypatch, category="essences", search="ORB")
+    assert [(i["name"], i["exchange"] is None) for i in out["items"]] == [
+        ("Divine Orb", False), ("Exalted Orb", True)]
+    assert out["total"] == 2 and "categor" in out["note"]
+
+
+def test_get_currency_prices_fallback_needs_a_search(monkeypatch):
+    out = _fallback(monkeypatch)
+    assert out["items"] == [] and out["total"] == 0 and "search" in out["note"]
+
+
+def test_get_currency_prices_fallback_returns_up_to_per_page(monkeypatch):
+    out = _fallback(monkeypatch, search="orb", per_page=1)
+    assert [i["name"] for i in out["items"]] == ["Divine Orb"] and out["total"] == 2
+
+
+def test_get_currency_prices_says_so_when_poe2scout_and_the_exchange_are_both_down(monkeypatch):
+    out = _fallback(monkeypatch, search="divine", exchange_down=True)
+    assert out["valid"] is False
+    assert "poe2scout" in out["error"] and "currency exchange" in out["error"]
 
 
 # A loaded item snapshot, trimmed to one real row of its texts.
