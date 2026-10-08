@@ -4,7 +4,7 @@ import asyncio
 import httpx
 import pytest
 
-from poe2_mcp.exchange import EXALTED, ExchangeClient, exalted_rates, previous_hour
+from poe2_mcp.exchange import EXALTED, ExchangeClient, exalted_rates, previous_hour, value_on_exchange
 
 DIVINE = "Metadata/Items/Currency/CurrencyModValues"
 CHAOS = "Metadata/Items/Currency/CurrencyRerollRare"
@@ -100,6 +100,51 @@ def test_exalted_rates_leave_the_range_out_when_a_ratio_is_missing_or_zero():
     market = {**RANGED[1], "highest_ratio": {JEWELLER: 0, EXALTED: 1}}
     rates = exalted_rates([market], "Forbidden Rites")
     assert (rates[JEWELLER]["lowExalted"], rates[JEWELLER]["highExalted"]) == (None, None)
+
+
+# The item snapshot's `exchange` section: base id -> name, for everything the exchange trades.
+NAMES = {DIVINE: "Divine Orb", JEWELLER: "Greater Jeweller's Orb", GEMCUTTER: "Gemcutter's Prism",
+         EXALTED: "Exalted Orb", ESSENCE: "Greater Essence of Enhancement"}
+
+
+def test_value_on_exchange_values_each_holding_at_both_ends_of_the_hours_range():
+    # Selling fast fetches toward the low end; the game's market ratio sits at the high end. Names match
+    # in any case, and a line keeps the snapshot's name.
+    valued = value_on_exchange(exalted_rates(RANGED, "Forbidden Rites"), NAMES,
+                               [{"name": "divine orb", "count": 2}, {"name": "Greater Jeweller's Orb", "count": 10}])
+    assert valued["lines"] == [
+        {"name": "Divine Orb", "count": 2, "lowExalted": 1380, "highExalted": 1552,
+         "averageExalted": pytest.approx(2 * 1077202 / 1416), "volume": 1416},
+        {"name": "Greater Jeweller's Orb", "count": 10, "lowExalted": 10, "highExalted": 35,
+         "averageExalted": pytest.approx(10 * 1420 / 926), "volume": 926},
+    ]
+    assert (valued["lowExalted"], valued["highExalted"]) == (1390, 1587)
+    assert valued["averageExalted"] == pytest.approx(2 * 1077202 / 1416 + 10 * 1420 / 926)
+
+
+def test_value_on_exchange_counts_exalted_at_one_each():
+    # Exalted is the unit: it has no market of its own against itself.
+    valued = value_on_exchange(exalted_rates(RANGED, "Forbidden Rites"), NAMES, [{"name": "Exalted Orb", "count": 40}])
+    assert valued["lines"] == [{"name": "Exalted Orb", "count": 40, "lowExalted": 40, "highExalted": 40,
+                                "averageExalted": 40, "volume": None}]
+    assert valued["highExalted"] == 40
+
+
+def test_value_on_exchange_reports_what_it_could_not_price_never_guessing():
+    # An item the exchange trades but didn't that hour is `untraded`; a name it doesn't trade at all
+    # (or a typo) is `unknown`. Neither counts toward the totals.
+    valued = value_on_exchange(exalted_rates(RANGED, "Forbidden Rites"), NAMES,
+                               [{"name": "Greater Essence of Enhancement", "count": 3},
+                                {"name": "Mirror of Kalandra?", "count": 1}, {"name": "Divine Orb", "count": 1}])
+    assert [ln["name"] for ln in valued["lines"]] == ["Divine Orb"]
+    assert valued["untraded"] == ["Greater Essence of Enhancement"] and valued["unknown"] == ["Mirror of Kalandra?"]
+    assert valued["highExalted"] == 776
+
+
+def test_value_on_exchange_uses_the_average_for_both_ends_when_a_market_has_no_range():
+    rates = exalted_rates(MARKETS, "Forbidden Rites")  # these markets carry no ratio range
+    line = value_on_exchange(rates, NAMES, [{"name": "Divine Orb", "count": 1}])["lines"][0]
+    assert line["lowExalted"] == line["highExalted"] == line["averageExalted"] == pytest.approx(747105 / 1081)
 
 
 HOUR = 1791331200  # 2026-10-07 00:00 UTC

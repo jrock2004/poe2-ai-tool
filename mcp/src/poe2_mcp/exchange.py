@@ -73,6 +73,52 @@ def exalted_rates(markets: list[dict[str, Any]], league: str) -> dict[str, dict[
     return rates
 
 
+def value_on_exchange(
+    rates: dict[str, dict[str, Any]], names: dict[str, str], holdings: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Value holdings at one hour's exchange `rates` (`exalted_rates`). Pure.
+
+    names: base id -> name, the item snapshot's `exchange` section. holdings: [{name, count}], matched by
+    exact name in any case. Each priced line gives its count's worth at both ends of the hour's range and
+    at its average (`lowExalted`, `highExalted`, `averageExalted`, exalted) and the hour's `volume`. A
+    market with no range values at its average for both ends. Exalted Orb is 1 each (no volume). Totals
+    are the sums over priced lines. A name the exchange trades that didn't trade that hour is `untraded`;
+    a name it doesn't trade at all (or a typo) is `unknown` -- reported, never guessed.
+    """
+    by_name: dict[str, str] = {}
+    for base_id, name in names.items():
+        if base_id in rates or base_id == EXALTED or name.lower() not in by_name:
+            by_name[name.lower()] = base_id  # a priced id wins over an unpriced one of the same name
+
+    lines: list[dict[str, Any]] = []
+    untraded: list[str] = []
+    unknown: list[str] = []
+    for holding in holdings:
+        asked = (holding.get("name") or "").strip()
+        count = holding.get("count") or 0
+        base_id = by_name.get(asked.lower())
+        if base_id is None:
+            unknown.append(asked)
+            continue
+        if base_id == EXALTED:
+            low = high = average = 1.0
+            volume = None
+        elif base_id in rates:
+            rate = rates[base_id]
+            average, volume = rate["exaltedPerUnit"], rate["volume"]
+            low = average if rate["lowExalted"] is None else rate["lowExalted"]
+            high = average if rate["highExalted"] is None else rate["highExalted"]
+        else:
+            untraded.append(asked)
+            continue
+        lines.append({"name": names[base_id], "count": count, "lowExalted": count * low,
+                      "highExalted": count * high, "averageExalted": count * average, "volume": volume})
+
+    return {"lines": lines, "lowExalted": sum(ln["lowExalted"] for ln in lines),
+            "highExalted": sum(ln["highExalted"] for ln in lines),
+            "averageExalted": sum(ln["averageExalted"] for ln in lines), "untraded": untraded, "unknown": unknown}
+
+
 def _range(market: dict[str, Any], item: str, base: str) -> tuple[float, float] | None:
     """The hour's lowest and highest `base` per `item`, from the market's two ratios. Pure. The API's
     names don't say which end is cheaper, so take the lower and higher. None if either is missing or 0."""
