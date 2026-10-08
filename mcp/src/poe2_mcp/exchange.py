@@ -13,8 +13,12 @@ published hour -- which never changes -- is cached rather than asked for again.
 from __future__ import annotations
 
 import asyncio
+import gzip
+import json
 import os
 import time
+from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -28,6 +32,8 @@ USER_AGENT = os.environ.get(
 )
 EXALTED = "Metadata/Items/Currency/CurrencyAddModToRare"  # the base unit
 DIVINE = "Metadata/Items/Currency/CurrencyModValues"
+_KEEP_S = 9 * 86400  # disk copies this much older than a newly written hour are removed
+_DISK_FIELDS = ("league", "market_pair", "volume_traded", "lowest_ratio", "highest_ratio")  # what the math reads
 
 
 def previous_hour(now: float) -> int:
@@ -180,8 +186,10 @@ class ExchangeClient:
         self,
         min_gap_s: float = 1.0,
         transport: httpx.AsyncBaseTransport | None = None,  # tests pass an httpx.MockTransport
+        cache_dir: Callable[[], Path] | None = None,  # where published hours are kept; read at call time
     ) -> None:
         self._hours: dict[int, Fetched[dict[str, Any]]] = {}
+        self._cache_dir = cache_dir
         self._last_request = 0.0
         self._min_gap_s = min_gap_s
         self._client = httpx.AsyncClient(
@@ -196,9 +204,13 @@ class ExchangeClient:
 
     async def _hour(self, hour: int) -> Fetched[dict[str, Any]] | None:
         """One hour's digest, or None if it isn't published yet -- the API says so by answering with
-        next_change_id equal to the hour asked for. A published hour is cached; "not yet" isn't."""
+        next_change_id equal to the hour asked for. A published hour is cached, in memory and -- with a
+        cache_dir -- on disk, trimmed to what the rate math reads; "not yet" isn't."""
         if hour in self._hours:
             return self._hours[hour]
+        on_disk = self._read_disk(hour)
+        if on_disk is not None:
+            return self._remember(hour, Fetched(body=on_disk, fetched_at=float(hour + 3600)))
 
         gap = self._last_request + self._min_gap_s - time.monotonic()
         if gap > 0:
@@ -212,11 +224,48 @@ class ExchangeClient:
         body = resp.json()
         if body.get("next_change_id") == hour:
             return None
-        fetched = Fetched(body=body, fetched_at=float(hour + 3600))  # as of the end of its hour
+        self._write_disk(hour, body)
+        return self._remember(hour, Fetched(body=body, fetched_at=float(hour + 3600)))  # as of its hour's end
+
+    def _remember(self, hour: int, fetched: Fetched[dict[str, Any]]) -> Fetched[dict[str, Any]]:
         self._hours[hour] = fetched
-        for old in [h for h in self._hours if h < hour - 3600]:  # only the last two are ever asked for
+        for old in [h for h in self._hours if h < hour - 3600]:  # memory keeps the newest; disk the rest
             del self._hours[old]
         return fetched
+
+    def _disk_path(self, hour: int) -> Path | None:
+        return None if self._cache_dir is None else self._cache_dir() / REALM / f"{hour}.json.gz"
+
+    def _read_disk(self, hour: int) -> dict[str, Any] | None:
+        """A published hour's disk copy, or None if there's none or it can't be read (it's fetched again)."""
+        path = self._disk_path(hour)
+        if path is None or not path.is_file():
+            return None
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, EOFError, ValueError):
+            return None
+
+    def _write_disk(self, hour: int, body: dict[str, Any]) -> None:
+        """Keep a published hour on disk, and drop copies over _KEEP_S older. Best effort: a failed write
+        only costs a fetch next time."""
+        path = self._disk_path(hour)
+        if path is None:
+            return
+        markets = [{k: m[k] for k in _DISK_FIELDS if k in m} for m in body.get("markets") or []]
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            partial = path.with_name(path.name + ".partial")
+            with gzip.open(partial, "wt", encoding="utf-8", newline="\n") as f:
+                json.dump({"next_change_id": body.get("next_change_id"), "markets": markets}, f)
+            partial.replace(path)
+            for other in path.parent.glob("*.json.gz"):
+                stem = other.name.split(".", 1)[0]
+                if stem.isdigit() and int(stem) < hour - _KEEP_S:
+                    other.unlink()
+        except OSError:
+            pass
 
     async def latest_hour(self, now: float | None = None) -> Fetched[dict[str, Any]]:
         """The newest published hour: the last complete one, or the one before it while that's still
@@ -228,3 +277,19 @@ class ExchangeClient:
             if fetched is not None:
                 return fetched
         raise RuntimeError(f"currency exchange: the hours from {hour - 3600} and {hour} are not published yet")
+
+    async def recent_hours(
+        self, count: int, offset_s: int = 0, now: float | None = None
+    ) -> list[Fetched[dict[str, Any]]]:
+        """A window of `count` published hours, newest first, ending `offset_s` before the newest published
+        hour (7 days back: offset_s=604800). Each hour is fetched once, then read from disk. Raises if an
+        hour in the window isn't published."""
+        latest = await self.latest_hour(now)
+        newest = int(latest.fetched_at) - 3600 - offset_s
+        window = []
+        for hour in range(newest, newest - count * 3600, -3600):
+            fetched = await self._hour(hour)
+            if fetched is None:
+                raise RuntimeError(f"currency exchange: the hour from {hour} is not published")
+            window.append(fetched)
+        return window

@@ -1,5 +1,7 @@
 """Unit tests for GGG's Currency Exchange client and its rate math (pure, no network)."""
 import asyncio
+import gzip
+import json
 
 import httpx
 import pytest
@@ -309,3 +311,84 @@ def test_latest_hour_raises_on_an_http_error():
     client = ExchangeClient(min_gap_s=0, transport=httpx.MockTransport(lambda request: httpx.Response(503)))
     with pytest.raises(RuntimeError, match="HTTP 503"):
         _latest(client, NOW)
+
+
+# Published hours never change, so they're kept on disk (in the player's data dir): a window of hours a
+# week back costs one fetch per hour once, not on every call.
+def _cached_client(served: dict[int, dict], calls: list[str], cache) -> ExchangeClient:
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        hour = int(request.url.path.rsplit("/", 1)[1])
+        return httpx.Response(200, json=served.get(hour, {"next_change_id": hour, "markets": []}))
+
+    return ExchangeClient(min_gap_s=0, transport=httpx.MockTransport(handler), cache_dir=lambda: cache)
+
+
+def _run(client: ExchangeClient, coro_fn):
+    async def run():
+        try:
+            return await coro_fn(client)
+        finally:
+            await client.aclose()
+
+    return asyncio.run(run())
+
+
+def _published(hour: int) -> dict:
+    return {"next_change_id": hour + 3600, "markets": [
+        {**MARKETS[0], "market_id": "x", "lowest_stock": {DIVINE: 1}, "lowest_ratio": {DIVINE: 1, EXALTED: 700},
+         "highest_ratio": {DIVINE: 1, EXALTED: 760}}]}
+
+
+def test_a_published_hour_is_read_from_disk_by_a_later_client(tmp_path):
+    calls: list[str] = []
+    _run(_cached_client({HOUR: _published(HOUR)}, calls, tmp_path), lambda c: c.latest_hour(now=NOW))
+    later: list[str] = []
+    [fetched] = _run(_cached_client({}, later, tmp_path), lambda c: c.recent_hours(1, now=NOW))
+    assert calls == [_path(HOUR)] and later == []
+    assert exalted_rates(fetched.body["markets"], "Forbidden Rites")[DIVINE]["highExalted"] == 760
+
+
+def test_the_disk_copy_keeps_only_what_the_rate_math_reads(tmp_path):
+    _run(_cached_client({HOUR: _published(HOUR)}, [], tmp_path), lambda c: c.latest_hour(now=NOW))
+    [path] = list(tmp_path.rglob("*.json.gz"))
+    with gzip.open(path, "rt", encoding="utf-8") as f:
+        market = json.load(f)["markets"][0]
+    assert set(market) == {"league", "market_pair", "volume_traded", "lowest_ratio", "highest_ratio"}
+
+
+def test_an_unpublished_hour_is_not_written_to_disk(tmp_path):
+    with pytest.raises(RuntimeError):
+        _run(_cached_client({}, [], tmp_path), lambda c: c.latest_hour(now=NOW))
+    assert list(tmp_path.rglob("*.json.gz")) == []
+
+
+def test_a_damaged_disk_copy_is_fetched_again(tmp_path):
+    _run(_cached_client({HOUR: _published(HOUR)}, [], tmp_path), lambda c: c.latest_hour(now=NOW))
+    [path] = list(tmp_path.rglob("*.json.gz"))
+    path.write_bytes(b"not gzip")
+    calls: list[str] = []
+    _run(_cached_client({HOUR: _published(HOUR)}, calls, tmp_path), lambda c: c.latest_hour(now=NOW))
+    assert calls == [_path(HOUR)]
+
+
+def test_hours_more_than_nine_days_older_than_a_new_one_are_removed(tmp_path):
+    old = HOUR - 10 * 86400
+    _run(_cached_client({old: _published(old)}, [], tmp_path), lambda c: c.recent_hours(1, now=old + 3600 + 60))
+    _run(_cached_client({HOUR: _published(HOUR)}, [], tmp_path), lambda c: c.latest_hour(now=NOW))
+    assert [p.name for p in tmp_path.rglob("*.json.gz")] == [f"{HOUR}.json.gz"]
+
+
+def test_recent_hours_gives_a_window_ending_at_the_latest_hour_less_an_offset(tmp_path):
+    # Newest first: the latest published hour less `offset_s`, then each hour before it.
+    week = 7 * 86400
+    served = {h: _published(h) for h in (HOUR, HOUR - week, HOUR - week - 3600)}
+    calls: list[str] = []
+    window = _run(_cached_client(served, calls, tmp_path), lambda c: c.recent_hours(2, offset_s=week, now=NOW))
+    assert [f.fetched_at for f in window] == [HOUR - week + 3600, HOUR - week]
+    assert calls == [_path(HOUR), _path(HOUR - week), _path(HOUR - week - 3600)]
+
+
+def test_recent_hours_raises_when_an_hour_in_the_window_is_missing(tmp_path):
+    with pytest.raises(RuntimeError, match=str(HOUR - 3600)):
+        _run(_cached_client({HOUR: _published(HOUR)}, [], tmp_path), lambda c: c.recent_hours(2, now=NOW))
