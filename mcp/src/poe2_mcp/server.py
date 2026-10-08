@@ -22,7 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .buildplanner import compare_plans, plan_build, plan_changes
-from .exchange import DIVINE, ExchangeClient, exalted_rates, value_on_exchange
+from .exchange import DIVINE, ExchangeClient, exalted_rates, exchange_moves, value_on_exchange
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
@@ -54,7 +54,7 @@ from . import vendor_regex
 
 mcp = FastMCP("poe2-mcp")
 _scout = Poe2ScoutClient()
-_exchange = ExchangeClient()
+_exchange = ExchangeClient(cache_dir=lambda: store.data_dir() / "exchange")  # published hours, kept on disk
 _trade = Trade2Client()
 _guides = GuideFetcher()
 
@@ -370,18 +370,83 @@ async def market_movers(
     Moves are changePctVsDivine -- the item's own move with exalted's drift removed. Items listed
     fewer than 50 times are skipped as too thin to trust (`thin` counts them). Read-only; cached.
 
-    Each mover also carries `exchange`, GGG's Currency Exchange's last hour for it (as in
-    get_currency_prices: low/high/average exalted, volume), or None; the top-level `exchange` dates that
-    hour on its own, or holds `error`. Moves stay poe2scout's: two exchange hours a week apart are too
-    noisy to rank by (consecutive hours differ by a median ~10%).
+    Each mover also carries `exchange`, GGG's Currency Exchange beside poe2scout: its last hour (as in
+    get_currency_prices: low/high/average exalted, volume) and its own 7-day move, `changePctVsDivine`,
+    from the last 12 hours against the same 12 hours a week earlier (one hour alone is too noisy: hours
+    differ by a median ~10%), for items with 100+ units traded in each -- or None. The two sources often
+    disagree: poe2scout's figures aren't the exchange's trades. The top-level `exchange` dates the last hour
+    on its own and gives `windowHours`, the exchange's `divineChangePct` and `thin` (or `error` /
+    `movesError`). The first call fetches ~24 hours (~25 s); published hours are kept on disk after that.
+    `source` is "poe2scout", or "exchange" when poe2scout is down (`poe2scoutError` says why): then
+    `exchangeMovers` ranks the exchange's moves over everything it trades (no categories), named from the
+    item snapshot. With both down, `valid` is false.
     """
     resolved_f = await _scout.resolve_league(league)
     league_value = resolved_f.body["Value"]
     top = max(1, min(top, 20))
-    divine_f, divine_change = await _divine_change(league_value)
-    sources: list[Fetched[Any]] = [resolved_f, divine_f]
     exchange_rates, exchange = await _exchange_hour(league_value)
+    exchange_moved, week = await _exchange_week(league_value)
+    if "error" not in exchange:
+        exchange = {**exchange, **week}
+    try:
+        divine_f, divine_change = await _divine_change(league_value)
+        sources: list[Fetched[Any]] = [resolved_f, divine_f]
+        results = await _movers_by_category(league_value, categories, divine_change, top, sources,
+                                            exchange_rates, exchange_moved)
+    except (RuntimeError, httpx.HTTPError, ValueError) as e:
+        return _exchange_movers_only(league_value, top, exchange_rates, exchange, exchange_moved, str(e))
 
+    return {
+        "league": league_value,
+        "divineChangePct": _round(divine_change, 1),
+        **freshness(*sources),
+        "source": "poe2scout",
+        "exchange": exchange,
+        "categories": results,
+        "note": (
+            "Moves are ~7-day, in divine terms. A mover is a price signal, not a profit rate -- no "
+            "drop rates or run times are known."
+            if divine_change is not None else
+            "Divine's own price history is unavailable, so no inflation-free moves could be ranked."
+        ),
+    }
+
+
+EXCHANGE_WINDOW_HOURS = 12  # each end of the exchange's 7-day move: same hours of the day, a week apart
+EXCHANGE_MOVE_MIN_VOLUME = 100  # units traded in each window, or the item's move is too thin to show
+
+
+async def _exchange_week(league_value: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """The exchange's 7-day moves: the last EXCHANGE_WINDOW_HOURS against the same hours a week before.
+    Returns the moves by base id and what to report about them, or no moves and `movesError`."""
+    try:
+        now = await _exchange.recent_hours(EXCHANGE_WINDOW_HOURS)
+        then = await _exchange.recent_hours(EXCHANGE_WINDOW_HOURS, offset_s=7 * 86400)
+    except (RuntimeError, httpx.HTTPError, ValueError) as e:
+        return {}, {"movesError": str(e)}
+
+    def window(hours: list[Fetched[Any]]) -> dict[str, dict[str, Any]]:
+        return exalted_rates([m for hour in hours for m in hour.body.get("markets") or []], league_value)
+
+    moved = exchange_moves(window(now), window(then), min_volume=EXCHANGE_MOVE_MIN_VOLUME)
+    return moved["moves"], {"windowHours": EXCHANGE_WINDOW_HOURS,
+                            "divineChangePct": _round(moved["divineChangePct"], 1), "thin": moved["thin"]}
+
+
+def _mover_exchange(rate: dict[str, Any] | None, move: dict[str, Any] | None) -> dict[str, Any] | None:
+    """A mover's exchange block: its last hour and its own 7-day move, or None if it has neither."""
+    if rate is None and move is None:
+        return None
+    fields = _exchange_fields(rate) or {"lowExalted": None, "highExalted": None, "averageExalted": None,
+                                        "volume": None, "via": None}
+    return {**fields, "changePctVsDivine": _round(move["changePctVsDivine"], 1) if move else None}
+
+
+async def _movers_by_category(
+    league_value: str, categories: list[str] | None, divine_change: float | None, top: int,
+    sources: list[Fetched[Any]], exchange_rates: dict[str, dict[str, Any]], exchange_moved: dict[str, Any],
+) -> dict[str, Any]:
+    """poe2scout's movers per category, each with the exchange's block beside it."""
     results: dict[str, Any] = {}
     for category in categories or DEFAULT_MOVER_CATEGORIES:
         items, fetches = await _whole_category(league_value, category)  # a mover list must see it all
@@ -400,7 +465,8 @@ async def market_movers(
                 "quantityListed": m["quantityListed"],
                 "changePct": _round(m["changePct"], 1),
                 "changePctVsDivine": _round(m["changePctVsDivine"], 1),
-                "exchange": _exchange_fields(exchange_rates.get(base_ids.get(m["apiId"]) or "")),
+                "exchange": _mover_exchange(exchange_rates.get(base_ids.get(m["apiId"]) or ""),
+                                            exchange_moved.get(base_ids.get(m["apiId"]) or "")),
             }
 
         results[category] = {
@@ -409,19 +475,35 @@ async def market_movers(
             "thin": movers["thin"],
             "noTrend": movers["noTrend"],
         }
+    return results
 
+
+def _exchange_movers_only(
+    league_value: str, top: int, exchange_rates: dict[str, dict[str, Any]], exchange: dict[str, Any],
+    exchange_moved: dict[str, dict[str, Any]], scout_error: str,
+) -> dict[str, Any]:
+    """market_movers with poe2scout down: the exchange's own moves, ranked over everything it trades."""
+    if "error" in exchange:
+        return {"valid": False, "error": f"poe2scout: {scout_error}; {exchange['error']}",
+                "note": "Both price sources are down: try again later."}
+    names = (load_items() or {}).get("exchange") or {}
+    ranked = [{"name": names[base_id], "changePctVsDivine": _round(move["changePctVsDivine"], 1),
+               "exchange": _mover_exchange(exchange_rates.get(base_id), move)}
+              for base_id, move in exchange_moved.items() if base_id in names]
+    risers = sorted((m for m in ranked if m["changePctVsDivine"] > 0),
+                    key=lambda m: (-m["changePctVsDivine"], m["name"]))
+    fallers = sorted((m for m in ranked if m["changePctVsDivine"] < 0),
+                     key=lambda m: (m["changePctVsDivine"], m["name"]))
     return {
         "league": league_value,
-        "divineChangePct": _round(divine_change, 1),
-        **freshness(*sources),
+        "divineChangePct": exchange.get("divineChangePct"),
+        "source": "exchange",
+        "poe2scoutError": scout_error,
         "exchange": exchange,
-        "categories": results,
-        "note": (
-            "Moves are ~7-day, in divine terms. A mover is a price signal, not a profit rate -- no "
-            "drop rates or run times are known."
-            if divine_change is not None else
-            "Divine's own price history is unavailable, so no inflation-free moves could be ranked."
-        ),
+        "categories": {},
+        "exchangeMovers": {"risers": risers[:top], "fallers": fallers[:top], "thin": exchange.get("thin")},
+        "note": ("poe2scout is down: these are the Currency Exchange's own 7-day moves, in divine terms, over "
+                 "everything it trades -- no categories. A mover is a price signal, not a profit rate."),
     }
 
 

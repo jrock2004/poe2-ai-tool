@@ -107,6 +107,7 @@ ESSENCES = [_currency("Lesser Essence of Haste", "lesser-essence-of-haste", 1),
             _currency("Greater Essence of Haste", "greater-essence-of-haste", 12)]
 DIVINE_ID = "Metadata/Items/Currency/CurrencyModValues"
 GCP_ID = "Metadata/Items/Currency/CurrencyGemQuality"
+ESH_ID = "Metadata/Items/Currency/BreachCatalystMana"
 EXALTED_ID = "Metadata/Items/Currency/CurrencyAddModToRare"
 CURRENCY = [_currency("Divine Orb", "divine", 700, DIVINE_ID), _currency("Gemcutter's Prism", "gcp", 2, GCP_ID)]
 PAGE_SIZE = 2  # poe2scout pages its answers (live: 82 essences come back as 3 pages of 40)
@@ -152,11 +153,23 @@ EXCHANGE_MARKETS = [
      "lowest_ratio": {DIVINE_ID: 1, EXALTED_ID: 776}, "highest_ratio": {DIVINE_ID: 1, EXALTED_ID: 690}},
     {"league": "HC Forbidden Rites", "market_pair": [GCP_ID, EXALTED_ID], "volume_traded": {GCP_ID: 5, EXALTED_ID: 40},
      "lowest_ratio": {GCP_ID: 1, EXALTED_ID: 9}, "highest_ratio": {GCP_ID: 1, EXALTED_ID: 7}},
+    {"league": "Forbidden Rites", "market_pair": [ESH_ID, EXALTED_ID], "volume_traded": {ESH_ID: 200, EXALTED_ID: 2000},
+     "lowest_ratio": {ESH_ID: 1, EXALTED_ID: 9}, "highest_ratio": {ESH_ID: 1, EXALTED_ID: 11}},
 ]
+# The same hours a week earlier: divine at 700, Esh's Catalyst at 20 -- in divine, Esh's fell by about half.
+WEEK = 7 * 86400
+EXCHANGE_MARKETS_WEEK_AGO = [
+    {"league": "Forbidden Rites", "market_pair": [DIVINE_ID, EXALTED_ID],
+     "volume_traded": {DIVINE_ID: 1000, EXALTED_ID: 700000}},
+    {"league": "Forbidden Rites", "market_pair": [ESH_ID, EXALTED_ID],
+     "volume_traded": {ESH_ID: 300, EXALTED_ID: 6000}},
+]
+ESH_MOVE = round((10 / (1077202 / 1416)) / (20 / 700) * 100 - 100, 1)
 
 
 class FakeExchange:
-    """The Currency Exchange client: the last published hour, or down."""
+    """The Currency Exchange client: the last published hour, a window of hours (now, or a week back), or
+    down."""
 
     def __init__(self, down: bool = False) -> None:
         self.down = down
@@ -165,6 +178,12 @@ class FakeExchange:
         if self.down:
             raise RuntimeError("currency exchange /api/currency-exchange/poe2/1791331200 -> HTTP 503")
         return Fetched(body={"markets": EXCHANGE_MARKETS}, fetched_at=EXCHANGE_HOUR_END)
+
+    async def recent_hours(self, count: int, offset_s: int = 0, now: float | None = None) -> list[Fetched]:
+        latest = await self.latest_hour(now)
+        markets = EXCHANGE_MARKETS if offset_s == 0 else EXCHANGE_MARKETS_WEEK_AGO
+        return [Fetched(body={"markets": markets}, fetched_at=latest.fetched_at - offset_s - i * 3600)
+                for i in range(count)]
 
 
 def _prices(monkeypatch, category: str, search: str | None = None, per_page: int = 25,
@@ -259,7 +278,7 @@ def test_get_currency_prices_keeps_poe2scouts_answer_when_the_exchange_is_down(m
 # When poe2scout is down, the exchange answers alone, named from the item snapshot (it has no names or
 # categories of its own). Shaped like the real snapshot's `exchange` section: base id -> name.
 EXCHANGE_NAMES_SNAPSHOT = {"patch": "0.5.5", "exchange": {
-    GCP_ID: "Gemcutter's Prism", DIVINE_ID: "Divine Orb", EXALTED_ID: "Exalted Orb"}}
+    GCP_ID: "Gemcutter's Prism", DIVINE_ID: "Divine Orb", EXALTED_ID: "Exalted Orb", ESH_ID: "Esh's Catalyst"}}
 
 
 def _fallback(monkeypatch, category: str = "currency", search: str | None = None, **kw) -> dict:
@@ -358,19 +377,22 @@ def _logged(name: str, api_id: str, base: str | None, first: float, last: float)
 
 MOVERS = {"currency": [_logged("Divine Orb", "divine", DIVINE_ID, 700, 700),
                        _logged("Gemcutter's Prism", "gcp", GCP_ID, 2, 3)],
-          "breach": [_logged("Esh's Catalyst", "esh-catalyst", None, 20, 10)]}
+          "breach": [_logged("Esh's Catalyst", "esh-catalyst", ESH_ID, 20, 10)]}
 
 
 class MoversScout(PricesScout):
     async def get_currencies_by_category(self, league_value, category, search=None, page=1, per_page=25) -> Fetched:
+        if self.down:
+            raise RuntimeError("poe2scout /poe2/Leagues/Forbidden%20Rites/Currencies/ByCategory -> HTTP 503")
         pool = [i for i in MOVERS.get(category, []) if search is None or search in (i["Text"], i["ApiId"])]
         return Fetched(body={"Items": pool, "Total": len(pool), "CurrentPage": 1, "Pages": 1},
                        fetched_at=time.time())
 
 
-def _movers(monkeypatch, exchange_down: bool = False) -> dict:
-    monkeypatch.setattr(server, "_scout", MoversScout())
+def _movers(monkeypatch, exchange_down: bool = False, scout_down: bool = False) -> dict:
+    monkeypatch.setattr(server, "_scout", MoversScout(down=scout_down))
     monkeypatch.setattr(server, "_exchange", FakeExchange(down=exchange_down))
+    monkeypatch.setattr(server, "load_items", lambda: EXCHANGE_NAMES_SNAPSHOT)
     return asyncio.run(server.market_movers(["currency", "breach"]))
 
 
@@ -380,9 +402,23 @@ def test_market_movers_put_the_exchanges_last_hour_beside_each_mover(monkeypatch
     assert [m["name"] for m in divine] == ["Gemcutter's Prism"]
     assert divine[0]["changePctVsDivine"] == 50.0
     assert divine[0]["exchange"] is None  # it traded only in HC that hour
-    faller = out["categories"]["breach"]["fallers"][0]
-    assert faller["name"] == "Esh's Catalyst" and faller["exchange"] is None  # no base id from poe2scout
     assert 40 * 60 <= out["exchange"]["ageSeconds"] < 41 * 60 and out["ageSeconds"] < 60
+
+
+def test_market_movers_put_the_exchanges_own_7_day_move_beside_poe2scouts(monkeypatch):
+    # The exchange's move compares 12-hour windows a week apart, in divine, like poe2scout's.
+    out = _movers(monkeypatch)
+    faller = out["categories"]["breach"]["fallers"][0]
+    assert faller["name"] == "Esh's Catalyst" and faller["changePctVsDivine"] == -50.0  # poe2scout's
+    assert faller["exchange"]["changePctVsDivine"] == ESH_MOVE
+    assert (faller["exchange"]["lowExalted"], faller["exchange"]["highExalted"]) == (9, 11)  # the last hour
+    assert out["exchange"]["windowHours"] == 12
+    assert out["exchange"]["divineChangePct"] == round((1077202 / 1416) / 700 * 100 - 100, 1)
+
+
+def test_market_movers_give_no_exchange_move_for_an_item_it_did_not_trade_both_weeks(monkeypatch):
+    out = _movers(monkeypatch)
+    assert out["categories"]["currency"]["risers"][0]["exchange"] is None  # Gemcutter's: HC only
 
 
 def test_market_movers_give_a_movers_exchange_price_by_its_base_id(monkeypatch):
@@ -398,6 +434,22 @@ def test_market_movers_keep_their_moves_when_the_exchange_is_down(monkeypatch):
     out = _movers(monkeypatch, exchange_down=True)
     assert out["categories"]["currency"]["risers"][0]["changePctVsDivine"] == 50.0
     assert "503" in out["exchange"]["error"]
+
+
+def test_market_movers_rank_the_exchanges_moves_when_poe2scout_is_down(monkeypatch):
+    # No categories without poe2scout: one ranking over everything the exchange trades, named from the item
+    # snapshot.
+    out = _movers(monkeypatch, scout_down=True)
+    assert out["source"] == "exchange" and "503" in out["poe2scoutError"] and out["categories"] == {}
+    movers = out["exchangeMovers"]
+    assert movers["risers"] == []
+    assert [(m["name"], m["changePctVsDivine"]) for m in movers["fallers"]] == [("Esh's Catalyst", ESH_MOVE)]
+    assert movers["fallers"][0]["exchange"]["highExalted"] == 11
+
+
+def test_market_movers_say_so_when_poe2scout_and_the_exchange_are_both_down(monkeypatch):
+    out = _movers(monkeypatch, scout_down=True, exchange_down=True)
+    assert out["valid"] is False and "poe2scout" in out["error"] and "currency exchange" in out["error"]
 
 
 # A loaded item snapshot, trimmed to one real row of its texts.
