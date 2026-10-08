@@ -227,10 +227,10 @@ async def get_currency_prices(
     `validCategories` lists the ones it has.
 
     Each item also carries `exchange`: GGG's Currency Exchange over its last published hour (history
-    only: an hour that ended up to ~1 h ago) -- `lowExalted`/`highExalted`, the range its market ratio moved in (the game's buy
-    price sits near the high end), `averageExalted` (volume-weighted across buyers and sellers, low on
-    cheap bulk items), `volume` (units traded) and `via` ("divine" when priced through divine). None
-    when it didn't trade that hour. The top-level `exchange` dates that hour on its own
+    only: an hour that ended up to ~1 h ago) -- `lowExalted`/`highExalted`, the range its market ratio
+    moved in (the game's buy price sits near the high end), `averageExalted` (volume-weighted across
+    buyers and sellers, low on cheap bulk items), `volume` (units traded) and `via` ("divine" when
+    priced through divine). None when it didn't trade that hour. The top-level `exchange` dates that hour on its own
     (`fetchedAt`/`ageSeconds`, kept out of poe2scout's), or holds `error` if the exchange is down.
     """
     resolved_f = await _scout.resolve_league(league)
