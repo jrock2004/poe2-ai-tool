@@ -282,10 +282,10 @@ def test_write_build_plan_writes_a_plan_per_loadout_into_the_game_folder(monkeyp
     planner = _game(tmp_path / "Documents") / "BuildPlanner"
     out = _write_plan(monkeypatch, tmp_path, author="Guide Author", link="https://example.test/guide")
     assert (out["status"], out["folder"]) == ("written", str(planner))
-    assert sorted(p.name for p in planner.iterdir()) == ["Minion Leveling - Act 2.build",
-                                                         "Minion Leveling - Mid Maps.build"]
-    assert json.loads((planner / "Minion Leveling - Act 2.build").read_text(encoding="utf-8")) == {
-        "name": "Minion Leveling - Act 2", "author": "Guide Author", "link": "https://example.test/guide",
+    assert sorted(p.name for p in planner.iterdir()) == ["Minion Leveling - 1 Act 2.build",
+                                                         "Minion Leveling - 2 Mid Maps.build"]
+    assert json.loads((planner / "Minion Leveling - 1 Act 2.build").read_text(encoding="utf-8")) == {
+        "name": "Minion Leveling - 1 Act 2", "author": "Guide Author", "link": "https://example.test/guide",
         "description": f"Stage 1 of 2. Written {date.today().isoformat()} from the guide's PoB.",
         "ascendancy": "Witch1", "passives": [{"id": "cold34", "additional_text": "NOTE-passive"}]}
 
@@ -295,11 +295,11 @@ def test_write_build_plan_reports_each_plan_without_its_notes(monkeypatch, tmp_p
     _game(tmp_path / "Documents")
     out = _write_plan(monkeypatch, tmp_path)
     assert out["plans"] == [
-        {"name": "Minion Leveling - Act 2", "file": "Minion Leveling - Act 2.build",
+        {"name": "Minion Leveling - 1 Act 2", "file": "Minion Leveling - 1 Act 2.build",
          "passives": 1, "skills": 0, "gear": 0,
          "leftOut": [{"what": "passive node 99999", "why": "unmapped-passive"},
                      {"what": "Chaos Bolt", "why": "item-granted"}, {"what": "Flask 1", "why": "unmapped-slot"}]},
-        {"name": "Minion Leveling - Mid Maps", "file": "Minion Leveling - Mid Maps.build",
+        {"name": "Minion Leveling - 2 Mid Maps", "file": "Minion Leveling - 2 Mid Maps.build",
          "passives": 2, "skills": 1, "gear": 1, "leftOut": []},
     ]
     assert (out["replaced"], out["unpaired"]) == ([], {"skillSets": [], "itemSets": []})
@@ -311,21 +311,39 @@ def test_write_build_plan_gives_a_single_loadout_no_stage(monkeypatch, tmp_path)
     one = PLAN_XML.replace('<Spec title="Mid Maps" treeVersion="0_5" ascendancyInternalId="Witch1" '
                            'nodes="3823,51184"/>', "")
     out = _write_plan(monkeypatch, tmp_path, code=one)
+    assert [p["name"] for p in out["plans"]] == ["Minion Leveling - Act 2"]  # no number, nothing to order
     plan = json.loads((planner / "Minion Leveling - Act 2.build").read_text(encoding="utf-8"))
     assert plan["description"] == f"Written {date.today().isoformat()} from the guide's PoB."
     assert not {"author", "link"} & set(plan)  # never invented when not given
     assert out["unpaired"] == {"skillSets": ["Mid Maps"], "itemSets": ["Mid Maps"]}
 
 
+def test_write_build_plan_numbers_the_stages_so_the_dropdown_keeps_the_guides_order(monkeypatch, tmp_path):
+    # In game the dropdown sorts plans by name and cuts each at about 30 characters, so the stage number
+    # comes right after the build's name, padded so that 10 follows 9.
+    _game(tmp_path / "Documents")
+    specs = "".join(f'<Spec title="Stage {i}" treeVersion="0_5" nodes="3823"/>' for i in range(1, 11))
+    out = _write_plan(monkeypatch, tmp_path, code=f"<PathOfBuilding2><Tree>{specs}</Tree></PathOfBuilding2>")
+    names = [p["name"] for p in out["plans"]]
+    assert names == [f"Minion Leveling - {i:02d} Stage {i}" for i in range(1, 11)]
+    assert names == sorted(names)
+
+
+def test_write_build_plan_names_an_untitled_stage_by_its_number(monkeypatch, tmp_path):
+    _game(tmp_path / "Documents")
+    out = _write_plan(monkeypatch, tmp_path, code=PLAN_XML.replace('<Spec title="Mid Maps" ', "<Spec "))
+    assert [p["name"] for p in out["plans"]] == ["Minion Leveling - 1 Act 2", "Minion Leveling - 2"]
+
+
 def test_write_build_plan_never_overwrites_until_told_to(monkeypatch, tmp_path):
     planner = _game(tmp_path / "Documents") / "BuildPlanner"
     planner.mkdir()
-    (planner / "Minion Leveling - Mid Maps.build").write_text("old", encoding="utf-8")
+    (planner / "Minion Leveling - 2 Mid Maps.build").write_text("old", encoding="utf-8")
     out = _write_plan(monkeypatch, tmp_path)
-    assert out == {"status": "exists", "folder": str(planner), "existing": ["Minion Leveling - Mid Maps.build"]}
-    assert [p.name for p in planner.iterdir()] == ["Minion Leveling - Mid Maps.build"]
+    assert out == {"status": "exists", "folder": str(planner), "existing": ["Minion Leveling - 2 Mid Maps.build"]}
+    assert [p.name for p in planner.iterdir()] == ["Minion Leveling - 2 Mid Maps.build"]
     out = _write_plan(monkeypatch, tmp_path, overwrite=True)
-    assert (out["status"], out["replaced"]) == ("written", ["Minion Leveling - Mid Maps.build"])
+    assert (out["status"], out["replaced"]) == ("written", ["Minion Leveling - 2 Mid Maps.build"])
     assert len(list(planner.iterdir())) == 2
 
 

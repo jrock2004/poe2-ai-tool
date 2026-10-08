@@ -630,8 +630,10 @@ async def write_build_plan(
     overwrite: bool = False,
 ) -> dict[str, Any]:
     """Write a guide's Path of Building code into the in-game Build Planner: one plan per tree spec (with
-    the skill set and item set sharing its title), named "<name> - <spec title>", carrying the guide's
-    notes on passives, gems and gear. In game: P -> the Build Planner icon at the top left -> pick the plan.
+    the skill set and item set sharing its title), named "<name> - <stage number> <spec title>" (a single
+    spec has no number), carrying the guide's notes on passives, gems and gear. In game: P -> the Build
+    Planner icon at the top left -> pick the plan. The dropdown sorts by name and shows about 30
+    characters, so keep `name` short.
 
     code: the guide's PoB code (or raw PoB XML), passed whole -- its notes go to the files, never into the
     reply. name: the build's name; the export doesn't carry it. author: the guide's creator, only when
@@ -681,8 +683,8 @@ async def write_build_plan(
         planner = found
 
     today = date.today().isoformat()
-    results = [plan_build(loadout, name, items["passives"], author=author, link=link,
-                          description=_plan_description(stage, len(loadouts), today))
+    results = [plan_build(_numbered(loadout, stage, len(loadouts)), name, items["passives"], author=author,
+                          link=link, description=_plan_description(stage, len(loadouts), today))
                for stage, loadout in enumerate(loadouts, 1)]
     out = write_plans(planner, [result["build"] for result in results], overwrite=overwrite)
     if not out["written"]:
@@ -699,6 +701,16 @@ async def write_build_plan(
     if warning:
         reply["warning"] = warning
     return reply
+
+
+def _numbered(loadout: dict[str, Any], stage: int, stages: int) -> dict[str, Any]:
+    """The loadout with its stage number leading its title, so the plans keep the guide's order in the
+    game's dropdown, which sorts by name and cuts it at about 30 characters. Padded so that 10 follows 9;
+    a single stage has nothing to order."""
+    if stages == 1:
+        return loadout
+    number = f"{stage:0{len(str(stages))}d}"
+    return {**loadout, "title": f"{number} {loadout['title']}" if loadout["title"] else number}
 
 
 def _plan_description(stage: int, stages: int, today: str) -> str:
