@@ -231,6 +231,21 @@ by hand and can lag a patch.
    `LogbookQuestRune` rows.
 4. **Restart the MCP server** — snapshots are cached per version.
 
+### 11. Creator guide lists
+
+**Needed when** a new patch or league lands — creators update or add guides. Most creators in
+`skills/poe2-core/references/sources.md` → "Build creators" have their own build-list page, which the skills
+read live, so there's nothing to refresh. GhazzyTV and Lollash don't: their guides sit on poe-vault.com
+with no per-author page, so `sources.md` keeps the list ("GhazzyTV and Lollash guides").
+
+1. Ask Claude to refresh it, or do it by hand: open each class page on poe-vault.com (`/poe2/<class>/`,
+   eight classes), and on every minion-type guide (minions, spectres, companions and tamed beasts,
+   Infernal Legion, reavers…) read the byline. Theirs list GhazzyTV as author or under "Co-Authored".
+2. Update the list — guides added or gone, the patch each class page shows — and its "checked" date, and
+   the two creators' "Last verified" in the table.
+
+A guide of theirs that isn't on the list yet is still recognized: matching falls back to the byline.
+
 ## Releasing and sharing
 
 **Every push to `main` is a release.** `.claude-plugin/plugin.json` has no `version` on purpose: without

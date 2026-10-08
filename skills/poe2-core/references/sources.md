@@ -61,7 +61,8 @@ Creators whose guides we trust, chosen by the maintainer and shipped with the pl
   2. **Build list** — no author link, but the author shown on the page is a listed creator: confirm
      the guide's URL is on their build list.
   3. **Author name** — only if the build list can't be read (e.g. poe-vault, where the byline is plain
-     text and there's no per-author list).
+     text and there's no per-author list). On poe-vault a creator counts whether they're the author or
+     listed under "Co-Authored" — GhazzyTV is co-author on every guide below.
 
   No match → the creator is unknown, not untrusted: judge the guide only by what it contains and how
   current its patch is.
@@ -72,7 +73,26 @@ Creators whose guides we trust, chosen by the maintainer and shipped with the pl
 
 | Creator | Good for | Build list | Last verified (league / patch) | Notes |
 |---|---|---|---|---|
-| GhazzyTV | Minion builds, for every class that has them | poe-vault.com/poe2 — site root, not his list yet (match by author); YouTube @GhazzyTV | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
+| GhazzyTV | Minion builds, for every class that has them | poe-vault.com, no per-author page: see "GhazzyTV and Lollash guides" below; YouTube @GhazzyTV | Runes of Aldur / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
+| Lollash | Minion builds, for every class that has them | The same list: "GhazzyTV and Lollash guides" below | Runes of Aldur / 0.5.5 | Writes GhazzyTV's guides (Ghazzy co-authors them). Endgame variants are separate guides. |
 | Fubgun | Bow builds | mobalytics.gg/poe-2/profile/fubgun/builds; YouTube @Fubgun | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
 | deadrabb1t | Plant builds; Energy Drain + Contagion builds | mobalytics.gg/poe-2/profile/deadrabb1t/builds; YouTube @DEADR4BB1T | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variant is usually in the same guide. Some guides are twink builds. |
 | misoxshiru | Monk builds | mobalytics.gg/poe-2/profile/misoxshiru/builds; YouTube @MisoxShiru | The Forbidden Rites / 0.5.5 | |
+
+### GhazzyTV and Lollash guides
+
+On poe-vault.com, which has no per-author page; checked 2026-10-08 (patch 0.5.5). The patch is the one each
+guide's class page shows. Refresh each patch: `CONTRIBUTING.md` → "Creator guide lists".
+
+| Class | Guide | Patch | poe-vault.com path |
+|---|---|---|---|
+| Witch | Minion Witch Leveling Build | 0.5.5 | `/poe2/witch/infernalist/minion-leveling-build` |
+| Witch | Spectre Infernalist Endgame Build | 0.5 | `/poe2/witch/infernalist/spectre-build-guide` |
+| Druid | Spectre Shaman Leveling Build | 0.5.5 | `/poe2/druid/shaman/spectre-leveling-build` |
+| Druid | Raging Spectre Shaman Endgame Build | 0.5 | `/poe2/druid/shaman/raging-spectre-build-guide` |
+| Huntress | Spiritwalker Companion Leveling Build | 0.5.5 | `/poe2/huntress/spirit-walker/companion-leveling-build` |
+| Huntress | Tame Boss Beast Companion Spiritwalker Endgame Build | 0.5 | `/poe2/huntress/spirit-walker/tamed-boss-beast-build-guide` |
+| Monk | Minion Acolyte of Chayula Leveling Build | 0.5.5 | `/poe2/monk/acolyte-of-chayula/chaos-minion-leveling-build` |
+| Monk | Infernal Legion Tamed Beast Acolyte of Chayula Endgame Build | 0.5 | `/poe2/monk/acolyte-of-chayula/infernal-legion-tamed-beast-build-guide` |
+| Monk | Raging Reavers Acolyte of Chayula Endgame Build | 0.5 | `/poe2/monk/acolyte-of-chayula/breach-minions-build-guide` |
+| Mercenary | Gemling Legionnaire Unearth Endgame Build | 0.5 | `/poe2/mercenary/gemling-legionnaire/unearth-minions-build-guide` |
