@@ -194,9 +194,7 @@ def build_essences(
              for table in ("BaseItemTypes", "Essences", "EssenceTargetItemCategories", "Mods")}
 
     def ref(table: str, rownum: str, by: str) -> dict[str, str]:
-        if rownum not in index[table]:
-            raise ValueError(f"{by} names {table} row {rownum}, which the table doesn't have")
-        return index[table][rownum]
+        return _table_ref(index[table], table, rownum, by)
 
     def mod(rownum: str, by: str) -> dict[str, Any]:
         mod_id = ref("Mods", rownum, by)["Id"]
@@ -626,13 +624,8 @@ def exchange_ids(tables: dict[str, list[dict[str, str]]]) -> set[str]:
     naming a BaseItemTypes row that isn't there raises ValueError -- the export changed shape.
     """
     ids = {row["rownum"]: row["Id"] for row in tables["BaseItemTypes"]}
-    traded = set()
-    for row in tables["CurrencyExchange"]:
-        if row["Item"] not in ids:
-            raise ValueError(f"CurrencyExchange row {row['rownum']} names BaseItemTypes row {row['Item']}, "
-                             "which the table doesn't have")
-        traded.add(ids[row["Item"]])
-    return traded
+    return {_table_ref(ids, "BaseItemTypes", row["Item"], f"CurrencyExchange row {row['rownum']}")
+            for row in tables["CurrencyExchange"]}
 
 
 def main(argv: list[str]) -> None:
