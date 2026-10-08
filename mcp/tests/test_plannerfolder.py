@@ -14,7 +14,9 @@ from pathlib import Path
 import pytest
 
 from poe2_mcp import plannerfolder
-from poe2_mcp.plannerfolder import accept_folder, documents_folders, find_planner_folder, write_plans
+from poe2_mcp.plannerfolder import (
+    accept_folder, documents_folders, find_planner_folder, read_plans, remove_plans, write_plans,
+)
 
 GAME = Path("My Games") / "Path of Exile 2"
 
@@ -241,3 +243,70 @@ def test_overwrite_replaces_the_files_already_there_and_leaves_the_rest_alone(tm
     assert (out["written"], out["existing"]) == (True, ["Guide - Act 2.build"])
     assert _read(planner / "Guide - Act 2.build") == plans[1]
     assert (planner / "Another Build.build").read_text(encoding="utf-8") == "theirs"
+
+
+def _planner(tmp_path: Path) -> Path:
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    planner.mkdir()
+    return planner
+
+
+def test_read_plans_reads_every_build_file_in_name_order(tmp_path):
+    planner = _planner(tmp_path)
+    write_plans(planner, [{"name": "Infernalist - 2 Act 2"}, {"name": "Deadeye - 1 Act 1", "passives": ["cold34"]}])
+    assert read_plans(planner) == [
+        {"file": "Deadeye - 1 Act 1.build", "plan": {"name": "Deadeye - 1 Act 1", "passives": ["cold34"]}},
+        {"file": "Infernalist - 2 Act 2.build", "plan": {"name": "Infernalist - 2 Act 2"}},
+    ]
+
+
+def test_read_plans_skips_whatever_is_not_a_plan(tmp_path):
+    # Other tools and the player put files here too; they're not ours to judge. A byte-order mark (Notepad's
+    # old UTF-8) doesn't stop a plan being read.
+    planner = _planner(tmp_path)
+    (planner / "bad json.build").write_text("{", encoding="utf-8")
+    (planner / "a list.build").write_text("[]", encoding="utf-8")
+    (planner / "no name.build").write_text('{"passives": []}', encoding="utf-8")
+    (planner / "not utf8.build").write_bytes(b'{"name": "\xff"}')
+    (planner / "notes.txt").write_text('{"name": "Not a plan"}', encoding="utf-8")
+    (planner / "a folder.build").mkdir()
+    (planner / "BOM.build").write_text('{"name": "Infernalist"}', encoding="utf-8-sig")
+    assert read_plans(planner) == [{"file": "BOM.build", "plan": {"name": "Infernalist"}}]
+
+
+def test_read_plans_of_a_folder_not_made_yet_is_empty(tmp_path):
+    assert read_plans(_game(tmp_path / "Documents") / "BuildPlanner") == []
+
+
+def test_remove_plans_removes_the_plans_named_and_nothing_else(tmp_path):
+    planner = _planner(tmp_path)
+    write_plans(planner, [{"name": "Infernalist - 3 Maps"}, {"name": "Infernalist - 4 Late Maps"}, {"name": "Deadeye"}])
+    assert remove_plans(planner, ["Infernalist - 3 Maps.build", "Infernalist - 4 Late Maps.build"]) == [
+        "Infernalist - 3 Maps.build", "Infernalist - 4 Late Maps.build"]
+    assert [p.name for p in planner.iterdir()] == ["Deadeye.build"]
+
+
+def test_remove_plans_skips_a_plan_that_is_already_gone(tmp_path):
+    # The player may have deleted it by hand between the question and the answer.
+    planner = _planner(tmp_path)
+    write_plans(planner, [{"name": "Infernalist - 3 Maps"}])
+    assert remove_plans(planner, ["Infernalist - 9 Gone.build", "Infernalist - 3 Maps.build"]) == [
+        "Infernalist - 3 Maps.build"]
+    assert list(planner.iterdir()) == []
+
+
+@pytest.mark.parametrize("bad", ["../Path of Exile 2.build", "sub/Infernalist.build", "sub\\Infernalist.build",
+                                 "Infernalist - 3 Maps.txt", "..", ""])
+def test_remove_plans_refuses_anything_but_a_plain_build_file_name_and_removes_nothing(tmp_path, bad):
+    planner = _planner(tmp_path)
+    write_plans(planner, [{"name": "Infernalist - 3 Maps"}])
+    with pytest.raises(ValueError):
+        remove_plans(planner, ["Infernalist - 3 Maps.build", bad])
+    assert [p.name for p in planner.iterdir()] == ["Infernalist - 3 Maps.build"]
+
+
+def test_remove_plans_never_removes_a_folder(tmp_path):
+    planner = _planner(tmp_path)
+    (planner / "a folder.build").mkdir()
+    assert remove_plans(planner, ["a folder.build"]) == []
+    assert (planner / "a folder.build").is_dir()

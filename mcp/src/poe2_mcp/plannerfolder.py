@@ -1,5 +1,5 @@
-"""Find the folder the in-game Build Planner reads its plans from, and write plans into it. File system
-only -- no network.
+"""Find the folder the in-game Build Planner reads its plans from, and read, write and remove plans in it.
+File system only -- no network.
 
 The game reads <Documents>\\My Games\\Path of Exile 2\\BuildPlanner and watches it while it runs. On Windows,
 Documents is wherever its known folder points -- OneDrive moves it, e.g. to C:\\Users\\<name>\\OneDrive\\Documents
@@ -8,6 +8,7 @@ Exile 2" on first launch; BuildPlanner may not exist yet, and only writing makes
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -126,3 +127,41 @@ def write_plans(folder: Path, plans: list[dict[str, Any]], *, overwrite: bool = 
 
 def _file_name(name: str) -> str:
     return _NOT_IN_FILE_NAMES.sub("-", name).rstrip(". ") + ".build"
+
+
+def read_plans(folder: Path) -> list[dict[str, Any]]:
+    """Every plan in folder, by file name in any case: [{"file", "plan"}]. Other tools and the player keep
+    files here too, so what isn't a plan -- not a .build file, not a JSON object with a name, not UTF-8 -- is
+    skipped, not judged. A byte-order mark is fine. A folder not made yet has no plans."""
+    if not folder.is_dir():
+        return []
+    plans = []
+    for path in sorted(folder.iterdir(), key=lambda p: p.name.casefold()):
+        if path.suffix.casefold() != ".build" or not path.is_file():
+            continue
+        try:
+            plan = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(plan, dict) and isinstance(plan.get("name"), str):
+            plans.append({"file": path.name, "plan": plan})
+    return plans
+
+
+def remove_plans(folder: Path, files: list[str]) -> list[str]:
+    """Remove the named plan files from folder; returns the ones removed, in order.
+
+    Each must be a plain .build file name -- no folder, nothing Windows refuses in a name -- or ValueError,
+    and nothing is removed. A file already gone (the player may have deleted it by hand) is skipped, and so
+    is a folder; nothing else in folder is touched.
+    """
+    for name in files:
+        if not name.casefold().endswith(".build") or _NOT_IN_FILE_NAMES.search(name):
+            raise ValueError(f"{name!r} isn't a plan file name; nothing was removed")
+    removed = []
+    for name in dict.fromkeys(files):
+        path = folder / name
+        if path.is_file():
+            path.unlink()
+            removed.append(name)
+    return removed
