@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
 from .buildplanner import compare_plans, plan_build, plan_changes
+from .exchange import ExchangeClient, exalted_rates
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
@@ -53,6 +54,7 @@ from . import vendor_regex
 
 mcp = FastMCP("poe2-mcp")
 _scout = Poe2ScoutClient()
+_exchange = ExchangeClient()
 _trade = Trade2Client()
 _guides = GuideFetcher()
 
@@ -87,6 +89,24 @@ async def _whole_category(league_value: str, category: str) -> tuple[list[dict[s
         pages = page_f.body.get("Pages") or 0
         page += 1
     return items, fetches
+
+
+async def _exchange_hour(league_value: str) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """The Currency Exchange's last published hour for a league: its rates by base item id, and its own
+    freshness -- or no rates and the error. Kept apart from poe2scout's freshness: the hour is history by
+    design, so folding it in would age every answer by an hour. A failure never sinks the answer."""
+    try:
+        hour = await _exchange.latest_hour()
+    except (RuntimeError, httpx.HTTPError, ValueError) as e:
+        return {}, {"error": str(e)}
+    return exalted_rates(hour.body.get("markets") or [], league_value), freshness(hour)
+
+
+def _exchange_fields(rate: dict[str, Any] | None) -> dict[str, Any] | None:
+    if rate is None:
+        return None
+    return {"lowExalted": _round(rate["lowExalted"], 2), "highExalted": _round(rate["highExalted"], 2),
+            "averageExalted": _round(rate["exaltedPerUnit"], 2), "volume": rate["volume"], "via": rate["via"]}
 
 
 @mcp.tool()
@@ -205,6 +225,13 @@ async def get_currency_prices(
     first-to-last point; a gap in one series can shift its window by a day.) Currency/uniques only.
     If nothing comes back and poe2scout has no such category, `unknownCategory` is true and
     `validCategories` lists the ones it has.
+
+    Each item also carries `exchange`: GGG's Currency Exchange over its last published hour (history
+    only: an hour that ended up to ~1 h ago) -- `lowExalted`/`highExalted`, the range its market ratio moved in (the game's buy
+    price sits near the high end), `averageExalted` (volume-weighted across buyers and sellers, low on
+    cheap bulk items), `volume` (units traded) and `via` ("divine" when priced through divine). None
+    when it didn't trade that hour. The top-level `exchange` dates that hour on its own
+    (`fetchedAt`/`ageSeconds`, kept out of poe2scout's), or holds `error` if the exchange is down.
     """
     resolved_f = await _scout.resolve_league(league)
     resolved = resolved_f.body
@@ -226,6 +253,7 @@ async def get_currency_prices(
         listed, total, page, pages = resp.get("Items", []), resp.get("Total"), resp.get("CurrentPage"), resp.get("Pages")
     divine_f, divine_change = await _divine_change(resolved["Value"])
     sources.append(divine_f)
+    exchange_rates, exchange = await _exchange_hour(resolved["Value"])
     items = []
     for c in listed:
         price_ex = c.get("CurrentPrice")
@@ -246,6 +274,7 @@ async def get_currency_prices(
                     "changePct": _round(trend["changePct"], 1),
                     "changePctVsDivine": _round(change_vs_divine(trend["changePct"], divine_change), 1),
                 },
+                "exchange": _exchange_fields(exchange_rates.get(c.get("BaseItemTypeId") or "")),
             }
         )
 
@@ -270,6 +299,7 @@ async def get_currency_prices(
         "page": page,
         "pages": pages,
         **freshness(*sources),
+        "exchange": exchange,
         **unknown,
         "items": items,
         "note": note,

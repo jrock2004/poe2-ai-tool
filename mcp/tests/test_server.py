@@ -94,9 +94,10 @@ CATEGORIES = {"UniqueCategories": [{"ApiId": "armour"}],
               "CurrencyCategories": [{"ApiId": c} for c in ("currency", "essences", "breach", "runes")]}
 
 
-def _currency(name: str, api_id: str, price: float) -> dict:
+def _currency(name: str, api_id: str, price: float, base: str | None = None) -> dict:
     """One ByCategory item, trimmed to the fields the tool reads."""
-    return {"Text": name, "ApiId": api_id, "CurrentPrice": price, "CurrentQuantity": 500, "PriceLogs": None}
+    return {"Text": name, "ApiId": api_id, "BaseItemTypeId": base, "CurrentPrice": price, "CurrentQuantity": 500,
+            "PriceLogs": None}
 
 
 # In poe2scout's order. Two to a page, so Greater Essence of Haste is on page 2.
@@ -104,7 +105,10 @@ ESSENCES = [_currency("Lesser Essence of Haste", "lesser-essence-of-haste", 1),
             _currency("Essence of Haste", "essence-of-haste", 4),
             _currency("Essence of the Body", "essence-of-the-body", 3),
             _currency("Greater Essence of Haste", "greater-essence-of-haste", 12)]
-CURRENCY = [_currency("Divine Orb", "divine", 700), _currency("Gemcutter's Prism", "gcp", 2)]
+DIVINE_ID = "Metadata/Items/Currency/CurrencyModValues"
+GCP_ID = "Metadata/Items/Currency/CurrencyGemQuality"
+EXALTED_ID = "Metadata/Items/Currency/CurrencyAddModToRare"
+CURRENCY = [_currency("Divine Orb", "divine", 700, DIVINE_ID), _currency("Gemcutter's Prism", "gcp", 2, GCP_ID)]
 PAGE_SIZE = 2  # poe2scout pages its answers (live: 82 essences come back as 3 pages of 40)
 
 
@@ -137,10 +141,34 @@ class PricesScout:
         return Fetched(body=CATEGORIES, fetched_at=time.time())
 
 
+# One hour of the Currency Exchange: divine traded against exalted, Gemcutter's Prism didn't trade.
+EXCHANGE_HOUR_END = time.time() - 40 * 60
+EXCHANGE_MARKETS = [
+    {"league": "Forbidden Rites", "market_pair": [DIVINE_ID, EXALTED_ID],
+     "volume_traded": {DIVINE_ID: 1416, EXALTED_ID: 1077202},
+     "lowest_ratio": {DIVINE_ID: 1, EXALTED_ID: 776}, "highest_ratio": {DIVINE_ID: 1, EXALTED_ID: 690}},
+    {"league": "HC Forbidden Rites", "market_pair": [GCP_ID, EXALTED_ID], "volume_traded": {GCP_ID: 5, EXALTED_ID: 40},
+     "lowest_ratio": {GCP_ID: 1, EXALTED_ID: 9}, "highest_ratio": {GCP_ID: 1, EXALTED_ID: 7}},
+]
+
+
+class FakeExchange:
+    """The Currency Exchange client: the last published hour, or down."""
+
+    def __init__(self, down: bool = False) -> None:
+        self.down = down
+
+    async def latest_hour(self, now: float | None = None) -> Fetched:
+        if self.down:
+            raise RuntimeError("currency exchange /api/currency-exchange/poe2/1791331200 -> HTTP 503")
+        return Fetched(body={"markets": EXCHANGE_MARKETS}, fetched_at=EXCHANGE_HOUR_END)
+
+
 def _prices(monkeypatch, category: str, search: str | None = None, per_page: int = 25,
-            **scout_kw) -> tuple[dict, PricesScout]:
+            exchange_down: bool = False, **scout_kw) -> tuple[dict, PricesScout]:
     scout = PricesScout(**scout_kw)
     monkeypatch.setattr(server, "_scout", scout)
+    monkeypatch.setattr(server, "_exchange", FakeExchange(down=exchange_down))
     return asyncio.run(server.get_currency_prices(category, search=search, per_page=per_page)), scout
 
 
@@ -191,6 +219,37 @@ def test_get_currency_prices_search_still_matches_an_api_id(monkeypatch):
 def test_get_currency_prices_search_returns_up_to_per_page_and_counts_every_match(monkeypatch):
     out, _ = _prices(monkeypatch, "essences", search="essence", per_page=2)
     assert len(out["items"]) == 2 and out["total"] == 4
+
+
+# The Currency Exchange's last hour sits beside poe2scout's price: the hour's low and high (the game's
+# market ratio sat at the high end in John's check) and its volume-weighted average.
+def test_get_currency_prices_puts_the_exchanges_last_hour_beside_each_item(monkeypatch):
+    out, _ = _prices(monkeypatch, "currency", search="divine")
+    assert out["items"][0]["exchange"] == {"lowExalted": 690, "highExalted": 776,
+                                           "averageExalted": round(1077202 / 1416, 2), "volume": 1416,
+                                           "via": "exalted"}
+    assert out["items"][0]["priceExalted"] == 700  # poe2scout's own price is unchanged
+
+
+def test_get_currency_prices_gives_no_exchange_for_an_item_it_did_not_trade_in_the_league(monkeypatch):
+    # Gemcutter's Prism traded only in HC that hour.
+    out, _ = _prices(monkeypatch, "currency", search="gcp")
+    assert out["items"][0]["exchange"] is None
+
+
+def test_get_currency_prices_dates_the_exchange_hour_on_its_own(monkeypatch):
+    # The hour is ~40 min old by design (history only); it mustn't age poe2scout's answer.
+    out, _ = _prices(monkeypatch, "currency", search="divine")
+    assert out["ageSeconds"] < 60
+    assert 40 * 60 <= out["exchange"]["ageSeconds"] < 41 * 60
+    assert set(out["exchange"]) == {"fetchedAt", "ageSeconds"}
+
+
+def test_get_currency_prices_keeps_poe2scouts_answer_when_the_exchange_is_down(monkeypatch):
+    out, _ = _prices(monkeypatch, "currency", exchange_down=True)
+    assert [(i["name"], i["priceExalted"], i["exchange"]) for i in out["items"]] == [
+        ("Divine Orb", 700, None), ("Gemcutter's Prism", 2, None)]
+    assert "503" in out["exchange"]["error"]
 
 
 # A loaded item snapshot, trimmed to one real row of its texts.
