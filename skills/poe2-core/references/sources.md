@@ -75,9 +75,9 @@ Creators whose guides we trust, chosen by the maintainer and shipped with the pl
 |---|---|---|---|---|
 | GhazzyTV | Minion builds, for every class that has them | poe-vault.com, no per-author page: see "GhazzyTV and Lollash guides" below; YouTube @GhazzyTV | Runes of Aldur / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
 | Lollash | Minion builds, for every class that has them | The same list: "GhazzyTV and Lollash guides" below | Runes of Aldur / 0.5.5 | Writes GhazzyTV's guides (Ghazzy co-authors them). Endgame variants are separate guides. |
-| Fubgun | Bow builds | mobalytics.gg/poe-2/profile/fubgun/builds; YouTube @Fubgun | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
-| deadrabb1t | Plant builds; Energy Drain + Contagion builds | mobalytics.gg/poe-2/profile/deadrabb1t/builds; YouTube @DEADR4BB1T | The Forbidden Rites / 0.5.5 | Updates guides every patch. Endgame variant is usually in the same guide. Some guides are twink builds. |
-| misoxshiru | Monk builds | mobalytics.gg/poe-2/profile/misoxshiru/builds; YouTube @MisoxShiru | The Forbidden Rites / 0.5.5 | |
+| Fubgun | Bow builds | mobalytics.gg/poe-2/profile/fubgun/builds; YouTube @Fubgun | Runes of Aldur / 0.5.5 | Updates guides every patch. Endgame variants are separate guides. |
+| deadrabb1t | Plant builds; Energy Drain + Contagion builds | mobalytics.gg/poe-2/profile/deadrabb1t/builds; YouTube @DEADR4BB1T | Runes of Aldur / 0.5.5 | Updates guides every patch. Endgame variant is usually in the same guide. Some guides are twink builds. |
+| misoxshiru | Monk builds | mobalytics.gg/poe-2/profile/misoxshiru/builds; YouTube @MisoxShiru | Runes of Aldur / 0.5.5 | |
 
 ### GhazzyTV and Lollash guides
 

@@ -4,7 +4,7 @@ refreshed: 2026-10-05
 ---
 # Farming knowledge (patch-dependent — verify against the live game)
 
-> **Freshness stamp: researched 2026-10-03, patch 0.5.5 (Forbidden Rites, ends with 1.0 on
+> **Freshness stamp: researched 2026-10-03, patch 0.5.5 (the Forbidden Rites event, ends with 1.0 on
 > 2026-12-11).** Mechanics shift by patch. Treat this as **best-effort, not authoritative**; if the
 > player sees something different in game, trust the game and lower confidence.
 >
@@ -76,6 +76,7 @@ mechanic isn't in this file.
 - **Crafting-input prices follow the crafting meta** (catalysts, emotions, omens, bones): a new
   popular craft lifts one family and leaves the rest flat. Expect split movement within a category.
 - **League phase matters.** Early in a league, outputs used for progression sell high and fall as
-  supply catches up; late in a league (Forbidden Rites ends 2026-12-11), demand thins out.
+  supply catches up; late in a league or event (the Forbidden Rites event ends 2026-12-11), demand thins
+  out.
 - **Never claim a rate.** "Breach outputs are up and deep" is supportable; "Breach makes 3 div/hour"
   is not.
