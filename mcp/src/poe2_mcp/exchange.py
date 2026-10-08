@@ -36,22 +36,24 @@ def previous_hour(now: float) -> int:
 
 
 def exalted_rates(markets: list[dict[str, Any]], league: str) -> dict[str, dict[str, Any]]:
-    """Exalted per unit for each item traded in `league`, from one hour's `markets`. Pure.
+    """Exalted per unit for each item traded in `league`, from one hour's `markets` -- or several hours'
+    together, a window. Pure.
 
     Returns {base item id: {"exaltedPerUnit", "volume", "via", "lowExalted", "highExalted"}}. The rate is
-    volume-weighted -- exalted traded over units traded -- the hour's average across buyers and sellers.
-    `lowExalted`/`highExalted` are the ends of the hour's ratio range, in exalted each (None when the
-    market has no usable range). The range is what the game shows: John's in-game market ratios sat at its
-    high end (2026-10-08), while on cheap bulk items the average sits far below -- buyers and sellers are
-    far apart. A stray trade can stretch either end (one hour's divine market had 1:135 beside 1:715).
+    volume-weighted -- exalted traded over units traded, summed over every market for the pair -- the
+    average across buyers and sellers. `lowExalted`/`highExalted` are the ends of the ratio range, in
+    exalted each, widest over the hours that have one (None when none does). The range is what the game
+    shows: John's in-game market ratios sat at its high end (2026-10-08), while on cheap bulk items the
+    average sits far below -- buyers and sellers are far apart. A stray trade can stretch either end (one
+    hour's divine market had 1:135 beside 1:715).
 
     An item with a market against exalted uses it (via "exalted"); one traded only against divine goes
     through divine's own average rate (via "divine"), as expensive items often do. `volume` is the units
     of the item traded. Markets that traded nothing are skipped, and exalted itself isn't listed: it's 1
     by definition.
     """
-    direct: dict[str, tuple[float, int, tuple[float, float] | None]] = {}
-    through_divine: dict[str, tuple[float, int, tuple[float, float] | None]] = {}
+    direct: dict[str, list[Any]] = {}
+    through_divine: dict[str, list[Any]] = {}
     for market in markets:
         pair = market.get("market_pair") or []
         volume = market.get("volume_traded") or {}
@@ -60,17 +62,53 @@ def exalted_rates(markets: list[dict[str, Any]], league: str) -> dict[str, dict[
         for base, found in ((EXALTED, direct), (DIVINE, through_divine)):
             if base in pair:
                 item = pair[1] if pair[0] == base else pair[0]
-                found[item] = (volume[base] / volume[item], volume[item], _range(market, item, base))
+                acc = found.setdefault(item, [0, 0, None])  # base traded, units traded, (low, high)
+                acc[0] += volume[base]
+                acc[1] += volume[item]
+                span = _range(market, item, base)
+                if span is not None:
+                    acc[2] = span if acc[2] is None else (min(acc[2][0], span[0]), max(acc[2][1], span[1]))
                 break
 
     rates: dict[str, dict[str, Any]] = {
-        item: _rate(rate, units, "exalted", span, 1.0) for item, (rate, units, span) in direct.items()
+        item: _rate(traded / units, units, "exalted", span, 1.0) for item, (traded, units, span) in direct.items()
     }
     divine = rates.get(DIVINE)
     if divine:
-        for item, (divine_per_unit, units, span) in through_divine.items():
-            rates.setdefault(item, _rate(divine_per_unit, units, "divine", span, divine["exaltedPerUnit"]))
+        for item, (traded, units, span) in through_divine.items():
+            rates.setdefault(item, _rate(traded / units, units, "divine", span, divine["exaltedPerUnit"]))
     return rates
+
+
+def exchange_moves(
+    now: dict[str, dict[str, Any]], then: dict[str, dict[str, Any]], min_volume: int
+) -> dict[str, Any]:
+    """Each item's move between two windows' rates (`exalted_rates`), measured in divine. Pure.
+
+    Returns {"moves": {base id: {"changePctVsDivine", "volumeNow", "volumeThen"}}, "thin", "divineChangePct"}.
+    An item's price in divine is its exalted rate over divine's in the same window, so exalted's own drift
+    drops out -- the same measure as poe2scout's changePctVsDivine. Only items traded in both windows count;
+    one under `min_volume` units in either is skipped as too thin and counted in `thin`. divineChangePct is
+    divine's own move in exalted. Without divine in both windows nothing can be measured.
+    """
+    divine_now, divine_then = now.get(DIVINE), then.get(DIVINE)
+    if not divine_now or not divine_then:
+        return {"moves": {}, "thin": 0, "divineChangePct": None}
+    moves: dict[str, dict[str, Any]] = {}
+    thin = 0
+    for item, rate in now.items():
+        old = then.get(item)
+        if item == DIVINE or old is None:
+            continue
+        if min(rate["volume"], old["volume"]) < min_volume:
+            thin += 1
+            continue
+        in_divine_now = rate["exaltedPerUnit"] / divine_now["exaltedPerUnit"]
+        in_divine_then = old["exaltedPerUnit"] / divine_then["exaltedPerUnit"]
+        moves[item] = {"changePctVsDivine": (in_divine_now / in_divine_then - 1) * 100,
+                       "volumeNow": rate["volume"], "volumeThen": old["volume"]}
+    return {"moves": moves, "thin": thin,
+            "divineChangePct": (divine_now["exaltedPerUnit"] / divine_then["exaltedPerUnit"] - 1) * 100}
 
 
 def value_on_exchange(

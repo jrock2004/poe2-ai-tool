@@ -4,7 +4,9 @@ import asyncio
 import httpx
 import pytest
 
-from poe2_mcp.exchange import EXALTED, ExchangeClient, exalted_rates, previous_hour, value_on_exchange
+from poe2_mcp.exchange import (
+    EXALTED, ExchangeClient, exalted_rates, exchange_moves, previous_hour, value_on_exchange,
+)
 
 DIVINE = "Metadata/Items/Currency/CurrencyModValues"
 CHAOS = "Metadata/Items/Currency/CurrencyRerollRare"
@@ -100,6 +102,68 @@ def test_exalted_rates_leave_the_range_out_when_a_ratio_is_missing_or_zero():
     market = {**RANGED[1], "highest_ratio": {JEWELLER: 0, EXALTED: 1}}
     rates = exalted_rates([market], "Forbidden Rites")
     assert (rates[JEWELLER]["lowExalted"], rates[JEWELLER]["highExalted"]) == (None, None)
+
+
+def _market(item: str, base: str, item_units: int, base_units: int, low: float | None = None,
+            high: float | None = None, league: str = "Forbidden Rites") -> dict:
+    """One market, `base` per `item` traded; `low`/`high` its ratio range in base per item."""
+    market = {"league": league, "market_pair": [item, base], "volume_traded": {item: item_units, base: base_units}}
+    if low is not None:
+        market |= {"lowest_ratio": {item: 1, base: low}, "highest_ratio": {item: 1, base: high}}
+    return market
+
+
+def test_exalted_rates_over_several_hours_weigh_every_hours_trades():
+    # A window of hours is their markets together: one average over all the trades, the widest range.
+    hours = [_market(GEMCUTTER, EXALTED, 100, 800, 7, 9), _market(GEMCUTTER, EXALTED, 300, 3000, 9, 11)]
+    rate = exalted_rates(hours, "Forbidden Rites")[GEMCUTTER]
+    assert rate["exaltedPerUnit"] == pytest.approx(3800 / 400) and rate["volume"] == 400
+    assert (rate["lowExalted"], rate["highExalted"]) == (7, 11)
+
+
+def test_exalted_rates_over_several_hours_take_the_range_from_the_hours_that_have_one():
+    hours = [_market(GEMCUTTER, EXALTED, 100, 800), _market(GEMCUTTER, EXALTED, 300, 3000, 9, 11)]
+    rate = exalted_rates(hours, "Forbidden Rites")[GEMCUTTER]
+    assert (rate["lowExalted"], rate["highExalted"]) == (9, 11)
+
+
+def test_exalted_rates_over_several_hours_route_a_divine_only_item_through_the_windows_divine():
+    hours = [_market(DIVINE, EXALTED, 10, 7000), _market(DIVINE, EXALTED, 10, 8000),
+             _market(THESIS, DIVINE, 1, 2), _market(THESIS, DIVINE, 1, 4)]
+    thesis = exalted_rates(hours, "Forbidden Rites")[THESIS]
+    assert thesis["exaltedPerUnit"] == pytest.approx(3 * 750) and thesis["via"] == "divine"
+
+
+# 7-day moves from two windows of hours, a week apart -- measured in divine, like poe2scout's
+# changePctVsDivine, so exalted's own drift is taken out.
+def _window(divine: float, gemcutter: float, units: int = 500) -> dict:
+    return exalted_rates([_market(DIVINE, EXALTED, 1000, round(1000 * divine)),
+                          _market(GEMCUTTER, EXALTED, units, round(units * gemcutter))], "Forbidden Rites")
+
+
+def test_exchange_moves_measure_each_items_move_in_divine():
+    # Gemcutter's went 8 -> 9 exalted, but divine went 700 -> 750: in divine it moved 9/750 / (8/700) - 1.
+    moved = exchange_moves(_window(750, 9), _window(700, 8), min_volume=100)
+    assert moved["moves"][GEMCUTTER] == {"changePctVsDivine": pytest.approx((9 / 750) / (8 / 700) * 100 - 100),
+                                         "volumeNow": 500, "volumeThen": 500}
+    assert moved["divineChangePct"] == pytest.approx(750 / 700 * 100 - 100)  # divine's own move, in exalted
+    assert DIVINE not in moved["moves"] and moved["thin"] == 0
+
+
+def test_exchange_moves_skip_an_item_too_thin_in_either_window():
+    moved = exchange_moves(_window(750, 9, units=50), _window(700, 8), min_volume=100)
+    assert moved["moves"] == {} and moved["thin"] == 1
+
+
+def test_exchange_moves_skip_an_item_traded_in_only_one_window():
+    then = exalted_rates([_market(DIVINE, EXALTED, 1000, 700000)], "Forbidden Rites")
+    assert exchange_moves(_window(750, 9), then, min_volume=100)["moves"] == {}
+
+
+def test_exchange_moves_need_divine_in_both_windows():
+    no_divine = exalted_rates([_market(GEMCUTTER, EXALTED, 500, 4000)], "Forbidden Rites")
+    moved = exchange_moves(_window(750, 9), no_divine, min_volume=100)
+    assert moved == {"moves": {}, "thin": 0, "divineChangePct": None}
 
 
 # The item snapshot's `exchange` section: base id -> name, for everything the exchange trades.
