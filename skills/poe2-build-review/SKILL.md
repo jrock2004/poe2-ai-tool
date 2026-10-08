@@ -29,6 +29,13 @@ result honestly — it won't scrape around a block:
 
 Best fidelity always comes from the guide's **exported PoB code** — prefer it when offered.
 
+### Keep the Build Planner current
+
+If the character has `build_plan_name` and you have the guide's PoB code, write it again first, as
+`poe2-core/references/build-planner.md` → "Keeping it current" says. Nothing changed: at most a line.
+Changed: a short paragraph on what the guide changed, then the review. This skill doesn't offer the
+Build Planner to a character without one; `poe2-character` does.
+
 ### Who wrote it
 
 Check the guide against `poe2-core/references/sources.md` → "Build creators", following its rules.

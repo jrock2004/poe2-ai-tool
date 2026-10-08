@@ -23,6 +23,7 @@ characters = { "<name>": {               # keyed by character name (the id)
   archetype,           # the build in plain words, e.g. "Ice Shot Deadeye", "minion army"
   goal,                # bossing | mapping | league-start | leveling | ... (new characters: leveling)
   guide,               # optional: a guide link or PoB reference
+  build_plan_name,     # optional: the name its guide's plans go by in the in-game Build Planner
   build_source,        # how we read the actual gear/skills: "screenshot" | "description" | "pob"
   build_snapshot,      # optional: the last screenshot read / pasted build, for gear-upgrade/build-review
   active,              # exactly one character is active at a time
@@ -67,6 +68,10 @@ end). Keep it short:
    who won't install Path of Building. If Path of Building hasn't updated for this patch yet (see
    `poe2-new-league` → passive tree), say on that option that its tree and totals stay last patch's
    until it does.
+8. **Put the guide in the game's Build Planner?** Only when step 2's guide has a PoB code (a pasted code,
+   or one the guide gives): offer it, ask for the plan name, and write it as
+   `poe2-core/references/build-planner.md` says; store `build_plan_name`. A no is fine — don't ask again
+   this conversation.
 
 Don't ask for a goal: a new character's `goal` starts as `leveling`. Ask for it later, when it starts to
 matter — see "Listing, updating, switching".
@@ -78,7 +83,7 @@ familiar — e.g. "Are terms like *PoB*, *exalt*, *resist cap* familiar, or shou
 Store `experience_level`; `poe2-core` uses it to tune verbosity. The player can change it any time
 ("stop explaining basics" / "explain more").
 
-**Each new character** triggers a *short* version (steps 1–7); experience level is already set, so skip
+**Each new character** triggers a *short* version (steps 1–8); experience level is already set, so skip
 it. **`/poe2-character new`** goes straight to this short interview, without asking what the player
 wants to do first. If the league is already known — e.g. handed over by `poe2-new-league` — skip
 step 4. When it's done, set the new character active and say which one it replaced.
@@ -107,7 +112,9 @@ applications. Path of Building's import uses its own approved access, which is w
 - **List** the roster on request: name, class/archetype, goal, league, trade or SSF, and which is
   active.
 - **Update** a build: re-import into Path of Building and paste the new code (or re-take a screenshot),
-  or edit goal/guide/archetype; bump `updated_at`.
+  or edit goal/guide/archetype; bump `updated_at`. A **new guide** with a PoB code: offer the Build
+  Planner again, as in step 8 — a new guide asks for its plan name again, since reusing the old one would
+  mix two guides' plans.
 - **Goal past leveling** — when a character with `goal: leveling` has clearly finished the campaign
   (maps, endgame gear, a build-switch question), ask once as a choice — bossing, mapping, or something
   else — and store it.
