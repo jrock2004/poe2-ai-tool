@@ -134,15 +134,22 @@ def test_flasks_and_charms_share_the_flask_inventory_each_at_its_own_position():
     ]
 
 
-def test_a_flask_or_charm_with_no_note_is_named_by_its_item():
-    # So the player still sees which charm to use: guides often equip one without a word. A note wins; a
-    # unique is already named; elsewhere a slot with neither adds nothing (PoB's rares are mostly "New Item").
+def test_a_flask_or_charm_with_no_note_is_named_by_its_item_and_what_it_does():
+    # So the player still sees which charm to use and when it fires: guides often equip one without a word.
+    # Its name, then its mods, implicits first. A note wins; a unique is already named; elsewhere a slot with
+    # neither adds nothing (PoB's rares are mostly "New Item").
     magic = {"rarity": "MAGIC", "base": None}
-    gear = [{"slot": "Charm 1", "item": {**magic, "name": "Thawing Charm of the Verdant"}, "note": None},
+    gear = [{"slot": "Charm 1", "item": {**magic, "name": "Thawing Charm of the Verdant",
+                                         "implicitMods": ["Used when you become Frozen"],
+                                         "explicitMods": ["Gains 0.20 Charges per Second"]}, "note": None},
+            {"slot": "Charm 2", "item": {**magic, "name": "Stone Charm", "implicitMods": [], "explicitMods": []},
+             "note": None},
             {"slot": "Flask 1", "item": {**magic, "name": "Abundant Ultimate Life Flask"}, "note": "Life flask"},
             {"slot": "Belt", "item": {**magic, "name": "Heavy Belt of the Lynx"}, "note": None}]
     assert plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"] == [
-        {"inventory_id": "Flask1", "slot_x": 2, "additional_text": "<b>{Thawing Charm of the Verdant}"},
+        {"inventory_id": "Flask1", "slot_x": 2, "additional_text":
+            "<b>{Thawing Charm of the Verdant}\n\nUsed when you become Frozen\nGains 0.20 Charges per Second"},
+        {"inventory_id": "Flask1", "slot_x": 3, "additional_text": "<b>{Stone Charm}"},
         {"inventory_id": "Flask1", "slot_x": 0, "additional_text": "Life flask"},
     ]
 

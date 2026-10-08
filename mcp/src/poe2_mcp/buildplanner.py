@@ -130,15 +130,16 @@ def _skills(groups: list[dict[str, Any]], left_out: list[dict[str, str]]) -> lis
 
 def _inventory_slots(gear: list[dict[str, Any]], left_out: list[dict[str, str]]) -> list[dict[str, Any]]:
     """A slot's note as hover text and its unique by name; a slot with neither adds nothing. A flask or charm
-    with neither is named by its item, so the player still sees which to use -- guides often equip one without
-    a word; elsewhere PoB's rares are mostly "New Item", which says nothing."""
+    with neither is named by its item, then its mods, so the player still sees which to use and when it fires
+    -- guides often equip one without a word; elsewhere PoB's rares are mostly "New Item", which says nothing."""
     out = []
     for slot in gear:
         item = slot["item"] or {}
         unique = item.get("name") if item.get("rarity") == "UNIQUE" else None
         note = slot["note"]
         if not (note or unique) and slot["slot"] in _FLASK_BAR and item.get("name"):
-            note = f"<b>{{{item['name']}}}"
+            mods = [*item.get("implicitMods", []), *item.get("explicitMods", [])]
+            note = "\n\n".join([f"<b>{{{item['name']}}}", *(["\n".join(mods)] if mods else [])])
         if not (note or unique):
             continue
         if slot["slot"] in _FLASK_BAR:
