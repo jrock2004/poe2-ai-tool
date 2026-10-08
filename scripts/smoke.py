@@ -43,7 +43,7 @@ TOOLS = {
     "get_currency_prices", "market_movers", "price_unique", "value_currency", "find_stat_filters",
     "build_trade_filter", "search_trade", "fetch_guide", "parse_pob_code", "summarize_tree",
     "get_stash_layout", "mod_tiers", "item_text", "trial_pool", "campaign_rewards", "build_vendor_regex",
-    "write_build_plan",
+    "write_build_plan", "remove_build_plans",
 }
 KNOWLEDGE = ("trials", "farming", "crafting")
 
@@ -147,7 +147,10 @@ async def offline_checks(s: Smoke) -> None:
             unmapped = [x["what"] for x in out["plans"][0]["leftOut"] if x["why"] == "unmapped-passive"]
             if unmapped or not list((game / "BuildPlanner").glob("*.build")):
                 raise Failed(f"unmapped: {', '.join(unmapped)}" if unmapped else "no .build file written")
-            return f"{out['plans'][0]['passives']} passives planned"
+            removed = await s.call("remove_build_plans", files=[out["plans"][0]["file"]])
+            if removed.get("removed") != [out["plans"][0]["file"]] or list((game / "BuildPlanner").glob("*.build")):
+                raise Failed(f"plan not removed: {removed}")
+            return f"{out['plans'][0]['passives']} passives planned, then removed"
 
     async def mod_tiers() -> str:
         out = await s.call("mod_tiers", base="Cavalry Boots")

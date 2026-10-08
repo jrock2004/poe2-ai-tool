@@ -21,12 +21,14 @@ from mcp.server.fastmcp import FastMCP
 
 from . import campaign, knowledge, stashlayout, state, store
 from ._cache import Fetched, freshness
-from .buildplanner import plan_build
+from .buildplanner import compare_plans, plan_build
 from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
 from .guides import GuideFetcher
-from .plannerfolder import GAME_FOLDER, accept_folder, documents_folders, find_planner_folder, write_plans
+from .plannerfolder import (
+    GAME_FOLDER, accept_folder, documents_folders, find_planner_folder, read_plans, remove_plans, write_plans,
+)
 from .pob import PobError, PobSelectionError, decode_pob_code, parse_loadouts, parse_pob_code as _parse_pob
 from .pob import summarize_tree as _summarize_tree
 from .poe2scout import (
@@ -640,13 +642,19 @@ async def write_build_plan(
     known -- never invent one. link: the guide's page. folder: only when the player named one after a
     "no-folder" -- their "Path of Exile 2" folder or the BuildPlanner folder in it; it's kept for next time.
 
+    Writing the same guide again (same `link`) updates its plans without asking: only stages the guide
+    changed are rewritten, so an unchanged plan keeps the day it was written.
+
     `status` says what happened and what comes next:
-      - "written": `plans` lists each plan in the guide's order -- name, file, how many passives, skills and
-        gear slots it holds, and `leftOut` ({what, why}: what had no place in the planner, as a code to put
-        in plain words). `replaced` names files overwritten; `unpaired` the PoB's skill and item sets no
-        tree spec took. A `warning`, when present, must be passed on.
-      - "exists": the plans in `existing` are already in the folder, and nothing was written. Ask the
-        player, then call again with overwrite=true to replace them.
+      - "written" (something was written) or "unchanged" (the plans were already up to date): `plans` lists
+        each plan in the guide's order -- name, file, `state` ("new", "changed" or "unchanged"), how many
+        passives, skills and gear slots it holds, and `leftOut` ({what, why}: what had no place in the
+        planner, as a code to put in plain words). `gone` names this build's plan files the guide no
+        longer has -- left in place; ask the player, and remove them with remove_build_plans. `unpaired`
+        names the PoB's skill and item sets no tree spec took. A `warning`, when present, must be passed on.
+      - "exists": the files in `existing` are in the way and not provably this guide's (another link, no
+        link, or not a plan), and nothing was written. Ask the player, then call again with overwrite=true
+        to replace them.
       - "no-folder": the planner folder wasn't found (`checked` lists where it looked), or the one named was
         refused (`error`). Ask the player where their Documents\\My Games\\Path of Exile 2 folder is and
         pass it as `folder`.
@@ -664,43 +672,91 @@ async def write_build_plan(
     if items is None:
         return {"status": "invalid", "error": "no item snapshot is installed"}
 
+    planner, refusal = _planner_folder(folder)
+    if planner is None:
+        return refusal
+
+    today = date.today().isoformat()
+    results = [plan_build(_numbered(loadout, stage, len(loadouts)), name, items["passives"], author=author,
+                          link=link, description=_plan_description(stage, len(loadouts), today))
+               for stage, loadout in enumerate(loadouts, 1)]
+    on_disk = read_plans(planner)
+    file_of = {entry["plan"]["name"].casefold(): entry["file"] for entry in on_disk}
+    compared = compare_plans([result["build"] for result in results], [entry["plan"] for entry in on_disk],
+                             name, link)
+    if compared["conflict"] and not overwrite:
+        return {"status": "exists", "folder": str(planner),
+                "existing": [file_of[plan_name.casefold()] for plan_name in compared["conflict"]]}
+
+    to_write = [result["build"] for result in results if result["build"]["name"] in compared["write"]]
+    written: dict[str, str] = {}
+    if to_write:
+        out = write_plans(planner, to_write)
+        if not out["written"]:
+            # Overwrite only this build's own plans; anything else in the way is the player's call.
+            ours = {file_of[stage["name"].casefold()].casefold()
+                    for stage in compared["stages"] if stage["state"] != "new"}
+            others = [file for file in out["existing"] if file.casefold() not in ours]
+            if others and not overwrite:
+                return {"status": "exists", "folder": str(planner), "existing": others}
+            out = write_plans(planner, to_write, overwrite=True)
+        written = {plan["name"]: plan["file"] for plan in out["plans"]}
+
+    plans = []
+    for stage, result in zip(compared["stages"], results):
+        build = result["build"]
+        plans.append({"name": build["name"], "file": written.get(build["name"]) or file_of[build["name"].casefold()],
+                      "state": stage["state"], "passives": len(build.get("passives", [])),
+                      "skills": len(build.get("skills", [])), "gear": len(build.get("inventory_slots", [])),
+                      "leftOut": result["leftOut"]})
+    reply = {"status": "written" if to_write else "unchanged", "folder": str(planner), "plans": plans,
+             "gone": [file_of[plan_name.casefold()] for plan_name in compared["gone"]],
+             "unpaired": parsed["unpaired"]}
+    warning = _tree_warning(loadouts, items.get("patch"))
+    if warning:
+        reply["warning"] = warning
+    return reply
+
+
+@mcp.tool()
+async def remove_build_plans(files: list[str]) -> dict[str, Any]:
+    """Remove plans from the in-game Build Planner, by file name -- the `gone` files write_build_plan
+    listed, once the player says yes. Only plain .build file names in the planner folder; a file already
+    gone is skipped.
+
+    Returns {"status": "removed", "folder", "removed": [file names]}; "no-folder" (`checked`) when the
+    planner folder isn't found; "invalid" (`error`) for a name that isn't a plan file -- nothing removed.
+    """
+    planner, refusal = _planner_folder(None)
+    if planner is None:
+        return refusal
+    try:
+        removed = remove_plans(planner, files)
+    except ValueError as e:
+        return {"status": "invalid", "error": str(e)}
+    return {"status": "removed", "folder": str(planner), "removed": removed}
+
+
+def _planner_folder(folder: str | None) -> tuple[Path | None, dict[str, Any]]:
+    """The planner folder, or None and the "no-folder" reply. A folder the player named wins, and is kept in
+    config.json for next time; else the saved one while its game folder is there; else the one found."""
     root = store.data_dir()
     config = store.read_config(root)
     if folder:
         try:
             planner = accept_folder(folder)
         except ValueError as e:
-            return {"status": "no-folder", "error": str(e)}
+            return None, {"status": "no-folder", "error": str(e)}
         config["buildPlannerFolder"] = str(planner)
         store.write_config(root, config)
-    else:
-        saved = config.get("buildPlannerFolder")
-        documents = documents_folders()
-        found = find_planner_folder(saved, documents)
-        if found is None:
-            checked = ([Path(saved).parent] if saved else []) + [doc / "My Games" / GAME_FOLDER for doc in documents]
-            return {"status": "no-folder", "checked": [str(path) for path in checked]}
-        planner = found
-
-    today = date.today().isoformat()
-    results = [plan_build(_numbered(loadout, stage, len(loadouts)), name, items["passives"], author=author,
-                          link=link, description=_plan_description(stage, len(loadouts), today))
-               for stage, loadout in enumerate(loadouts, 1)]
-    out = write_plans(planner, [result["build"] for result in results], overwrite=overwrite)
-    if not out["written"]:
-        return {"status": "exists", "folder": str(planner), "existing": out["existing"]}
-
-    plans = []
-    for plan, result in zip(out["plans"], results):
-        build = result["build"]
-        plans.append({**plan, "passives": len(build.get("passives", [])), "skills": len(build.get("skills", [])),
-                      "gear": len(build.get("inventory_slots", [])), "leftOut": result["leftOut"]})
-    reply = {"status": "written", "folder": str(planner), "plans": plans, "replaced": out["existing"],
-             "unpaired": parsed["unpaired"]}
-    warning = _tree_warning(loadouts, items.get("patch"))
-    if warning:
-        reply["warning"] = warning
-    return reply
+        return planner, {}
+    saved = config.get("buildPlannerFolder")
+    documents = documents_folders()
+    found = find_planner_folder(saved, documents)
+    if found is None:
+        checked = ([Path(saved).parent] if saved else []) + [doc / "My Games" / GAME_FOLDER for doc in documents]
+        return None, {"status": "no-folder", "checked": [str(path) for path in checked]}
+    return found, {}
 
 
 def _numbered(loadout: dict[str, Any], stage: int, stages: int) -> dict[str, Any]:

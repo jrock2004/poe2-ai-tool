@@ -278,6 +278,20 @@ def _write_plan(monkeypatch, tmp_path, code=PLAN_XML, **kwargs) -> dict:
     return asyncio.run(server.write_build_plan(code, "Minion Leveling", **kwargs))
 
 
+LINK = "https://example.test/guide"
+
+
+def _read_plan(planner: Path, name: str) -> dict:
+    return json.loads((planner / f"{name}.build").read_text(encoding="utf-8"))
+
+
+def _redate(planner: Path, name: str, day: str) -> None:
+    """Make a written plan look written on another day -- as when the guide is written again later."""
+    plan = _read_plan(planner, name)
+    plan["description"] = plan["description"].replace(date.today().isoformat(), day)
+    store.write_json(planner / f"{name}.build", plan)
+
+
 def test_write_build_plan_writes_a_plan_per_loadout_into_the_game_folder(monkeypatch, tmp_path):
     planner = _game(tmp_path / "Documents") / "BuildPlanner"
     out = _write_plan(monkeypatch, tmp_path, author="Guide Author", link="https://example.test/guide")
@@ -295,14 +309,14 @@ def test_write_build_plan_reports_each_plan_without_its_notes(monkeypatch, tmp_p
     _game(tmp_path / "Documents")
     out = _write_plan(monkeypatch, tmp_path)
     assert out["plans"] == [
-        {"name": "Minion Leveling - 1 Act 2", "file": "Minion Leveling - 1 Act 2.build",
+        {"name": "Minion Leveling - 1 Act 2", "file": "Minion Leveling - 1 Act 2.build", "state": "new",
          "passives": 1, "skills": 0, "gear": 0,
          "leftOut": [{"what": "passive node 99999", "why": "unmapped-passive"},
                      {"what": "Chaos Bolt", "why": "item-granted"}, {"what": "Flask 1", "why": "unmapped-slot"}]},
-        {"name": "Minion Leveling - 2 Mid Maps", "file": "Minion Leveling - 2 Mid Maps.build",
+        {"name": "Minion Leveling - 2 Mid Maps", "file": "Minion Leveling - 2 Mid Maps.build", "state": "new",
          "passives": 2, "skills": 1, "gear": 1, "leftOut": []},
     ]
-    assert (out["replaced"], out["unpaired"]) == ([], {"skillSets": [], "itemSets": []})
+    assert (out["gone"], out["unpaired"]) == ([], {"skillSets": [], "itemSets": []})
     assert "warning" not in out and "NOTE-" not in json.dumps(out)
 
 
@@ -335,16 +349,83 @@ def test_write_build_plan_names_an_untitled_stage_by_its_number(monkeypatch, tmp
     assert [p["name"] for p in out["plans"]] == ["Minion Leveling - 1 Act 2", "Minion Leveling - 2"]
 
 
-def test_write_build_plan_never_overwrites_until_told_to(monkeypatch, tmp_path):
+def test_write_build_plan_never_overwrites_a_file_that_is_not_this_guides_until_told_to(monkeypatch, tmp_path):
+    # Here a file the planner can't even read: it isn't this guide's plan, so it's the player's call.
     planner = _game(tmp_path / "Documents") / "BuildPlanner"
     planner.mkdir()
     (planner / "Minion Leveling - 2 Mid Maps.build").write_text("old", encoding="utf-8")
-    out = _write_plan(monkeypatch, tmp_path)
+    out = _write_plan(monkeypatch, tmp_path, link=LINK)
     assert out == {"status": "exists", "folder": str(planner), "existing": ["Minion Leveling - 2 Mid Maps.build"]}
     assert [p.name for p in planner.iterdir()] == ["Minion Leveling - 2 Mid Maps.build"]
-    out = _write_plan(monkeypatch, tmp_path, overwrite=True)
-    assert (out["status"], out["replaced"]) == ("written", ["Minion Leveling - 2 Mid Maps.build"])
+    out = _write_plan(monkeypatch, tmp_path, link=LINK, overwrite=True)
+    assert (out["status"], [p["state"] for p in out["plans"]]) == ("written", ["new", "new"])
+    assert _read_plan(planner, "Minion Leveling - 2 Mid Maps")["link"] == LINK
+
+
+def test_write_build_plan_asks_before_touching_another_guides_plans(monkeypatch, tmp_path):
+    # Same build name, another link (or none): not provably this guide's plans.
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link="https://example.test/other")
+    out = _write_plan(monkeypatch, tmp_path, link=LINK)
+    assert out == {"status": "exists", "folder": str(planner),
+                   "existing": ["Minion Leveling - 1 Act 2.build", "Minion Leveling - 2 Mid Maps.build"]}
+    assert _write_plan(monkeypatch, tmp_path, link=LINK, overwrite=True)["status"] == "written"
+    assert _read_plan(planner, "Minion Leveling - 1 Act 2")["link"] == LINK
+
+
+def test_write_build_plan_updates_the_same_guides_plans_without_asking(monkeypatch, tmp_path):
+    # Only what the guide changed is written: an unchanged plan keeps its file, and the day it was written.
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    _redate(planner, "Minion Leveling - 1 Act 2", "2026-01-01")
+    out = _write_plan(monkeypatch, tmp_path, link=LINK, code=PLAN_XML.replace('nodes="3823,51184"', 'nodes="3823"'))
+    assert out["status"] == "written"
+    assert [(p["name"], p["state"]) for p in out["plans"]] == [("Minion Leveling - 1 Act 2", "unchanged"),
+                                                               ("Minion Leveling - 2 Mid Maps", "changed")]
+    assert "2026-01-01" in _read_plan(planner, "Minion Leveling - 1 Act 2")["description"]
+    assert _read_plan(planner, "Minion Leveling - 2 Mid Maps")["passives"] == ["cold34"]
+
+
+def test_write_build_plan_says_when_the_plans_are_already_up_to_date(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    _redate(planner, "Minion Leveling - 2 Mid Maps", "2026-01-01")
+    out = _write_plan(monkeypatch, tmp_path, link=LINK)
+    assert (out["status"], [p["state"] for p in out["plans"]], out["gone"]) == ("unchanged", ["unchanged"] * 2, [])
+    assert "2026-01-01" in _read_plan(planner, "Minion Leveling - 2 Mid Maps")["description"]
+
+
+def test_write_build_plan_lists_the_stages_the_guide_no_longer_has_and_leaves_them(monkeypatch, tmp_path):
+    # Removing them is the player's yes, through remove_build_plans.
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    out = _write_plan(monkeypatch, tmp_path, link=LINK, code=PLAN_XML.replace('title="Mid Maps"', 'title="Endgame"'))
+    assert [(p["name"], p["state"]) for p in out["plans"]] == [("Minion Leveling - 1 Act 2", "unchanged"),
+                                                               ("Minion Leveling - 2 Endgame", "new")]
+    assert out["gone"] == ["Minion Leveling - 2 Mid Maps.build"]
+    assert (planner / "Minion Leveling - 2 Mid Maps.build").is_file()
+
+
+def test_remove_build_plans_removes_the_plans_named_from_the_planner_folder(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    out = asyncio.run(server.remove_build_plans(["Minion Leveling - 2 Mid Maps.build"]))
+    assert out == {"status": "removed", "folder": str(planner), "removed": ["Minion Leveling - 2 Mid Maps.build"]}
+    assert [p.name for p in planner.iterdir()] == ["Minion Leveling - 1 Act 2.build"]
+
+
+def test_remove_build_plans_refuses_a_name_that_is_not_a_plan_file(monkeypatch, tmp_path):
+    planner = _game(tmp_path / "Documents") / "BuildPlanner"
+    _write_plan(monkeypatch, tmp_path, link=LINK)
+    out = asyncio.run(server.remove_build_plans(["Minion Leveling - 1 Act 2.build", "../config.json"]))
+    assert out["status"] == "invalid" and "../config.json" in out["error"]
     assert len(list(planner.iterdir())) == 2
+
+
+def test_remove_build_plans_asks_for_the_folder_when_it_finds_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(server, "documents_folders", lambda: [tmp_path / "Documents"])
+    out = asyncio.run(server.remove_build_plans(["Minion Leveling - 1 Act 2.build"]))
+    assert out == {"status": "no-folder", "checked": [str(tmp_path / "Documents" / "My Games" / "Path of Exile 2")]}
 
 
 def test_write_build_plan_asks_for_the_folder_when_it_finds_none(monkeypatch, tmp_path):
