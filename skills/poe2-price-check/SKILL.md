@@ -24,7 +24,9 @@ If they don't know how to copy an item, give the one-liner from `poe2-core/refer
 - Currency: `get_currency_prices(category, search)` — category is poe2scout's apiId (`currency`,
   `essences`, `runes`, `fragments`, …; catalysts are under `breach`), listed in full in
   `poe2-core/references/currency-glossary.md`. `search` narrows by name. Prices come back in both
-  exalted and divine.
+  exalted and divine. Each item's `exchange` is what GGG's Currency Exchange traded in its last hour:
+  lead with that range (buying costs about `highExalted`), and use poe2scout's price as the reference
+  beside it — the rubric says how to read the two together.
 - Unique: `price_unique(name)` — exact match returns the reference price; otherwise it returns
   close-name suggestions. If there's no match, say so and offer the nearest names; don't invent a price.
 - League defaults to the saved one (the active character's); pass `league` only to override.
@@ -87,7 +89,9 @@ Score the market signals from the tool fields, using the thresholds in the rubri
 signals** table — the band is capped by the weakest one:
 - **Rares** — `priceStats.converted` (sample size), `priceStats.spreadRatio` (spread),
   `priceStats.unconvertedCurrencies` (coverage), `ageSeconds` (freshness). `matched` is only depth.
-- **Currency** — `quantityListed` (depth), `trend.changePctVsDivine` (volatility), and `ageSeconds`.
+- **Currency** — `quantityListed` (depth), `trend.changePctVsDivine` (volatility), `ageSeconds`, and
+  the exchange: `exchange.volume`, its range (`highExalted` ÷ `lowExalted`), and how far poe2scout's
+  price sits from `highExalted`.
 - **Uniques** — `price_unique` has no listing volume, so it tops out at **Medium**.
 - **Input certainty** — real pasted item = higher; a vague description = lower, and say what would
   sharpen it (the actual item text, the target league, the budget).
