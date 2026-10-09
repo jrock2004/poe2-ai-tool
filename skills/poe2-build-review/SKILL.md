@@ -1,6 +1,6 @@
 ---
 name: poe2-build-review
-description: Compare the player's Path of Exile 2 character to a build guide and produce a stage-aware, prioritized fix list. Use when the player wants to know how their skills/gear stack up against a guide they're following.
+description: Compare the player's Path of Exile 2 character to a build guide and produce a stage-aware, prioritized fix list. Use when the player wants to know how their skills/gear stack up against a guide they're following, or how other builds handle part of theirs ("are my zombies worth it", "what do other minion builds run").
 ---
 # poe2-build-review
 
@@ -129,6 +129,25 @@ When the guide is **prose only** (no PoB, no node ids in the page), match the no
 If `tree.note` is set (no snapshot for that tree version), you only have node ids: compare the id
 sets for how much overlaps, but don't claim which notables are missing. If the character and the
 guide have different `treeVersion`s, node ids may not line up across patches — say so.
+
+### How other builds do it
+
+When the player asks how other builds handle part of theirs ("are my zombies worth it", "what do
+other minion builds run"), the comparison is wider than their own guide:
+
+- **Read every listed guide that uses the same mechanic**, from `poe2-core/references/sources.md` →
+  "Build creators", for any class. A gem works the same whatever class casts it, so a Shaman's
+  spectre guide counts for an Infernalist. Read guides from creators trusted for that kind of build,
+  not just guides for the player's class.
+- **Check the gem first.** Look up what the skill costs, reserves and does (sources.md → "Skill and
+  support gems") before weighing it. The advice depends on it: a skill that reserves Spirit competes
+  with other minions for it, and one that costs mana competes for a gem slot and casting time.
+- **Say what you read**: which guides, their patch, and how many use the mechanic and how. Some
+  agreeing with one way and some with another is a finding in itself, so report the split.
+- **Give the poe.ninja builds link** for what other players actually run, filtered to their
+  ascendancy (sources.md → "Avoid" says why we don't read it).
+
+Confidence follows how many guides you read and whether their patch matches the live one.
 
 ## 5. Hand off acquisition
 
