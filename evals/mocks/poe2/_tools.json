@@ -1,0 +1,964 @@
+{
+  "tools": [
+    {
+      "name": "get_leagues",
+      "description": "List Path of Exile 2 leagues from poe2scout.\n\nIncludes which league is current and the current divine price (in exalted). Use this to\ndiscover the league name the other tools accept.\n",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_leaguesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "properties": {
+          "result": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Result",
+            "type": "array"
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "title": "get_leaguesOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "set_league",
+      "description": "Save the player's league as the default for every tool, until changed again.\n\nleague: league name or short name, as listed by get_leagues. It's checked against poe2scout first;\nan unknown name raises and nothing is saved, and so does poe2scout being unreachable. Takes effect\non the next call -- no restart needed.\n",
+      "inputSchema": {
+        "properties": {
+          "league": {
+            "title": "League",
+            "type": "string"
+          }
+        },
+        "required": [
+          "league"
+        ],
+        "title": "set_leagueArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "set_leagueDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_knowledge",
+      "description": "Get the assistant's per-patch game knowledge for a topic: 'trials', 'farming', or 'crafting'.\n\nReturns the newer of the copy shipped with the assistant and the player's local refresh (see\nsave_knowledge): `source` says which, `patch`/`refreshed` say how current it is (a confidence\ninput), and `text` is the Markdown itself.\n",
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic"
+        ],
+        "title": "get_knowledgeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_knowledgeDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "save_knowledge",
+      "description": "Save a refreshed copy of a knowledge topic ('trials', 'farming', 'crafting') for this player.\n\ntext: the full Markdown, starting with the header ---, patch: <e.g. 0.6.0>, refreshed: <YYYY-MM-DD>,\n---. Refused (nothing written) if the header is missing or the copy isn't newer than the one\nshipped with the assistant. The copy lives outside the install, so it survives updates; an update\nthat ships newer knowledge takes over from it automatically.\n",
+      "inputSchema": {
+        "properties": {
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "topic",
+          "text"
+        ],
+        "title": "save_knowledgeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "save_knowledgeDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_state",
+      "description": "Get the player's saved state: `player` (profile), `characters` (roster, keyed by name),\n`currency` (inventory as currency[league][trade_mode]), and `leagues` (per-league records such as\nthe patch). Shared by every Claude client on this machine; the poe2-core skill defines the shapes.\n",
+      "inputSchema": {
+        "properties": {},
+        "title": "get_stateArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_stateDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "update_state",
+      "description": "Change the player's saved state with a JSON Merge Patch (RFC 7396) and return the new state.\n\nSend only what changes: objects merge, `null` deletes a key, arrays and plain values replace.\ne.g. {\"characters\": {\"Mandy__Chaos\": {\"goal\": \"mapping\"}}} changes one field;\n{\"characters\": {\"Old\": null}} removes a character. Top-level keys must be player, characters,\ncurrency, or leagues. Setting `active: true` on a character clears it on all others.\nA rejected patch raises and changes nothing.\n",
+      "inputSchema": {
+        "properties": {
+          "patch": {
+            "additionalProperties": true,
+            "title": "Patch",
+            "type": "object"
+          }
+        },
+        "required": [
+          "patch"
+        ],
+        "title": "update_stateArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "update_stateDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_currency_prices",
+      "description": "Get current Path of Exile 2 currency prices for a category.\n\ncategory: poe2scout currency category apiId, e.g. 'currency', 'essences', 'runes', 'fragments'\n  (catalysts are under 'breach'; market_movers' description lists every category).\nsearch: optional; part of an item's name or apiId, any case (e.g. 'divine', 'haste'). It's matched\n  across the whole category: `total` counts every match, and up to per_page come back.\nleague: league value; defaults to the saved league (set_league).\nPrices are returned in both exalted and divine. Each item also carries `trend` -- its daily price\nhistory (usually ~7 days): min/max in exalted, the oldest -> newest change in percent, and\n`changePctVsDivine`, the same change measured in divine. Prices are quoted in exalted, so when\nexalted itself weakens everything looks like it rose; the divine-relative number is the item's\nreal move and the one to judge volatility by. (Both windows are the endpoint's ~7 days, compared\nfirst-to-last point; a gap in one series can shift its window by a day.) Currency/uniques only.\nIf nothing comes back and poe2scout has no such category, `unknownCategory` is true and\n`validCategories` lists the ones it has.\n\nEach item also carries `exchange`: GGG's Currency Exchange over its last published hour (history\nonly: an hour that ended up to ~1 h ago) -- `lowExalted`/`highExalted`, the range its market ratio\nmoved in (the game's buy price sits near the high end), `averageExalted` (volume-weighted across\nbuyers and sellers, low on cheap bulk items), `volume` (units traded) and `via` (\"divine\" when\npriced through divine). None when it didn't trade that hour. The top-level `exchange` dates that hour on its own\n(`fetchedAt`/`ageSeconds`, kept out of poe2scout's), or holds `error` if the exchange is down.\n\n`source` is \"poe2scout\", or \"exchange\" when poe2scout is down (`poe2scoutError` says why): then the\nexchange answers alone, named from the item snapshot -- every poe2scout field is None, there's no\ntop-level `ageSeconds`, and `search` is needed, covering everything the exchange trades whatever the\ncategory. With both down, `valid` is false.\n",
+      "inputSchema": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Search"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "League"
+          },
+          "per_page": {
+            "default": 25,
+            "title": "Per Page",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category"
+        ],
+        "title": "get_currency_pricesArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_currency_pricesDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "market_movers",
+      "description": "The biggest 7-day risers and fallers per Path of Exile 2 currency category, measured in divine.\n\ncategories: poe2scout currency category apiIds; defaults to the farming set (fragments, essences,\nbreach, delirium, ritual, expedition, abyss, runes). Others include 'currency', 'ultimatum',\n'vaultkeys', 'uncutgems', 'lineagesupportgems', 'idol', 'incursion', 'verisium', 'vaal'.\nMoves are changePctVsDivine -- the item's own move with exalted's drift removed. Items listed\nfewer than 50 times are skipped as too thin to trust (`thin` counts them). Read-only; cached.\n\nEach mover also carries `exchange`, GGG's Currency Exchange beside poe2scout: its last hour (as in\nget_currency_prices: low/high/average exalted, volume) and its own 7-day move, `changePctVsDivine`,\nfrom the last 12 hours against the same 12 hours a week earlier (one hour alone is too noisy: hours\ndiffer by a median ~10%), for items with 100+ units traded in each -- or None. The two sources often\ndisagree: poe2scout's figures aren't the exchange's trades. The top-level `exchange` dates the last hour\non its own and gives `windowHours`, the exchange's `divineChangePct` and `thin` (or `error` /\n`movesError`). The first call fetches ~24 hours (~25 s); published hours are kept on disk after that.\n`source` is \"poe2scout\", or \"exchange\" when poe2scout is down (`poe2scoutError` says why): then\n`exchangeMovers` ranks the exchange's moves over everything it trades (no categories), named from the\nitem snapshot. With both down, `valid` is false.\n",
+      "inputSchema": {
+        "properties": {
+          "categories": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Categories"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "League"
+          },
+          "top": {
+            "default": 5,
+            "title": "Top",
+            "type": "integer"
+          }
+        },
+        "title": "market_moversArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "market_moversDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "price_unique",
+      "description": "Look up the current price of a Path of Exile 2 unique item (or currency) by name.\n\nMatches against poe2scout's priced item list. Returns price in exalted and divine, plus\nclose-name suggestions when there's no exact match.\n",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "League"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "price_uniqueArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "price_uniqueDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "value_currency",
+      "description": "Value a Path of Exile 2 currency/item inventory at current poe2scout prices.\n\nholdings: list of {name, count} -- e.g. [{\"name\": \"Divine Orb\", \"count\": 11}, ...]. Names should\nbe canonical (normalize shorthand via poe2-core's currency glossary first). Returns per-line and\ntotal worth in exalted (the base unit) and divine, plus any names that didn't match a priced item.\nUse it for net worth and \"can I afford this?\" -- deterministic arithmetic, not estimated.\n\n`exchange` values the same holdings at GGG's Currency Exchange's last hour (named from the item\nsnapshot): `lowExalted` (toward what selling fast fetches), `highExalted` (the game's market ratio\nsits at the high end), `averageExalted`, per-line the same, `untraded` (traded on the exchange but\nnot that hour) and `unknown` (not an exchange item), plus its own `fetchedAt`/`ageSeconds` -- or\n`error`. `source` is \"poe2scout\", or \"exchange\" when poe2scout is down (`poe2scoutError` says why):\nthen only `exchange` is filled in. With both down, `valid` is false.\n",
+      "inputSchema": {
+        "properties": {
+          "holdings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Holdings",
+            "type": "array"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "League"
+          }
+        },
+        "required": [
+          "holdings"
+        ],
+        "title": "value_currencyArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "value_currencyDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "find_stat_filters",
+      "description": "Resolve a human affix line to Path of Exile 2 trade stat-filter ids.\n\nFeed it what an item mod reads like -- e.g. '+80 to maximum Life', '30% increased Cold Damage',\n'Movement Speed' -- and it returns candidate filter ids (best match first) to use in\nbuild_trade_filter / search_trade. Numbers are treated as wildcards, so the value never blocks\nthe match. Runs no trade search and returns no listings -- it only reads GGG's stat-filter\nreference, which it fetches once and caches for 6h, so the first call after a cold start is\na live (rate-limited) request and later ones are free.\n",
+      "inputSchema": {
+        "properties": {
+          "affix": {
+            "title": "Affix",
+            "type": "string"
+          },
+          "limit": {
+            "default": 6,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "affix"
+        ],
+        "title": "find_stat_filtersArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "find_stat_filtersDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "build_trade_filter",
+      "description": "Build a Path of Exile 2 /trade2 search body from filters, WITHOUT running a live search.\n\nPure construction -- safe, no rate limit, no account contact. Use it to show the player the exact\nfilter, or hand the returned 'query' to search_trade to run it.\n\ncategory: type option like 'armour.boots', 'weapon.crossbow', 'accessory.ring', 'jewel'.\nstats: list of {id, min?, max?}; get ids from find_stat_filters.\nmax_price: optional ceiling in price_currency (e.g. your currency budget).\nmax_level: optional; the character's level, so only items it can wear now come back. At least 1.\n",
+      "inputSchema": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Category"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Stats"
+          },
+          "max_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Price"
+          },
+          "price_currency": {
+            "default": "divine",
+            "title": "Price Currency",
+            "type": "string"
+          },
+          "online_only": {
+            "default": true,
+            "title": "Online Only",
+            "type": "boolean"
+          },
+          "max_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Max Level"
+          }
+        },
+        "title": "build_trade_filterArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "build_trade_filterDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "search_trade",
+      "description": "Run a live, read-only Path of Exile 2 /trade2 search and return the top listings.\n\nPass a 'query' from build_trade_filter. Returns a clickable trade-site link plus up to `limit`\ncheapest matching listings (name, mods, price, seller, and the whisper text for you to copy).\n`priceStats` gives min/median/max in exalted and the max/min spread over the listings shown --\nthe cheap end of the market, since results are price-ascending -- for grounding confidence.\nIf poe2scout can't be reached, the listings still come back: only exalted prices are converted,\nand `note` says so. Rate-limited and cached; it never buys, lists, or whispers on your behalf --\nyou act.\n",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "additionalProperties": true,
+            "title": "Query",
+            "type": "object"
+          },
+          "league": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "League"
+          },
+          "limit": {
+            "default": 10,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_tradeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "search_tradeDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "fetch_guide",
+      "description": "Fetch a Path of Exile 2 build guide's text, respecting robots.txt and content licenses.\n\nReturns the readable page text when fetching is permitted and works. When it isn't, returns a\n`route` telling how to get the guide another way instead of scraping around the block:\n  - route \"paste\": the site forbids automated/AI use (e.g. Maxroll/Ziff Davis) or robots blocks it\n    -- ask the player for the guide's PoB code or pasted text.\n  - route \"browser\": the site bot-blocked the server fetch (e.g. Mobalytics/Cloudflare) -- the\n    assistant opens it in a browser and reads it there; at a bot check it asks the player to open\n    it instead, or to paste the PoB code.\n`partial: true` means some content loads client-side and detail may be missing. Never bypasses a\nblock or a stated no-AI policy.\n",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "fetch_guideArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "fetch_guideDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "parse_pob_code",
+      "description": "Decode a Path of Building 2 export code into a structured build summary.\n\nAccepts a raw PoB code or raw PoB XML -- not a share link (pobb.in links hold an id, not the\ncode). Returns the character (level/class/ascendancy), computed stats (resistances, life, energy\nshield, DPS), a skill set's gems, equipped items with implicit and explicit mods, and a passive\ntree: allocated node ids, socketed jewels, named keystones/notables, the ascendancy choices\ntaken, and passive/ascendancy point counts (names and counts come from a bundled tree snapshot;\nif the build's tree version has none, `tree.note` says so and only ids are returned) -- so a\npasted PoB code can feed poe2-gear-upgrade / poe2-build-review without a character screenshot.\n\nA build can carry several tree specs, skill sets, and item sets -- guides often keep one per\nstage. `sets` lists all three by 1-based position with titles and which is active. By default\nthe active ones are parsed; pass `tree_spec` / `skill_set` / `item_set` (a position from `sets`)\nto parse another. Computed stats only exist for the active sets: `statsNote` says so when a\nselector picks a different one. An out-of-range position is an error, never a fallback.\n\n`campaignRewards` gives the campaign's permanent rewards as PoB's config counts them -- `taken`,\n`notTaken` (a pick-one with nothing chosen lists its `options`), and `unmatched` quest settings\nour snapshot doesn't know. Weapon-set points are left out (the tree counts them). Only when\n`fromCharacter` is true (PoB imported the character) does it say what the player took; otherwise\nit's PoB's defaults or the guide's choices.\nOffline; no network.\n",
+      "inputSchema": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "tree_spec": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tree Spec"
+          },
+          "skill_set": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Skill Set"
+          },
+          "item_set": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Item Set"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "parse_pob_codeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "parse_pob_codeDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "write_build_plan",
+      "description": "Write a guide's Path of Building code into the in-game Build Planner: one plan per tree spec (with\nthe skill set and item set sharing its title), named \"<name> - <stage number> <spec title>\" (a single\nspec has no number), carrying the guide's notes on passives, gems and gear. In game: P -> the Build\nPlanner icon at the top left -> pick the plan. The dropdown sorts by name and shows about 30\ncharacters, so keep `name` short.\n\ncode: the guide's PoB code (or raw PoB XML), passed whole -- its notes go to the files, never into the\nreply. name: the build's name; the export doesn't carry it. author: the guide's creator, only when\nknown -- never invent one. link: the guide's page. folder: only when the player named one after a\n\"no-folder\" -- their \"Path of Exile 2\" folder or the BuildPlanner folder in it; it's kept for next time.\n\nWriting the same guide again (same `link`) updates its plans without asking: only stages the guide\nchanged are rewritten, so an unchanged plan keeps the day it was written.\n\n`status` says what happened and what comes next:\n  - \"written\" (something was written) or \"unchanged\" (the plans were already up to date): `plans` lists\n    each plan in the guide's order -- name, file, `state` (\"new\", \"changed\" or \"unchanged\"), how many\n    passives, skills and gear slots it holds, and `leftOut` ({what, why}: what had no place in the\n    planner, as a code to put in plain words). A \"changed\" plan's `changes` says what the guide changed\n    in that stage: notables and keystones by name (other passives counted), skills and supports added\n    or removed, how many notes changed, suggested uniques, the ascendancy. `gone` names this build's\n    plan files the guide no longer has -- left in place; ask the player, and remove them with\n    remove_build_plans. `unpaired` names the PoB's skill and item sets no tree spec took. A `warning`,\n    when present, must be passed on.\n  - \"exists\": the files in `existing` are in the way and not provably this guide's (another link, no\n    link, or not a plan), and nothing was written. Ask the player, then call again with overwrite=true\n    to replace them.\n  - \"no-folder\": the planner folder wasn't found (`checked` lists where it looked), or the one named was\n    refused (`error`). Ask the player where their Documents\\My Games\\Path of Exile 2 folder is and\n    pass it as `folder`.\n  - \"invalid\": `error` says why -- not a PoB code, no passive tree, no item snapshot. Nothing written.\nOffline; no network. Writes only into the planner folder, and never deletes.\n",
+      "inputSchema": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Author"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Link"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Folder"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "write_build_planArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "write_build_planDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "remove_build_plans",
+      "description": "Remove plans from the in-game Build Planner, by file name -- the `gone` files write_build_plan\nlisted, once the player says yes. Only plain .build file names in the planner folder; a file already\ngone is skipped.\n\nReturns {\"status\": \"removed\", \"folder\", \"removed\": [file names]}; \"no-folder\" (`checked`) when the\nplanner folder isn't found; \"invalid\" (`error`) for a name that isn't a plan file -- nothing removed.\n",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "remove_build_plansArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "remove_build_plansDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "summarize_tree",
+      "description": "Name and count a Path of Exile 2 passive tree from bare node ids.\n\nFor guides with no PoB code -- e.g. Mobalytics, whose page data lists each variant's tree as\n`node-<id>` slugs (strip the `node-` prefix). Pass the main tree, each weapon set's nodes, and\nthe ascendancy nodes; the lists may be disjoint or overlap. `tree_version` is the snapshot to\nname against, e.g. \"0_5\" for patch 0.5.x. Returns the same block as `parse_pob_code`'s `tree`\n(node ids, named keystones/notables, ascendancy choices, passive/ascendancy point counts),\nwithout `jewels`; if there's no snapshot for the version, `note` says so and only ids come back.\nOffline; no network.\n",
+      "inputSchema": {
+        "properties": {
+          "main": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Main",
+            "type": "array"
+          },
+          "tree_version": {
+            "title": "Tree Version",
+            "type": "string"
+          },
+          "weapon_set_1": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weapon Set 1"
+          },
+          "weapon_set_2": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Weapon Set 2"
+          },
+          "ascendancy": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Ascendancy"
+          }
+        },
+        "required": [
+          "main",
+          "tree_version"
+        ],
+        "title": "summarize_treeArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "summarize_treeDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "get_stash_layout",
+      "description": "Which item sits in each slot of a Path of Exile 2 special stash tab, for reading a screenshot.\n\nThe special tabs are fixed layouts: a slot always holds the same item, held or not -- so name an\nitem from its slot, and read only the count from the image. `tab` is one of: abyss, breach,\ncurrency, delirium, essence, expedition, fragment, ritual, socketable.\n\nReturns `rows` in reading order (by `subTab` page, then top to bottom, each row left to right),\neach slot {key, item} plus w/h when wider or taller than one slot and `label` for a Ritual group\nicon; `item` null is an open slot that can hold anything. `onlyWhenHeld` lists slots that appear\nonly while the player has the item. `craftingSlot` says the tab has one (it's left out of rows\nand never read). `overlaps` names slot pairs the data puts on the same spot -- confirm those\nin game. `patch` is the snapshot's patch; if the league's is newer, the layout may be stale.\nOffline; no network.\n",
+      "inputSchema": {
+        "properties": {
+          "tab": {
+            "title": "Tab",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tab"
+        ],
+        "title": "get_stash_layoutArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "get_stash_layoutDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "mod_tiers",
+      "description": "Which mods a Path of Exile 2 base can roll, from the game's own data: each mod family with its\nside (prefix/suffix) and every tier's name, text and the item level it needs.\n\nbase: the item's base type as its item text names it, e.g. 'Rusted Greathelm' (any case). An unknown\nname returns `suggestions`; a name with several variants returns each, with its requirements.\nsearch: optional; part of a tier's text or a family's name, e.g. 'fire resistance' or 'minion'. A\nfound base with no matching family means that mod can't roll on it.\nitem_level: optional; the item's item level -- each tier then says whether it `canRoll` there.\n`patch` is the game patch the data is from; if the league's is newer, it may be stale. No odds: the\ngame data says what can roll, not how likely it is. Offline.\n",
+      "inputSchema": {
+        "properties": {
+          "base": {
+            "title": "Base",
+            "type": "string"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Search"
+          },
+          "item_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Item Level"
+          }
+        },
+        "required": [
+          "base"
+        ],
+        "title": "mod_tiersArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "mod_tiersDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "item_text",
+      "description": "What a Path of Exile 2 currency item does, in the game's own words: anything the Currency Exchange\ntrades -- orbs, omens, essences, alloys, catalysts, liquid emotions, shards -- and every rune, soul\ncore and idol (augments).\n\nsearch: an item's name, or words from what it does, in any case. 'Chaos Orb' finds the orb and the\nomens that change it; 'instil' finds what Instils amulets; 'maximum life' finds the essences that add\nit. Each match gives `text` (what it does) and `use` (how it's used, and on what) -- quote them,\ndon't paraphrase. An essence, alloy or augment also has `adds`: for each kind of item it fits (`on`),\nwhat it adds there (`text`). An essence's or alloy's row says whether that's a prefix or suffix\n(`side`). An augment's row may have `bonded`: a Bonded modifier, which the game gives only to a Shaman\nwho allocated Wisdom of the Maji (`text` is empty where that's all it has). An augment's `limit` caps\nhow many can be socketed (\"1 Ancient Augment\": one at a time); `level` is its level requirement. An\nexact name comes first. Up to 20 matches; `total` counts them all -- if it's more, narrow the search.\nNo match returns `suggestions`. `patch` is the game patch the data is from; if the league's is newer,\nit may be stale. Offline.\n",
+      "inputSchema": {
+        "properties": {
+          "search": {
+            "title": "Search",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search"
+        ],
+        "title": "item_textArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "item_textDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "trial_pool",
+      "description": "What a Path of Exile 2 Ascendancy trial can throw at you, from the game's own data.\n\ntrial: 'chaos' -- the Trial of Chaos modifiers, each with every version (`name`, `tier` 1-5, `text`) and\nits `kind`: a 'modifier', a room 'hazard', or a 'wager'. Or 'sekhemas' -- the Trial of the Sekhemas\nafflictions, boons and pledges, each with its `category` ('Minor Afflictions', 'Major Boons',\n'Pledges'...) and `text`; a pledge also has a `cost`. search: optional; part of a name, a text, or a\nkind or category ('hazard', 'wager', 'pledges'), any case -- without it, the whole pool. Quote the\ntexts, don't paraphrase. A text with {0} gets its number in the game, which the data doesn't show:\nquote it as-is and never state a number from `values`. No match returns `suggestions`. `patch` is the\ngame patch the data is from; if the league's is newer, it may be stale. Offline.\n",
+      "inputSchema": {
+        "properties": {
+          "trial": {
+            "title": "Trial",
+            "type": "string"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Search"
+          }
+        },
+        "required": [
+          "trial"
+        ],
+        "title": "trial_poolArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "trial_poolDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "campaign_rewards",
+      "description": "The permanent rewards the Path of Exile 2 campaign gives: resistances, spirit, life, weapon-set\npassive points and the like.\n\nEach match has `part` ('Act 1', 'Interlude 2', 'Epilog'), `area`, `from` (the boss, item or shrine),\n`areaLevel`, then `stat`, or `options` for a pick-one reward -- the player got only one of them, so\nnever add the options up -- and `weaponSetPoints` when it gives some. search: optional; words from a\npart, area, source or reward text, any case ('cold resistance', 'spirit', 'Act 2') -- without it,\nevery reward, in campaign order. Quote the texts. From Path of Building 2's quest-reward list; `patch`\nis the game patch it was checked against -- if the league's is newer, it may be stale. Offline.\n",
+      "inputSchema": {
+        "properties": {
+          "search": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Search"
+          }
+        },
+        "title": "campaign_rewardsArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "campaign_rewardsDictOutput",
+        "type": "object"
+      }
+    },
+    {
+      "name": "build_vendor_regex",
+      "description": "Build a Path of Exile 2 vendor search-box regex from what the build wants.\n\nPure and offline. Paste the returned `regex` into a vendor's search box (Ctrl+F); matching items light\nup. It is up to three ANDed groups: hidden classes, wanted mods/classes, and a slot gate.\n\nwant: list of {key, min_value?, any_base?}, highest priority first. `min_value` is only for mods\n  marked (n) below. `any_base: true` lets that mod light up on any base the hide list allows, not just\n  the gated slots -- use it for must-haves like movement speed or +minion skill levels.\nwant_classes: item classes to light up on any roll (e.g. every sceptre for a minion build).\nhide_classes: item classes never to light up.\navoid: mod keys that rule an item out whatever else it rolls (e.g. flask_removes_recovery).\nitem_level: the \"Item Level\" of the vendor's items (ask the player to hover one). Caps each (n) mod at\n  its highest roll there; a want whose min_value can't roll at that level is left out and listed in\n  `unreachable`.\nslot_classes / slot_defences: the gate -- an item lights only if it is one of these classes or bases,\n  or carries an any_base mod. Omit both for no gate.\n\nOver 250 characters, the lowest-priority wants are dropped; `dropped` lists them.\n\nMods: movement_speed (n), spirit, minion_skills, max_energy_shield, increased_energy_shield, resistance, max_life (n), minion_life_recovery, charges_per_second, flask_removes_recovery\nClasses: sceptre, amulet, ring, belt, wand, staff, quarterstaff, spear, crossbow, bow, quiver, one_hand_mace, two_hand_mace\nDefences: energy_shield\n",
+      "inputSchema": {
+        "properties": {
+          "want": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Want",
+            "type": "array"
+          },
+          "want_classes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Want Classes"
+          },
+          "hide_classes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Hide Classes"
+          },
+          "slot_classes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Slot Classes"
+          },
+          "slot_defences": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Slot Defences"
+          },
+          "avoid": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Avoid"
+          },
+          "item_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Item Level"
+          }
+        },
+        "required": [
+          "want"
+        ],
+        "title": "build_vendor_regexArguments",
+        "type": "object"
+      },
+      "outputSchema": {
+        "additionalProperties": true,
+        "title": "build_vendor_regexDictOutput",
+        "type": "object"
+      }
+    }
+  ]
+}

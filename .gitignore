@@ -24,3 +24,6 @@ __pycache__/
 # Local machine-specific wiring (documented in README "Setup"; not committed)
 .mcp.json
 .claude/
+
+# Plugin eval output (claude plugin eval)
+evals/results/
