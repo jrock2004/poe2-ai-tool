@@ -24,10 +24,12 @@ from typing import Any, Callable
 from . import campaign
 from .treedata import load_snapshot
 
-# PoB annotation lines in item text that aren't readable stat mods -- dropped from the mod list.
+# PoB annotation lines in item text that aren't readable stat mods -- dropped from the mod list. The second
+# row is the base's own values PoB writes above the mods (defences, a sceptre's Spirit, a belt's charm slots).
 _ITEM_META_PREFIXES = (
     "Rarity:", "Item Level:", "Quality:", "Sockets:", "LevelReq:", "Implicits:", "Crafted:",
     "Prefix:", "Suffix:", "Unique ID:", "Note:", "Requires", "Corrupted", "Split", "Rune:", "Selected",
+    "Energy Shield:", "Armour:", "Evasion:", "Evasion Rating:", "Ward:", "Spirit:", "Charm Slots:",
 )
 _TAG_RE = re.compile(r"\{[^}]*\}")  # inline PoB tags like {range:0.5}, {crafted}, {tags:...}
 

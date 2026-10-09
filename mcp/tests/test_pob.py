@@ -168,6 +168,29 @@ def _one_item_xml(item_text: str) -> str:
 </PathOfBuilding2>"""
 
 
+def test_parse_items_drops_the_bases_property_lines():
+    # PoB writes a base's own values above the mods -- defences, a sceptre's Spirit, a belt's charm slots.
+    # They're the base, not mods; a skill the item grants and a rune's bonded mod are the item's, and stay.
+    item = """Rarity: UNIQUE
+Bones of Ullr
+Lattice Sandals
+Energy Shield: 52
+Armour: 10
+Evasion: 12
+Evasion Rating: 12
+Ward: 5
+Spirit: 100
+Charm Slots: 2
+Item Level: 75
+Implicits: 2
+{enchant}{rune}Bonded: +20 to maximum Life
+Grants Skill: Level 11 Cast on Elemental Ailment
+6% increased Movement Speed"""
+    boots = parse_pob_xml(_one_item_xml(item))["items"][0]
+    assert boots["implicitMods"] == ["Bonded: +20 to maximum Life", "Grants Skill: Level 11 Cast on Elemental Ailment"]
+    assert boots["explicitMods"] == ["6% increased Movement Speed"]
+
+
 def test_parse_items_splits_implicits_from_explicits():
     ring = parse_pob_xml(_one_item_xml("""Rarity: RARE
 Grim Clasp
@@ -859,7 +882,7 @@ def test_a_group_pob_marks_removed_is_not_part_of_the_loadout():
 
 def test_a_loadouts_gear_lists_slots_with_an_item_or_a_note():
     # An empty slot with no note is left out; a note with no item stays. An item carries its mods, as
-    # parse_pob_code reads them (the trimmed Bones of Ullr's property line reads as one).
+    # parse_pob_code reads them (the trimmed Bones of Ullr has only a property line, which isn't a mod).
     assert _loadout("Act 2")["gear"] == [
         {"slot": "Weapon 1", "item": {"rarity": "NORMAL", "name": "Withered Wand", "base": None,
                                       "implicitMods": [], "explicitMods": []},
@@ -868,7 +891,7 @@ def test_a_loadouts_gear_lists_slots_with_an_item_or_a_note():
     ]
     assert _loadout("Mid Maps")["gear"][0] == {
         "slot": "Boots", "item": {"rarity": "UNIQUE", "name": "Bones of Ullr", "base": "Lattice Sandals",
-                                  "implicitMods": [], "explicitMods": ["Energy Shield: 38"]},
+                                  "implicitMods": [], "explicitMods": []},
         "note": None}
 
 
