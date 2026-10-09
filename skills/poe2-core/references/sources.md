@@ -13,6 +13,9 @@ PoE1 pages mix in under the same names. So:
 - **Fetch only what's listed, or what the player gave you.** A guide link the player pasted is fine
   (through `fetch_guide`); a page a search surfaced from an unlisted site is not.
 - **Name the source** in the answer, so the player can check it.
+- **Look it up; don't hand it over.** If a source below answers a game fact (what a gem costs or
+  reserves, what a mod does), look it up before you advise. Never ask the player to check it in game,
+  and never build advice on a mechanic you haven't checked.
 
 ## By topic
 
@@ -25,6 +28,7 @@ PoE1 pages mix in under the same names. So:
 | Passive tree | `parse_pob_code` / `summarize_tree` | github.com — PathOfBuildingCommunity/PathOfBuilding-PoE2 (`dev`) | Snapshot is generated; see `CONTRIBUTING.md`. |
 | Mods, tiers, item bases | `mod_tiers` — the item snapshot, generated from github.com — repoe-fork/poe2 at a pinned commit (`CONTRIBUTING.md` step 9) | poe2db.tw — the item class page | Game data first; its `patch` says how current it is. poe2db's tier data is embedded in the page HTML. The data is GGG's. |
 | Currency effects (currency, omens, essences, runes) | `item_text` — the item snapshot's game text for what PoE2's Currency Exchange trades, generated from github.com — repoe-fork/poe2 and repoe-fork/dat-export at pinned commits (`CONTRIBUTING.md` step 9) | poe2db.tw — `Stackable_Currency` | Quote, don't paraphrase. No odds or "1 in N". `adds` gives what an essence, alloy, rune, soul core or idol adds on each kind of item; a rune's `bonded` effect is Shaman-only (Wisdom of the Maji). The game files still carry PoE1 currency, so if `item_text` doesn't have an item, check poe2db before naming it — it may not be in PoE2, or be newer than the snapshot's `patch`. The data is GGG's. |
+| Skill and support gems (what a skill does, its cost or Spirit reservation, duration, limit, tags) | poe2db.tw — the gem's page (`/us/<Gem_Name>`, e.g. `/us/Raise_Zombie`) | github.com — repoe-fork/poe2, `data/skill_gems.json` | Spirit is reserved only by persistent skills (their gem says "Reservation"); a gem with a mana cost and a duration, such as Raise Zombie, reserves none. The page's version history says what changed and when. The data is GGG's. |
 | Item rules (affix limits, corruption) | `get_knowledge('crafting')` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv`: `Rarity`, `ClientStrings` | Game data, not guides. Name the commit you read. Which currencies take corrupted items: search `item_text` for "corrupted" — each one's text or `use` says so. |
 | Trial of Chaos modifiers | `trial_pool('chaos')` — the item snapshot, generated from github.com — repoe-fork/dat-export at a pinned commit (`CONTRIBUTING.md` step 9) | poe2db.tw — `Ultimatum` (Modifiers list) | Quote the texts. The snapshot follows the game's files, so changes the patch notes leave out come with it. How to choose: `get_knowledge('trials')`. |
 | Trial of the Sekhemas (afflictions, boons, pledges) | `trial_pool('sekhemas')` — the item snapshot, as above | poe2db.tw | Quote the texts; one with `{0}` gets its number in game, so don't state one. How to choose: `get_knowledge('trials')`. |
