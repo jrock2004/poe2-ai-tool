@@ -112,12 +112,14 @@ def test_skills_take_their_note_and_their_groups_supports():
 
 
 def test_gear_maps_pob_slots_to_the_games_inventories():
-    # The note as hover text; a unique by name. A slot with neither (a rare, no note) adds nothing.
+    # The note as hover text; a unique by name, and -- with no note -- a note naming it, since the game shows
+    # nothing for unique_name alone (checked in game 2026-10-08). A rare with no note adds nothing.
     assert plan()["build"]["inventory_slots"] == [
         {"inventory_id": "Weapon1", "additional_text": "<u>{<b>{Withered Wand}}\n\n- A shield might help"},
         {"inventory_id": "Offhand1", "additional_text": "<u>{<b>{Any Focus}}"},
         {"inventory_id": "Weapon2", "additional_text": "<u>{<b>{Swap Wand}}"},
-        {"inventory_id": "Boots1", "unique_name": "Bones of Ullr"},
+        {"inventory_id": "Boots1", "additional_text": "<b>{Bones of Ullr}\nLattice Sandals",
+         "unique_name": "Bones of Ullr"},
         {"inventory_id": "Ring3", "additional_text": "<u>{<b>{Any Ring}}"},
         {"inventory_id": "Flask1", "slot_x": 0, "additional_text": "Life flask"},
     ]
@@ -129,15 +131,16 @@ def test_flasks_and_charms_share_the_flask_inventory_each_at_its_own_position():
              "note": None},
             {"slot": "Flask 2", "item": None, "note": "Mana flask"}]
     assert plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"] == [
-        {"inventory_id": "Flask1", "slot_x": 3, "unique_name": "Nascent Hope"},
+        {"inventory_id": "Flask1", "slot_x": 3, "additional_text": "<b>{Nascent Hope}\nThawing Charm",
+         "unique_name": "Nascent Hope"},
         {"inventory_id": "Flask1", "slot_x": 1, "additional_text": "Mana flask"},
     ]
 
 
 def test_a_flask_or_charm_with_no_note_is_named_by_its_item_and_what_it_does():
     # So the player still sees which charm to use and when it fires: guides often equip one without a word.
-    # Its name, then its mods, implicits first. A note wins; a unique is already named; elsewhere a slot with
-    # neither adds nothing (PoB's rares are mostly "New Item").
+    # Its name, then its mods, implicits first. A note wins; elsewhere a rare with no note adds nothing
+    # (PoB's rares are mostly "New Item").
     magic = {"rarity": "MAGIC", "base": None}
     gear = [{"slot": "Charm 1", "item": {**magic, "name": "Thawing Charm of the Verdant",
                                          "implicitMods": ["Used when you become Frozen"],
@@ -170,14 +173,34 @@ def _unknown(result: dict) -> list[dict]:
 def test_a_unique_the_game_knows_is_written_by_name():
     gear = [_unique_slot("Boots", "Bones of Ullr")]
     result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
-    assert result["build"]["inventory_slots"] == [{"inventory_id": "Boots1", "unique_name": "Bones of Ullr"}]
+    assert result["build"]["inventory_slots"] == [
+        {"inventory_id": "Boots1", "additional_text": "<b>{Bones of Ullr}\nSome Base", "unique_name": "Bones of Ullr"}]
     assert _unknown(result) == []
 
 
-def test_a_unique_name_the_game_doesnt_know_is_left_out_but_the_note_stays():
+def test_a_unique_with_no_note_is_named_with_its_base_and_mods_so_the_slot_shows_it():
+    # In game, unique_name alone shows nothing on hover (2026-10-08): the note is what the player sees.
+    gear = [_unique_slot("Boots", "Bones of Ullr", implicitMods=["+100 to Stun Threshold"],
+                         explicitMods=["6% increased Movement Speed", "+40 to maximum Life"])]
+    [slot] = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"]
+    assert slot["additional_text"] == ("<b>{Bones of Ullr}\nSome Base\n\n+100 to Stun Threshold\n"
+                                       "6% increased Movement Speed\n+40 to maximum Life")
+
+
+def test_a_uniques_guide_note_wins_over_its_name():
+    gear = [_unique_slot("Boots", "Bones of Ullr", note="Wear these until 60")]
+    [slot] = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"]
+    assert slot == {"inventory_id": "Boots1", "additional_text": "Wear these until 60", "unique_name": "Bones of Ullr"}
+
+
+def test_a_unique_name_the_game_doesnt_know_is_left_out_but_the_slot_still_says_what_to_wear():
+    # The guide's note if it has one, else the item's own name, base and mods -- PoB's custom uniques are
+    # "New Item", so the mods are what says what it is.
     gear = [_unique_slot("Helmet", "New Item", note="<b>{Any ES helmet}"), _unique_slot("Gloves", "New Item")]
     result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
-    assert result["build"]["inventory_slots"] == [{"inventory_id": "Helm1", "additional_text": "<b>{Any ES helmet}"}]
+    assert result["build"]["inventory_slots"] == [
+        {"inventory_id": "Helm1", "additional_text": "<b>{Any ES helmet}"},
+        {"inventory_id": "Gloves1", "additional_text": "<b>{New Item}\nSome Base"}]
     assert _unknown(result) == [{"what": "New Item", "why": "unknown-unique"},
                                 {"what": "New Item", "why": "unknown-unique"}]
 
@@ -186,7 +209,8 @@ def test_an_unknown_unique_on_the_flask_bar_is_named_by_its_item_like_any_other(
     gear = [_unique_slot("Charm 1", "New Item", implicitMods=["Used when you become Frozen"], explicitMods=[])]
     result = plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS, unique_names=UNIQUES)
     assert result["build"]["inventory_slots"] == [
-        {"inventory_id": "Flask1", "slot_x": 2, "additional_text": "<b>{New Item}\n\nUsed when you become Frozen"}]
+        {"inventory_id": "Flask1", "slot_x": 2,
+         "additional_text": "<b>{New Item}\nSome Base\n\nUsed when you become Frozen"}]
     assert _unknown(result) == [{"what": "New Item", "why": "unknown-unique"}]
 
 
@@ -194,7 +218,7 @@ def test_without_unique_names_every_unique_is_written():
     # No snapshot list to check against (an older snapshot): written as before.
     gear = [_unique_slot("Boots", "New Item")]
     assert plan_build({**LOADOUT, "gear": gear}, "Minion Leveling", PASSIVE_IDS)["build"]["inventory_slots"] == [
-        {"inventory_id": "Boots1", "unique_name": "New Item"}]
+        {"inventory_id": "Boots1", "additional_text": "<b>{New Item}\nSome Base", "unique_name": "New Item"}]
 
 
 def test_left_out_says_what_and_why_in_the_order_met():

@@ -137,20 +137,22 @@ def _skills(groups: list[dict[str, Any]], left_out: list[dict[str, str]]) -> lis
 def _inventory_slots(
     gear: list[dict[str, Any]], left_out: list[dict[str, str]], unique_names: Collection[str] | None
 ) -> list[dict[str, Any]]:
-    """A slot's note as hover text and its unique by name; a slot with neither adds nothing. A flask or charm
-    with neither is named by its item, then its mods, so the player still sees which to use and when it fires
-    -- guides often equip one without a word; elsewhere PoB's rares are mostly "New Item", which says nothing."""
+    """A slot's note as hover text and its unique by name; a slot with neither adds nothing. With no note, a
+    unique -- known by name or not -- and a flask or charm are named by their item, then its mods: the game
+    shows nothing for unique_name alone (checked in game 2026-10-08), and guides often equip a charm without
+    a word. Elsewhere PoB's rares are mostly "New Item", which says nothing, so a rare with no note adds
+    nothing."""
     out = []
     for slot in gear:
         item = slot["item"] or {}
-        unique = item.get("name") if item.get("rarity") == "UNIQUE" else None
+        is_unique = item.get("rarity") == "UNIQUE"
+        unique = item.get("name") if is_unique else None
         if unique and unique_names is not None and unique not in unique_names:
             left_out.append({"what": unique, "why": "unknown-unique"})
             unique = None
         note = slot["note"]
-        if not (note or unique) and slot["slot"] in _FLASK_BAR and item.get("name"):
-            mods = [*item.get("implicitMods", []), *item.get("explicitMods", [])]
-            note = "\n\n".join([f"<b>{{{item['name']}}}", *(["\n".join(mods)] if mods else [])])
+        if not note and (is_unique or slot["slot"] in _FLASK_BAR) and item.get("name"):
+            note = _item_note(item)
         if not (note or unique):
             continue
         if slot["slot"] in _FLASK_BAR:
@@ -166,6 +168,16 @@ def _inventory_slots(
             entry["unique_name"] = unique
         out.append(entry)
     return out
+
+
+def _item_note(item: dict[str, Any]) -> str:
+    """An item as a slot's note: its name in bold -- and a unique's base under it -- then its mods, implicits
+    first."""
+    head = f"<b>{{{item['name']}}}"
+    if item.get("rarity") == "UNIQUE" and item.get("base"):
+        head += f"\n{item['base']}"
+    mods = [*item.get("implicitMods", []), *item.get("explicitMods", [])]
+    return "\n\n".join([head, *(["\n".join(mods)] if mods else [])])
 
 
 def compare_plans(
