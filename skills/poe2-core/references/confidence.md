@@ -25,6 +25,21 @@ claim agreement with anything else.)*
 Always add the single most important reason, not a list. When confidence is Low, name the one thing
 that would make it High ("send a screenshot of your currency tab and I can price this exactly").
 
+## Build signals: how current is the character read
+
+Advice tied to a character's numbers (resistances, ES, life, max hit, its skills and gear) is only as
+current as the read behind it.
+
+- **Current** — a PoB code or screenshot the player gave in this conversation, or one `update_state`
+  saved during it. Scores as a certain input.
+- **Saved** — a `build_snapshot` from an earlier session is as old as the character's `updated_at`.
+  Gear, level and passives change with play, not on a clock, so there's no age that's safe. Before
+  advising from it, say its date and the few numbers the advice hinges on ("from your 6 Oct PoB: res
+  capped with 15+ overcap, 4k ES — still right?"). Until the player confirms or re-pastes, **Medium at
+  best**; if they say it changed, ask for a new read rather than guessing the difference.
+- **Mismatch** — the read's class or ascendancy isn't the active character's: say so and resolve which
+  character it is (`poe2-character`) before advising.
+
 ## Market signals: read them from the tool output
 
 The market tools return these signals as fields, so score them from the numbers, not by eyeballing
