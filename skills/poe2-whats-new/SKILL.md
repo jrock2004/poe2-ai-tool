@@ -1,6 +1,7 @@
 ---
 name: poe2-whats-new
 description: Catch a returning Path of Exile 2 player up on what changed since they last played — the biggest changes, and every patch-note line about their own build — from the official patch notes. Use when the player asks "what changed since I last played", "I'm back after <league>", "what's new in <patch>", or "is my <build> still good after the patches".
+model: sonnet
 ---
 # poe2-whats-new
 

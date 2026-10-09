@@ -1,6 +1,7 @@
 ---
 name: poe2-meta-strategy
 description: Read the Path of Exile 2 market's direction — what's rising or falling this week across fragments, essences, breach, delirium, ritual, expedition, abyss and runes — and turn it into sell/hold advice for the player's own currency and farming advice by mechanic. Use when the player asks "what's moving", "what's worth more lately", "should I sell or hold my X", "what's the market doing", or "what should I farm".
+model: sonnet
 ---
 # poe2-meta-strategy
 
