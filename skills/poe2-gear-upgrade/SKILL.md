@@ -19,7 +19,9 @@ from a character import, or a screenshot), `find_stat_filters` + `build_trade_fi
 - Read the gear, best fidelity first: a **PoB code from a character import** via `parse_pob_code` (the
   real gear, with computed resistances, life/ES and DPS — ideal for diagnosis; the how-to "Get your
   character into Path of Building" gets one), else a **character screenshot**, else the player's
-  description. If a slot is unreadable, say so rather than assuming it's empty.
+  description. If a slot is unreadable, say so rather than assuming it's empty. A saved
+  `build_snapshot` from an earlier session may predate the last upgrades — check it per "Build
+  signals" in `confidence.md` before ranking slots from it.
 - **Anchor to the build's targets, don't invent them.** "What you *should* be running" depends on the
   build's plan, which the gear alone doesn't tell you. In order of preference:
   1. **A guide the player is following** — hand off to `poe2-build-review` / `fetch_guide` to get the

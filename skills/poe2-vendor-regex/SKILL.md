@@ -19,6 +19,8 @@ Vendors sell for gold, so trade and SSF characters use this the same way.
 - Resolve the character via `poe2-character` (active one, or a named override).
 - Read its gear and targets exactly as `poe2-gear-upgrade` does in **"Get the character, its gear, and
   its *targets*"**, then rank the gaps as in **"Diagnose the weak slots"** — survivability first.
+  That includes its check that a saved read is current: while leveling, gear turns over every act, so
+  a string built from old gear searches for slots already filled.
 - Know the character's **level** (from the PoB, or ask). Vendor items carry a level requirement; when
   you explain the result, remind the player that anything above their level can't be worn yet.
 - Ask for the vendor's **item level**: "hover any item at the vendor and tell me its *Item Level*."

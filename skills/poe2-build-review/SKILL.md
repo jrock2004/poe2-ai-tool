@@ -78,7 +78,9 @@ Resolve the character via `poe2-character` (active or named). Read it best-fidel
 code from a character import** via `parse_pob_code` (clean level, stats, gems, gear, tree — the how-to
 "Get your character into Path of Building" gets one), else a **screenshot or description**. **The
 character's level is the key**: it auto-selects the stage. A PoB code is especially handy here since
-both the guide and the character can be PoB-sourced and compared directly.
+both the guide and the character can be PoB-sourced and compared directly. A saved `build_snapshot`
+from an earlier session may be levels behind, and the level picks the stage — check it per "Build
+signals" in `confidence.md` first.
 
 The payoff feature: "you're level 28 → here are your 24–30 gem/gear targets, and here's exactly what
 changes when you hit 31." The player never has to figure out which tab of the guide applies. Also: if

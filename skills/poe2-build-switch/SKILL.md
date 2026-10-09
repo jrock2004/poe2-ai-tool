@@ -22,7 +22,9 @@ character), `price_unique` / `poe2-price-check` (cost of what's missing), `poe2-
 summary of the guide. Use the active (or named) character from `poe2-character`. If there isn't one,
 ask for it and the guide in **one** message — a PoB code (best) or a screenshot of gems, gear, and
 tree, plus the guide URL if it wasn't given. If the player has no character yet, offer the
-**guide-only preview** (§6) instead of a verdict.
+**guide-only preview** (§6) instead of a verdict. A saved `build_snapshot` from an earlier session
+may be out of date, and a readiness verdict turns on the current level and gear — check it per "Build
+signals" in `confidence.md` first.
 
 Then get the guide the way `poe2-build-review` §1 does (same fetch routes, same PoB-first
 preference) and structure it per `poe2-core/references/guide-structure.md` — ordered stages with
