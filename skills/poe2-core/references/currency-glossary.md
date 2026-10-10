@@ -74,9 +74,9 @@ socketable, say its kind and where it's found: *"Perfect Iron Rune (top tier of 
 
 An **Ancient Rune** of … is a Kalguuran rune; it isn't an ancient augment, despite the name.
 
-**Perfect runes** (the top tier of the general runes) have no slot in the tab's layout data. The
-Currency Exchange lists them under its own heading, **Perfect Runes**, next to Runes and Greater
-Runes. Point the player there.
+**Perfect runes** (the top tier of the general runes) have no slot in the Runes tab (checked in game,
+0.5.5): one the player owns sits in an ordinary tab or their inventory. The Currency Exchange lists
+them under its own heading, **Perfect Runes**, next to Runes and Greater Runes. Point the player there.
 
 ## Other categories (pick the right `category`)
 

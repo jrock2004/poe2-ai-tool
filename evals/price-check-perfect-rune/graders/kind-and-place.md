@@ -2,7 +2,7 @@
 type: llm
 ---
 
-The facts: Perfect Iron Rune is a real item, the top tier of the Iron Rune (a general rune, above Lesser, regular and Greater). It has no slot in the Runes stash tab; the Currency Exchange lists it under its own "Perfect Runes" heading. It is priced at about 1.9 divine (around 1,500–1,700 exalted).
+The facts: Perfect Iron Rune is a real item, the top tier of the Iron Rune (a general rune, above Lesser, regular and Greater). It has no slot in the Runes stash tab (checked in game), so one the player owns sits in an ordinary tab or their inventory; the Currency Exchange lists it under its own "Perfect Runes" heading. It is priced at about 1.9 divine (around 1,500–1,700 exalted).
 
 PASS if all of these hold:
 - It says the item is real.
