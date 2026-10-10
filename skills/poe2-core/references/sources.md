@@ -16,6 +16,10 @@ PoE1 pages mix in under the same names. So:
 - **Look it up; don't hand it over.** If a source below answers a game fact (what a gem costs or
   reserves, what a mod does), look it up before you advise. Never ask the player to check it in game,
   and never build advice on a mechanic you haven't checked.
+- **Silence isn't a "no."** Patch notes are a changelog, not a rulebook, and the knowledge files are
+  built from them — a rule that never changed isn't in either. Never answer "can I…" or "does X work"
+  from what they leave out, or from a rule they state only for something else (a Trial of Chaos rule
+  says nothing about the Sekhemas). Look the rule up; if no source here has it, say "not researched".
 
 ## By topic
 

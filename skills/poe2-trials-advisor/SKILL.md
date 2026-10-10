@@ -108,6 +108,8 @@ here can end a run.
 
 - **Ground every pick in `trial_pool`'s text, the knowledge file and the build**, not from memory of a
   past patch. If they don't cover something the player sees, say so and reason from the mechanics
-  rather than inventing a specific effect.
+  rather than inventing a specific effect. For a question about the rules ("can I leave", "do I keep
+  the loot") that neither covers, say it's not researched — never a "no" from the patch notes'
+  silence or from a rule stated only for the other trial (`sources.md` → "Silence isn't a no").
 - Keep the knowledge file current — it's part of the per-patch refresh (`CONTRIBUTING.md` step 2).
 - Plain language first for newer players (define "honour", "affliction", "max res") per `poe2-core`.

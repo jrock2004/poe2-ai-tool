@@ -16,6 +16,8 @@ refreshed: 2026-10-07
 > verbatim) and its hotfixes through 0.5.5d, plus 0.5.5e (thread 4009785; checked 2026-10-07);
 > poe-vault, Fextralife wiki, conquestcapped for Sekhemas mechanics. Third-party guides still list the
 > *pre-rework* Chaos numbers — take texts from `trial_pool`, not from them.
+> The patch-note lines here are *changes*, so this isn't every rule: one it doesn't state is not
+> researched, not "no".
 
 The two Ascendancy trials reward differently but the skill's job is the same: **match each choice to
 this build's defensive layers and damage profile**, recommend what it can safely take, and flag what
@@ -31,6 +33,9 @@ ends.** So survivability here is *not getting hit* and *honour buffer*, more tha
 0.5.5: *"The Trial of Sekhemas now has inherent bonuses starting at Area Level 65."* — more and
 stronger magic/rare packs, better boss drops — *"to compensate for Atlas Passive Bonuses not applying
 inside the Trial of Sekhemas."*
+**Leaving early.** You can leave a Sekhemas run before the last floor (confirmed in game by the player,
+2026-10-10; poe2db's trial page doesn't cover it). Whether the run can then be resumed, as a Trial of
+Chaos run can since 0.5.5, is not researched.
 
 **Relics.** Equipped into the altar grid before entering (slots unlock as you beat Trial bosses, up to
 ~18). Sizes Small/Medium/Large (larger = stronger). They grant passive bonuses for the run:
