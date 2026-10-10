@@ -105,8 +105,11 @@ Names from `get_stash_layout` are the game's own names, so they price as-is thro
   the two. Name the biggest contributors; state confidence per the rubric's **Market signals** table
   and how confident the parsed counts were. Lines left out — poe2scout's `unmatched`, the exchange's
   `untraded` and `unknown` — make that total **understated**: name them rather than presenting a full
-  total. If `source` is "exchange", poe2scout was down and only the exchange's numbers exist; if
-  `exchange.error` is set, value from poe2scout alone.
+  total — or add poe2scout's figure for those lines, labelled as poe2scout's alone. If `source` is
+  "exchange", poe2scout was down and only the exchange's numbers exist; if `exchange.error` is set,
+  value from poe2scout alone.
+- **poe2scout is not the patient-sale price.** Selling patiently at the market ratio fetches about
+  `highExalted`; where poe2scout sits above that, it's reading high, not what waiting would get.
 - **"Can I afford X?"** → compare X's price (from `poe2-price-check`; for a rare, its
   `priceStats.medianExalted`) against `exchange.lowExalted` — what selling the holdings fast would
   raise. Between that and `exchange.highExalted` it's in reach by selling at the market ratio, which

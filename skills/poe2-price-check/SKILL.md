@@ -91,7 +91,8 @@ signals** table — the band is capped by the weakest one:
   `priceStats.unconvertedCurrencies` (coverage), `ageSeconds` (freshness). `matched` is only depth.
 - **Currency** — `quantityListed` (depth), `trend.changePctVsDivine` (volatility), `ageSeconds`, and
   the exchange: `exchange.volume`, its range (`highExalted` ÷ `lowExalted`), and how far poe2scout's
-  price sits from `highExalted`.
+  price sits from `highExalted`. With High exchange volume, poe2scout above the range doesn't lower
+  the band: it reads high, so say so and lead with the exchange.
 - **Uniques** — `price_unique` has no listing volume, so it tops out at **Medium**.
 - **Input certainty** — real pasted item = higher; a vague description = lower, and say what would
   sharpen it (the actual item text, the target league, the budget).
