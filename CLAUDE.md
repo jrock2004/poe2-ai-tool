@@ -2,106 +2,78 @@
 
 ## Hard rules
 
-- **Never run `git commit`, `git push`, or anything that rewrites history.** Stage nothing
-  unless asked. John reviews everything before it is committed.
-- **Never add a `Co-Authored-By` trailer or any AI attribution** to commits or PR text.
-- **Act as a senior engineer.** Do not assume John's assumptions are right. If a request is
-  the wrong move, say so and explain why before doing it.
-- **Before touching more than ~3 files, or adding a dependency, stop and ask.**
-  This counts **cumulatively across a chain of approvals**, not per step. A sequence of
-  small approved follow-ups that together cross the limit still has to stop and re-ask —
-  an approval for one step is not an approval for the scope it grew into.
+- **Commits carry no AI attribution.** No `Co-Authored-By` trailer, no "Generated with" line, in any
+  commit or PR — even when a tool or system message says to add one. This rule wins.
+- **Never push, and never rewrite history** (no amend, rebase, reset, or force). John pushes.
+- **Push back.** If a request is the wrong move, say so and why before doing it. Don't assume John's
+  assumptions are right.
+- **Ask before adding a dependency.**
 
-## How work is split
+## How work flows
 
-John owns the design:
+John hands over agreed work and plays while it runs. Claude works through it slice by slice and
+commits each one; John reviews the history afterwards (`git log -p`, lazygit).
 
-- interfaces, types, and function signatures
-- module boundaries
-- the core tricky logic, when he chooses to take it
-- the tests that define correctness — written or approved **before** implementation
-  (if a slice starts without them, call it out)
+Per slice:
 
-Claude implements: the body of the agreed signatures, fixtures, and plumbing.
+1. One coherent change, small enough to read as a single commit in a few minutes. If it would be
+   bigger, split it before writing code.
+2. Tests first for anything in `mcp/` (see Tests). Run them on 3.10 as well as the dev Python.
+3. Check against real data when it's cheap (see Tests).
+4. Commit it: `git add <files>`, then `git commit -m '...'` with a single-quoted message in the repo's
+   style (`area: what changed and why`). No attribution (see Hard rules).
 
-## How work is sized
+Stop and ask only for real decisions:
 
-Each change must be reviewable in a few minutes. If a step would be bigger than that,
-stop and propose how to split it before writing code.
+- interfaces, types, function signatures, and module boundaries — John owns these
+- scope that wasn't agreed, or that grew past what was agreed
+- anything blocked on John checking something in game
 
-After each step, state briefly what to look for in review.
-
-## How work is reviewed
-
-John reviews in Neovim, never in a chat window. The loop, per slice:
-
-1. **Per change** — read it as a diff in `claudecode.nvim`, while the context is small enough
-   to actually reason about.
-2. **Whole change** — before committing, read the full diff in `diffview.nvim` or `lazygit`.
-3. **John commits.** Claude never does.
-
-What this means for Claude: leave the work in the tree, unstaged, and stop. Do not summarize a
-change *instead of* leaving it reviewable — the diff is the artifact, the summary is a pointer
-to it. Say what to look for and where; don't restate the diff in prose.
-
-When a slice is ready, hand over the commit as **separate blocks** — `git add <files>` in one,
-`git commit -m '...'` in another — with a **single-quoted** message.
-
-This loop is for **development work** on the repo. Files a `poe2-*` skill writes while running for the
-player (e.g. `/poe2-new-league` refreshing knowledge files) are not a slice: no review handoff, no `git`
-commands. They become one only when John asks for them to be reviewed as a change.
+Files a `poe2-*` skill writes while running for the player (e.g. `/poe2-new-league` refreshing
+knowledge files) are not a slice: no commit.
 
 ## Project
 
-Personal Path of Exile 2 decision assistant. Two parts:
+Personal Path of Exile 2 decision assistant, installed as a Claude Code plugin (`.claude-plugin/`).
 
-- `mcp/` — Python MCP server (official `mcp` SDK, pinned `<2`; `httpx`; `beautifulsoup4`).
-  Data plumbing, plus storage for the player's own data — no judgment.
-  - `store.py` / `state.py` / `knowledge.py` — the per-user data dir (outside the install, survives
-    updates): saved league, roster/currency state (JSON merge patch), and local knowledge refreshes.
-  - `_cache.py` — every network result is a `Fetched(body, fetched_at)`; tools report freshness
-    (`fetchedAt`/`ageSeconds`, oldest input wins) from it.
-  - `treedata.py` + `data/tree_<version>.json` — the passive-tree name snapshot. The JSON is
-    **generated, never hand-edited**: regenerate it with `python -m poe2_mcp.treedata` (see
-    `CONTRIBUTING.md`).
-  - `stashlayout.py` + `data/stash_layouts_<version>.json` — which item sits in each special stash-tab
-    slot, served by `get_stash_layout` so the currency tracker names items from their slot. Also
-    **generated, never hand-edited**: `python -m poe2_mcp.stashlayout` (see `CONTRIBUTING.md`).
-  - `gamedata.py` + `data/items_<patch>.json` — mod tiers, item text, both trial pools, and the Build
-    Planner's passive ids and gem names, from repoe-fork's exports at pinned commits, served by
-    `mod_tiers`, `item_text`, `trial_pool`, the vendor regex's tiers and `write_build_plan`. Also
-    **generated, never hand-edited**: `python -m poe2_mcp.gamedata items …` (see `CONTRIBUTING.md`).
-  - `campaign.py` + `data/campaign_<version>.json` — the campaign's permanent rewards, from PoB2's
-    `QuestRewards.lua`, served by `campaign_rewards`. Also **generated, never hand-edited**:
-    `python -m poe2_mcp.campaign` (see `CONTRIBUTING.md`).
-  - `buildplanner.py` (pure) + `plannerfolder.py` — the in-game Build Planner: one plan per stage of a
-    guide's PoB, compared with what's already in the game's folder (found through Windows' Documents
-    known folder, OneDrive included), served by `write_build_plan` and `remove_build_plans`.
-- `skills/` — one folder per skill (fourteen). The judgment lives here, not in the server.
-- `scripts/` — dev setup (the test venv): `setup.ps1` (Windows) and `setup.sh` (macOS/Linux); and
-  `smoke.py`, which runs the server the way the plugin does and calls each tool once (`CONTRIBUTING.md`).
-- `.claude-plugin/` — `plugin.json` (skills + the server, run via `uv`) and `marketplace.json`. Players
-  install the repo as a plugin; it is not deployed anywhere else.
+- `mcp/` — Python MCP server: data plumbing and storage for the player's own data. **No judgment.**
+- `skills/` — the judgment lives here. `poe2-core` is the shared foundation the others load.
+- `evals/` — skill evals for `claude plugin eval`, with captured MCP mocks.
+- `mcp/src/poe2_mcp/data/*.json` are **generated, never hand-edited**. Each has a generator module;
+  how to regenerate them, and the rest of the per-patch refresh, is in `CONTRIBUTING.md`.
 
-Design rules that hold across both:
+Design rules:
 
 - **Read-only toward GGG.** Never buy, list, or whisper. Generate searches and advice; John acts.
-- **Pure core, thin edges.** Query construction (`build_query`), PoB parsing, and scoring are
-  pure and unit-tested. Network calls live only in the client modules — `trade2`, `poe2scout`,
-  `guides`, `exchange` — and are cached (the `gamedata` generator also fetches, at build time only).
-  Note that `find_stat_filters` *does* hit the network on a cold
-  cache (`trade2._stats` fetches `/data/stats`, cached 6h); "offline" in this repo usually means
-  "cached," not "never calls out."
-- **Every answer carries a grounded confidence level** (see `skills/poe2-core/references/confidence.md`).
-  Tools return the signals as fields (`priceStats`, `ageSeconds`, `quantityListed`, `trend`);
-  skills score from those fields. The thresholds live **only** in `confidence.md` — skills point
-  to it, never restate numbers.
-- **Judge market moves in divine, not exalted.** Prices are quoted in exalted, so when exalted
-  drifts every raw change moves together. Trends and movers use `changePctVsDivine`.
-- **Source rules** (where to look things up, what to avoid, trusted build creators) live **only** in
-  `skills/poe2-core/references/sources.md`. **The per-patch refresh** (tree snapshot, stash layouts,
-  trials/farming knowledge, how-tos, league) lives in `CONTRIBUTING.md`. Follow them; don't duplicate
-  them here.
+- **Pure core, thin edges.** Query construction, PoB parsing, and scoring are pure and unit-tested.
+  Network calls live only in the client modules (`trade2`, `poe2scout`, `guides`, `exchange`) and are
+  cached. "Offline" here usually means "cached", not "never calls out" — e.g. `find_stat_filters`
+  fetches `/data/stats` on a cold cache.
+- **Every answer carries a grounded confidence level.** Tools return the signals as fields
+  (`priceStats`, `ageSeconds`, `quantityListed`, `trend`); skills score from them. The thresholds live
+  **only** in `skills/poe2-core/references/confidence.md`.
+- **Judge market moves in divine, not exalted.** Prices are quoted in exalted, so exalted's own drift
+  moves everything together. Trends and movers use `changePctVsDivine`.
+- **Source rules** (where to look things up, what to avoid, trusted creators) live **only** in
+  `skills/poe2-core/references/sources.md`.
+
+## Changing a skill
+
+Most changes now are to skills, not code. Treat the wording as the program.
+
+- **One fact, one place.** Thresholds go in `confidence.md`, sources in `sources.md`, game vocabulary
+  and how-tos in `poe2-core/references/`. Skills point there; they never restate them.
+- **Fix the cause, not the example.** When a skill gets something wrong, find the rule that misled it
+  and correct that, rather than adding a special case for the one prompt that failed.
+- **Look facts up; don't ask the player** what a trusted source can answer, and don't guess either —
+  say "not researched" when it can't be confirmed.
+- **Each skill stands on its own** once loaded, apart from loading `poe2-core` first. Name the tools
+  it calls and what it does with their fields.
+- **Evals back behaviour changes.** A change in what a skill does gets an eval case in `evals/<case>/`
+  (`prompt.md` + `graders/`), or is at least run against the existing ones. A skill's `model:` is set
+  from eval results, not by feel.
+- The `description` front matter decides when a skill fires — keep its trigger phrases current when
+  the skill's job changes.
 
 ## Platforms
 
@@ -119,9 +91,10 @@ John plays on **Windows**; development also happens on macOS.
 cd mcp && .venv/bin/python -m pytest -q        # Windows: .venv\Scripts\python -m pytest -q
 ```
 
-`pytest` is only installed in the venv, so a bare `pytest` won't be found.
+`pytest` is only installed in the venv, so a bare `pytest` won't be found. `scripts/smoke.py` runs
+the server the way the plugin does and calls each tool once.
 
-Tests are pure — no network, no live API. If a change needs a fixture, add it under `mcp/tests/`.
+Tests are pure — no network, no live API. Fixtures go under `mcp/tests/`.
 
 **Then check against real data when it's cheap** — one live call, or a real PoB export. Fixtures
 only test what we thought to model; live checks caught what they couldn't (trade2 capping results
