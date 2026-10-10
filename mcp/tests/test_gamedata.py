@@ -39,6 +39,8 @@ CURRENCY = "Metadata/Items/Currency/"
 BODY_ESSENCE = CURRENCY + "CurrencyGreaterEssenceLife"
 ROBUST_RUNE = "Metadata/Items/SoulCores/RuneStrengthLesser"
 THESIS = "Metadata/Items/SoulCores/ThesisOfBlood"
+CUT_RUNE = "Metadata/Items/SoulCores/RuneOfTheAncients32"
+CUT_AXE = "Metadata/Items/Weapons/OneHandWeapons/OneHandAxes/FourOneHandAxe3Endgame"
 
 
 @pytest.mark.parametrize("raw, clean", [
@@ -91,6 +93,13 @@ MODS_BY_BASE = {
             "conditional_mods": None,
         },
     },
+    "One Hand Axes": {
+        "axe,one_hand_weapon,default": {
+            "bases": [CUT_AXE],
+            "mods": {"prefix": {"IncreasedLife": {"IncreasedLife1": 1}}, "suffix": {}},
+            "conditional_mods": None,
+        },
+    },
     "Stackable Currency": {
         "currency,default": {"bases": ["Metadata/Items/Currency/CurrencyModValues"], "mods": {}, "conditional_mods": None},
     },
@@ -133,6 +142,8 @@ BASE_ITEMS = {
     "Metadata/Items/Weapons/TwoHandWeapons/TwoHandSwords/TwoHandSwordDev":
         _base("Keyblade", "Two Hand Sword", 1, release_state="unreleased"),
     "Metadata/Items/Currency/CurrencyModValues": _base("Divine Orb", "StackableCurrency", 1),
+    # GGG marks a cut item "[DNT]" (do not translate) in its name but can leave it "released".
+    CUT_AXE: _base("[DNT] Aged Axe", "One Hand Axe", 77, strength=89, dexterity=36),
     # For the text: real descriptions and directions, markup and line endings as the export has them.
     CURRENCY + "CurrencyRerollRare": _stackable(
         "Chaos Orb", "StackableCurrency",
@@ -166,6 +177,10 @@ BASE_ITEMS = {
         "Place into an empty [Augment] Socket in any Equipment to apply its effect to that item. Once socketed "
         "it cannot be retrieved but can be replaced by other [Augment] items.", ""),
     THESIS: _stackable("Guatelitzi's Thesis", "SoulCore", None, None),  # the export has no text for it
+    CUT_RUNE: _stackable(
+        "[DNT-Unused] Rune of Chance", "SoulCore",
+        "Place into an empty [Augment] Socket in a One Hand Mace or Quarterstaff to apply its effect to that item.",
+        ""),
 }
 # What PoE2's Currency Exchange trades, of those: all but Orb of Scouring.
 TRADED = {
@@ -213,6 +228,11 @@ def test_build_items_lists_only_the_tiers_a_pool_uses():
 def test_build_items_leaves_out_unreleased_bases_and_non_equipment_classes():
     bases = _items()["bases"]
     assert "Keyblade" not in bases and "Divine Orb" not in bases
+
+
+def test_build_items_leaves_out_bases_the_game_marks_cut():
+    # "[DNT] Aged Axe" is "released" in the export but isn't in the game.
+    assert "[DNT] Aged Axe" not in _items()["bases"]
 
 
 def test_build_items_merges_same_named_bases_with_the_same_pool():
@@ -268,6 +288,12 @@ def test_build_texts_keeps_only_traded_items_that_have_text_by_name():
     # doesn't trade them. A traded item with neither text (a Reliquary Key) has nothing to quote.
     assert list(_texts()) == [
         "Cadigan's Epiphany", "Chaos Orb", "Flesh Catalyst", "Omen of Sinistral Erasure", "Transmutation Shard"]
+
+
+@pytest.mark.parametrize("extras", [None, {CUT_RUNE: {"adds": [{"on": "All", "text": "+6 to Strength"}]}}])
+def test_build_texts_leaves_out_items_the_game_marks_cut(extras):
+    # A "[DNT-Unused]" rune has text, and augments.json gives it an effect, but it isn't in the game.
+    assert "[DNT-Unused] Rune of Chance" not in build_texts(BASE_ITEMS, TRADED | {CUT_RUNE}, extras)
 
 
 def test_build_texts_refuses_a_traded_item_it_cant_resolve():

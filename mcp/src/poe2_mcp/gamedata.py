@@ -62,6 +62,13 @@ _TEXT_MATCHES = 20
 _DISPLAY_TAG_RE = re.compile(r"<[^>]*>\{([^}]*)\}")
 _DISPLAY_LINK_RE = re.compile(r"\[([^\]|]*)(?:\|([^\]]*))?\]")
 _NUMBER_RE = re.compile(r"\d+")
+# GGG's mark on a cut item's name ("[DNT] Aged Axe", "[DNT-Unused] Rune of Chance"): do not translate. The
+# export can still call the item released.
+_CUT_PREFIX = "[dnt"
+
+
+def _is_cut(name: str) -> bool:
+    return name.lower().startswith(_CUT_PREFIX)
 
 
 def clean_text(line: str) -> str:
@@ -82,7 +89,7 @@ def build_items(
     - groups: each distinct mod pool, {"prefix"|"suffix": {family: [tier ids in item-level order]}}.
       Tag groups that roll the same mods share one pool.
     - bases: name -> variants [{"class", "group" (index into groups), "requirements": {level, str, dex,
-      int}}]. Released bases of `classes` only. Same-named bases that roll the same pool with the same
+      int}}]. Released bases of `classes` only, less the ones GGG marks cut ("[DNT] ..."). Same-named bases that roll the same pool with the same
       requirements are one variant; the rest stay apart, lowest level first.
     - mods: tier id -> {"name", "side", "level" (the item-level gate), "family", "text"}, for the tiers
       some pool uses.
@@ -116,7 +123,7 @@ def build_items(
                 base = base_items.get(base_id)
                 if base is None:
                     raise ValueError(f"{item_class} / {tags} lists base {base_id}, which base_items.json doesn't have")
-                if base.get("release_state") != "released":
+                if base.get("release_state") != "released" or _is_cut(base["name"]):
                     continue
                 req = base.get("requirements") or {}
                 requirements = {"level": req.get("level", 0), "str": req.get("strength", 0),
@@ -150,7 +157,7 @@ def build_texts(
     `ids` is base ids: what PoE2's Currency Exchange trades (`exchange_ids`), plus the augments. text is
     the item's description, use its directions ("Right click this item then left click a rare item to
     apply it."), each as a player reads it (`_game_text`), or "" if it has none. An item with none of
-    text, use and extras is left out. An id that base_items doesn't have raises ValueError -- the two
+    text, use and extras is left out, and so is one GGG marks cut ("[DNT-Unused] Rune of Chance"). An id that base_items doesn't have raises ValueError -- the two
     exports came from different game versions -- and so do two items with one name, since the text is
     looked up by name.
     """
@@ -163,7 +170,7 @@ def build_texts(
             raise ValueError(f"{base_id} isn't in base_items.json")
         props = base.get("properties") or {}
         text, use = _game_text(props.get("description")), _game_text(props.get("directions"))
-        if not (text or use or base_id in extras):
+        if not (text or use or base_id in extras) or _is_cut(base["name"]):
             continue
         name = base["name"]
         if name in seen:
