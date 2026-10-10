@@ -13,6 +13,9 @@ refreshed: 2026-10-05
 > families come from **poe2scout's live category lists**, not from memory. Not used: poe2wiki
 > (bot-challenge wall), game8 (blocks AI crawlers), Maxroll (license forbids AI use), and the
 > currency-seller "guide" sites that dominate search results.
+>
+> The patch-note lines here are *changes*, so this isn't every rule: one it doesn't state is not
+> researched, not "no".
 
 This file says **how each mechanic is targeted and what its outputs are for**. It deliberately has
 **no yields, drop rates, or run times** — nothing reliable reports them. Pair it with

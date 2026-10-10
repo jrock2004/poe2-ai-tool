@@ -53,7 +53,8 @@ explain things to newcomers consistently.
    found nothing to change, say so in a line, or skip it.
 8. **Look things up only where `references/sources.md` says.** Tools and knowledge files first; on the
    web, only the listed domains for that topic. If they don't have it, say "not researched" rather
-   than searching wider or answering from memory.
+   than searching wider or answering from memory. A rule the patch notes or knowledge files don't
+   state is not researched, not a "no" (`references/sources.md` → "Silence isn't a no").
 
 ## Player & character state (shared model)
 
