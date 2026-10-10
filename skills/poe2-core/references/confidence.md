@@ -53,9 +53,9 @@ These thresholds are starting defaults; tune them here, not in individual skills
 | Currency depth | `get_currency_prices` → `quantityListed` | ≥ 1,000 | 50–999 | < 50 |
 | Currency volatility | `trend.changePctVsDivine` (7-day) | within ±10% | ±10–30% | beyond ±30% |
 | Freshness | `ageSeconds` (every market tool) | ≤ 300 | 300–3,600 | > 3,600 → re-query first |
-| Exchange volume | `exchange.volume` (units traded, last hour) | ≥ 100 | 10–99 | < 10 |
-| Exchange range | `exchange.highExalted` ÷ `exchange.lowExalted` | ≤ 1.5 | 1.5–3 | > 3 |
-| Source agreement | `priceExalted` vs `exchange` low–high | within 1.25× of the range | 1.25–2× | > 2× outside |
+| Exchange volume | `exchange.volume` (units traded, last hour) | ≥ 50 | 10–49 | < 10 |
+| Exchange range | `exchange.highExalted` ÷ `exchange.lowExalted`, scored only at volume ≥ 10 | ≤ 3 | 3–5 | > 5 |
+| Source agreement | `priceExalted` vs `exchange` low–high | within 1.5× of the range | 1.5–3× | > 3× outside |
 | Move agreement | `changePctVsDivine` vs the `exchange` one | same way, within 15 points | same way | opposite ways |
 | Conversion coverage | `priceStats.unconvertedCurrencies` | empty | some, < 25% of `count` | ≥ 25% of `count` |
 
@@ -85,6 +85,14 @@ How to read them:
   `averageExalted` sits near one end on high volume, call the far end a stray rather than the market.
   When poe2scout sits above `highExalted`, it's reading high — lead with the exchange and say so ("the
   exchange traded it at 1–5 ex last hour; poe2scout's 11.9 is above anything that traded").
+- **The exchange rows are measured** (Forbidden Rites, 24 hours of trades and 558 items against
+  poe2scout, 2026-10-10). Under 10 units the next hour's buy price moved 36% or more for a quarter of
+  items; from 10 up that settles near 20%, and 50+ is as steady as it gets. **A tight range is not a
+  better one:** under 10 units it's usually a single trade (low = high), and even with volume a range
+  under 1.25× missed the next hour's price almost five times as often as a 2–3× one. Past 5×, expect
+  stray trades. When the sources disagree, poe2scout sits above the range almost every time (96%) — it reads high,
+  it isn't noise. So **with High exchange volume, a disagreement doesn't lower the band**: lead with
+  the exchange and say poe2scout reads high. It counts when the exchange is thin.
 - **The exchange hour has its own age.** It's history by design: `exchange.ageSeconds` up to ~3,600 is
   normal, so don't score it with the Freshness row. Top-level `ageSeconds` is poe2scout's alone. If
   `exchange.error` is set, the exchange was down: price from poe2scout alone and skip the exchange rows.
