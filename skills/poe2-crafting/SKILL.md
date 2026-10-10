@@ -84,7 +84,8 @@ List the 1–3 paths that can actually reach the goal, cheapest first:
   `adds` has it `on` this kind of item ("All" is any equipment) gives that effect. It needs an empty
   Augment socket (an Artificer's Orb adds one). Check its `limit` against what's already socketed and
   its `level` against the character's. Count a `bonded` effect only for a Shaman with Wisdom of the
-  Maji. Say what its text says about replacing it later — some can't be.
+  Maji. Say what its text says about replacing it later — some can't be. Name it with its kind and
+  where it's found (`poe2-core/references/currency-glossary.md` → "Socketables").
 - **Buy it** (trade leagues only — see §5).
 
 On a corrupted item, the only paths are the currencies made for corrupted items, or a new item. Say

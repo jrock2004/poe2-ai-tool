@@ -27,6 +27,9 @@ If they don't know how to copy an item, give the one-liner from `poe2-core/refer
   exalted and divine. Each item's `exchange` is what GGG's Currency Exchange traded in its last hour:
   lead with that range (buying costs about `highExalted`), and use poe2scout's price as the reference
   beside it — the rubric says how to read the two together.
+- A rune, soul core, idol or augment: also say what kind it is and where the player finds it, from
+  `poe2-core/references/currency-glossary.md` → "Socketables". Perfect runes aren't in the stash
+  tab, so a player who doubts one exists needs to hear where it actually is.
 - Unique: `price_unique(name)` — exact match returns the reference price; otherwise it returns
   close-name suggestions. If there's no match, say so and offer the nearest names; don't invent a price.
 - League defaults to the saved one (the active character's); pass `league` only to override.

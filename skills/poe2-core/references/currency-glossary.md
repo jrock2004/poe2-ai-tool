@@ -51,6 +51,33 @@ as `lesser-jewellers-orb`, `greater-jewellers-orb`, `perfect-jewellers-orb`; Exa
 Transmutation/Augmentation each have `greater-*` and `perfect-*` variants. Higher tier = stronger
 effect and higher price. When a player says "greater ex" or "perfect regal", match the tier prefix.
 
+The tiers are not a pattern to extend: not every item has every tier (there is a Greater Tempered
+Rune but no Perfect one). An item exists when `item_text` or a price tool returns it, not because its
+siblings do.
+
+## Socketables: runes, soul cores, idols, ancient augments
+
+Everything that goes in a socket is kept in the **Runes** stash tab, which has five pages. A player
+who has only ever seen one page can take a name from another for a made-up item, so when you name a
+socketable, say its kind and where it's found: *"Perfect Iron Rune (top tier of the Iron Rune, level
+50; on the Currency Exchange under Perfect Runes)"*.
+
+`get_stash_layout("socketable")` says which page holds an item (`subTab`, counted from 0):
+
+| `subTab` | Page | Names look like |
+|---|---|---|
+| 0 | General runes | Lesser / (base) / Greater Iron, Desert, Body… Rune; Greater Rune of …; *Name*'s Rune of … |
+| 1 | Kalguuran Runes (the page's in-game tooltip) | Warding Rune of …, Ancient Rune of …, Rune of …, … of Aldur, Masterwork Rune |
+| 2 | Soul cores | Soul Core of …, *Name*'s Soul Core of … |
+| 3 | Idols | *Animal* Idol, Idol of … |
+| 4 | Ancient augments | *Name*'s Gaze, *Name*'s Thesis, Emergent …, Carved …, Raven-Touched Shard |
+
+An **Ancient Rune** of … is a Kalguuran rune; it isn't an ancient augment, despite the name.
+
+**Perfect runes** (the top tier of the general runes) have no slot in the tab's layout data. The
+Currency Exchange lists them under its own heading, **Perfect Runes**, next to Runes and Greater
+Runes. Point the player there.
+
 ## Other categories (pick the right `category`)
 
 `get_currency_prices` is per-category. Beyond `currency`, poe2scout exposes: `fragments`, `runes`,

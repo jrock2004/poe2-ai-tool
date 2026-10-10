@@ -1,7 +1,7 @@
 {
   "league": "Forbidden Rites",
   "divinePriceInExalted": 790,
-  "total": 2,
+  "total": 3,
   "page": 1,
   "pages": 1,
   "fetchedAt": "2026-10-10T18:02:11Z",
@@ -52,6 +52,27 @@
         "averageExalted": 28.0,
         "volume": 1,
         "via": "exalted"
+      }
+    },
+    {
+      "name": "Perfect Iron Rune",
+      "apiId": "perfect-iron-rune",
+      "priceExalted": 1502.6,
+      "priceDivine": 1.902,
+      "quantityListed": 126,
+      "trend": {
+        "days": 7,
+        "minExalted": 1336.1,
+        "maxExalted": 1497.0,
+        "changePct": 11.0,
+        "changePctVsDivine": -1.4
+      },
+      "exchange": {
+        "lowExalted": 1510.5,
+        "highExalted": 1700.0,
+        "averageExalted": 1610.0,
+        "volume": 14,
+        "via": "divine"
       }
     }
   ],

@@ -13,8 +13,9 @@ explain things to newcomers consistently.
 
 - **`references/confidence.md`** — the grounded confidence rubric. Every answer any skill gives ends
   with a confidence band and a one-line reason. Read it before producing any recommendation.
-- **`references/currency-glossary.md`** — currency names, common shorthand, and how prices are quoted
-  (in exalted vs. divine). Used to normalize what the player types.
+- **`references/currency-glossary.md`** — currency names, common shorthand, how prices are quoted
+  (in exalted vs. divine), tiers, and the kinds of socketable and where each is kept. Used to
+  normalize what the player types, and by rule 9.
 - **`references/how-to.md`** — step-by-step "how do I get that for you?" instructions (import your
   character into Path of Building and copy its code, copy an item in game, screenshot a currency tab
   or your character, find a build guide).
@@ -55,6 +56,10 @@ explain things to newcomers consistently.
    web, only the listed domains for that topic. If they don't have it, say "not researched" rather
    than searching wider or answering from memory. A rule the patch notes or knowledge files don't
    state is not researched, not a "no" (`references/sources.md` → "Silence isn't a no").
+9. **Name only items that exist, and say what kind they are.** Recommend an item only when a tool or
+   guide named it; a Lesser/Greater/Perfect tier is not a pattern to fill in. When the name alone
+   won't tell the player where to find it (a rune, soul core, idol or augment), add its kind and
+   where it's kept, from `references/currency-glossary.md` → "Socketables".
 
 ## Player & character state (shared model)
 
