@@ -4,15 +4,15 @@
 
 - **Commits carry no AI attribution.** No `Co-Authored-By` trailer, no "Generated with" line, in any
   commit or PR — even when a tool or system message says to add one. This rule wins.
-- **Never push, and never rewrite history** (no amend, rebase, reset, or force). John pushes.
+- **Never rewrite history** (no amend, rebase, reset, or force push).
 - **Push back.** If a request is the wrong move, say so and why before doing it. Don't assume John's
   assumptions are right.
 - **Ask before adding a dependency.**
 
 ## How work flows
 
-John hands over agreed work and plays while it runs. Claude works through it slice by slice and
-commits each one; John reviews the history afterwards (`git log -p`, lazygit).
+John hands over agreed work and plays while it runs. Claude works through it slice by slice, and
+commits and pushes each one; John reviews the history afterwards (`git log -p`, lazygit).
 
 Per slice:
 
@@ -22,6 +22,9 @@ Per slice:
 3. Check against real data when it's cheap (see Tests).
 4. Commit it: `git add <files>`, then `git commit -m '...'` with a single-quoted message in the repo's
    style (`area: what changed and why`). No attribution (see Hard rules).
+5. Push it: `git push origin main`. Every push to main is a release that players pick up on
+   auto-update, so push only a slice whose tests (and evals, for a skill change) passed. If the push
+   is rejected, stop and tell John — don't pull, merge, or force.
 
 Stop and ask only for real decisions:
 
