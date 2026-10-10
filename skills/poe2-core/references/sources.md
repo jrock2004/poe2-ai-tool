@@ -43,7 +43,7 @@ PoE1 pages mix in under the same names. So:
 | Build guides | the player's link or PoB code, via `fetch_guide` | — | Follow its `route`. See "Build creators" for whose guides to trust. To help pick one (`poe2-build-picker`): a matching creator's build list. |
 | Build popularity (what people play) | the player, on `poe.ninja/poe2/builds` — give them the link | — | Never read it ourselves; see "Avoid". |
 
-Domains for `allowed_domains`: `pathofexile.com`, `pathofexile2.com`, `poe2db.tw`, `github.com`.
+Domains for `allowed_domains`: `pathofexile.com`, `pathofexile2.com`, `poe2db.tw`, `github.com`, `poe-vault.com`.
 
 ## Avoid
 
