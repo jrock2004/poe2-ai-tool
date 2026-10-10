@@ -5,7 +5,8 @@ model: sonnet
 ---
 # poe2-whats-new
 
-Load `poe2-core` first. A returning player wants to know what changed while they were away — above all,
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. A returning player wants to know what changed while they were away — above all,
 whether their build still works. This answers from the official patch notes only: quoted, with the
 patch, never from memory or a community summary.
 

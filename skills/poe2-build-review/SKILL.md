@@ -4,7 +4,8 @@ description: Compare the player's Path of Exile 2 character to a build guide and
 ---
 # poe2-build-review
 
-Load `poe2-core` first. This skill answers "how do I stack up against the guide I'm following?" — it
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. This skill answers "how do I stack up against the guide I'm following?" — it
 reads the guide, reads the character, figures out **which stage of the guide the character is actually
 at** (by level), and produces a diff that separates *"you've deviated from the plan"* from *"you're
 just behind on gearing for your level."* Those two are very different advice and must not be conflated.

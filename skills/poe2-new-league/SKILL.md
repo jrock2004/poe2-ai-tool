@@ -5,7 +5,8 @@ disable-model-invocation: true
 ---
 # poe2-new-league
 
-Load `poe2-core` first. This is a **checklist**, run once per league start. It saves the new league as the
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. This is a **checklist**, run once per league start. It saves the new league as the
 default, reads the patch notes, refreshes the knowledge they made
 stale, and hands off to `poe2-character` for the build itself. It does **not** regenerate the tree
 snapshot or collect build guides — those belong to `CONTRIBUTING.md` and `poe2-character`.

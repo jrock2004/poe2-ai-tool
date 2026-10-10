@@ -5,7 +5,8 @@ argument-hint: "[new]"
 ---
 # poe2-character
 
-Load `poe2-core` first. This one skill owns the whole roster lifecycle — onboard, list, update, and set
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. This one skill owns the whole roster lifecycle — onboard, list, update, and set
 active — so the other skills always know *who* they're working on and *what* their build is trying to
 do. Switching the active character is a state update here, **not** a separate skill.
 

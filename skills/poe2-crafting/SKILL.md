@@ -4,7 +4,8 @@ description: Say whether a Path of Exile 2 crafting currency is worth using on a
 ---
 # poe2-crafting
 
-Load `poe2-core` first. One item, one goal, one currency: **can this currency get the item to the
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. One item, one goal, one currency: **can this currency get the item to the
 goal, and is it the best way to spend it?** The answer is often "no — that orb can't change that
 mod," and saying so before any cost talk is the skill's main value.
 

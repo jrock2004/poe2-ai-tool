@@ -4,7 +4,8 @@ description: Help the player choose a Path of Exile 2 build to play — a shortl
 ---
 # poe2-build-picker
 
-Load `poe2-core` first. One question: **what should the player play?** The answer is a shortlist of 2–3
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. One question: **what should the player play?** The answer is a shortlist of 2–3
 current guides that fit them, each with why, and then the player picks — the skill never picks for them.
 The pick goes to `poe2-character`, which starts the character from the guide.
 

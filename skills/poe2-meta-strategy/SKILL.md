@@ -5,7 +5,8 @@ model: sonnet
 ---
 # poe2-meta-strategy
 
-Load `poe2-core` first. This skill answers "where is the market heading?" from data, not vibes: the
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. This skill answers "where is the market heading?" from data, not vibes: the
 `market_movers` tool gives each category's biggest 7-day risers and fallers, measured **in divine**
 so exalted's own drift doesn't fake a trend. It pairs with `poe2-currency-tracker` to turn that
 into "sell this, hold that" for what the player actually owns.

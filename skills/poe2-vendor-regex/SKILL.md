@@ -4,7 +4,8 @@ description: Build a Path of Exile 2 vendor search string that lights up the ite
 ---
 # poe2-vendor-regex
 
-Load `poe2-core` first. One string the player pastes into a vendor's search box, so that only the items
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. One string the player pastes into a vendor's search box, so that only the items
 worth buying for **this** character light up: the mods its current gear is missing, on bases the build
 can use, with everything else hidden.
 

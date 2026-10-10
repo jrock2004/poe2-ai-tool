@@ -4,8 +4,8 @@ description: Advise which relics, boons, afflictions, or rewards to pick in the 
 ---
 # poe2-trials-advisor
 
-Load `poe2-core` first, then call `get_knowledge('trials')` before advising — it holds how the trials
-work and how to choose. What a trial can offer, in its exact text, comes from `trial_pool`. Both are
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; then call
+`get_knowledge('trials')` before advising — it holds how the trials work and how to choose. What a trial can offer, in its exact text, comes from `trial_pool`. Both are
 **patch-dependent**, so their freshness feeds directly into your confidence (see below).
 
 The job: given **this build's** defensive layers and damage profile, say what to **take** and what to

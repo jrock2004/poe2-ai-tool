@@ -4,7 +4,8 @@ description: Track the player's Path of Exile 2 currency by reading screenshots 
 ---
 # poe2-currency-tracker
 
-Load `poe2-core` first. There is **no PoE2 stash API**, so the inventory can't be read from the game —
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. There is **no PoE2 stash API**, so the inventory can't be read from the game —
 the player sends **screenshots** of their special stash tabs and this skill reads them (vision)
 into a remembered inventory per league and trade mode, then values it and answers "can I afford this?".
 

@@ -4,7 +4,8 @@ description: Decide whether the player's Path of Exile 2 character is ready to s
 ---
 # poe2-build-switch
 
-Load `poe2-core` first. One question: **is this character ready to move to the guide's next variant
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
+and aren't restated. One question: **is this character ready to move to the guide's next variant
 (leveling → mid-game → endgame), and if not, what's in the way?** The answer is a readiness verdict
 and an ordered plan, not a fix list.
 

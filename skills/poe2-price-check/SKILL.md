@@ -4,8 +4,9 @@ description: Price a Path of Exile 2 item or currency and say what it's realisti
 ---
 # poe2-price-check
 
-Load `poe2-core` first — it owns the confidence rubric, the beginner how-to reference, and the
-"never auto-trade" rule. This skill turns a currency name, a unique, or a pasted rare item into a
+**Before any other tool call, invoke the `poe2-core` skill** with the Skill tool. Its rules apply to
+every answer here and aren't restated: the confidence rubric, the how-to reference, sources, naming
+only real items, and never auto-trading. This skill turns a currency name, a unique, or a pasted rare item into a
 realistic price and (for rares) a ready-to-use trade search, always with a grounded confidence band.
 
 ## Decide what you're pricing
