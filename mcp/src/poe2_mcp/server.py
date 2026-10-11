@@ -27,7 +27,7 @@ from .gamedata import (
     item_text as _item_text, load_items, mod_tiers as _mod_tiers, top_rolls, trial_pool as _trial_pool,
 )
 from .guides import GuideFetcher
-from .patchnotes import PatchNotesClient, search_lines
+from .patchnotes import PatchNotesClient, outline, search_lines, section_lines
 from .plannerfolder import (
     GAME_FOLDER, accept_folder, documents_folders, find_planner_folder, read_plans, remove_plans, write_plans,
 )
@@ -796,7 +796,10 @@ async def fetch_guide(url: str) -> dict[str, Any]:
 
 @mcp.tool()
 async def patch_notes(
-    version: str | None = None, search: list[str] | None = None, since: str | None = None
+    version: str | None = None,
+    search: list[str] | None = None,
+    since: str | None = None,
+    sections: list[str] | None = None,
 ) -> dict[str, Any]:
     """Path of Exile 2's official patch notes, verbatim, from the pathofexile.com forum (GGG's posts only).
 
@@ -807,10 +810,13 @@ async def patch_notes(
 
     With `version` -- a version ("0.5.0", "0.5.5b": its Patch Notes thread), an exact thread title
     ("0.5.5 Hotfix 3"), or a thread id: that thread's {title, version, kind, url, threadId, posted,
-    lines: [{section, text}], matched, total}. Each line is one list item or paragraph of GGG's text,
-    whitespace collapsed, under the heading it sits in. `search` (terms, any case) keeps only the lines
-    containing any of them; `matched` counts those, `total` every line. A content update can run to ~900
-    lines, so search it for a build's terms rather than reading it whole.
+    outline: [{section, lines}], lines: [{section, text}], matched, total}. Each line is one list item or
+    paragraph of GGG's text, whitespace collapsed, under the heading it sits in. `outline` is every
+    heading in order with its line count; a content update's overview is under the post's own title.
+    `sections` (words, any case) keeps the lines under headings containing any of them; `search` (terms,
+    any case) keeps the lines containing any of them; given both, a line must pass both. `matched` counts
+    the lines kept, `total` every line. A content update can run to ~900 lines -- too many for one answer
+    -- so read its outline and overview, and search it for a build's terms, rather than reading it whole.
 
     Cached: the thread list for an hour, a thread's notes for a week. `ageSeconds` is our copy's age. A
     thread that can't be found or fetched gives `error`.
@@ -823,9 +829,10 @@ async def patch_notes(
     except (LookupError, ValueError, RuntimeError, httpx.HTTPError) as e:
         return {"error": str(e)}
     thread = fetched.body
-    lines = search_lines(thread["lines"], search) if search else thread["lines"]
-    return {**{k: v for k, v in thread.items() if k != "lines"}, "lines": lines,
-            "matched": len(lines), "total": len(thread["lines"]), **freshness(fetched)}
+    lines = section_lines(thread["lines"], sections) if sections else thread["lines"]
+    lines = search_lines(lines, search) if search else lines
+    return {**{k: v for k, v in thread.items() if k != "lines"}, "outline": outline(thread["lines"]),
+            "lines": lines, "matched": len(lines), "total": len(thread["lines"]), **freshness(fetched)}
 
 
 _PASTE_POB = "Paste the code from Path of Building: Import/Export -> Generate -> Copy."

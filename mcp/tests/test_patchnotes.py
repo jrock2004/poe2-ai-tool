@@ -7,9 +7,11 @@ import pytest
 
 from poe2_mcp.patchnotes import (
     PatchNotesClient,
+    outline,
     parse_index,
     parse_thread,
     search_lines,
+    section_lines,
     thread_kind,
     version_key,
 )
@@ -94,6 +96,22 @@ def test_search_lines_keeps_lines_with_any_term_in_any_case():
     ]
 
 
+def test_outline_lists_each_section_in_order_with_its_line_count():
+    # The overview sits under the post's title heading; the moderator's post has no heading at all.
+    assert outline(parse_thread(THREAD)["lines"]) == [
+        {"section": "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients", "lines": 1},
+        {"section": "Skill Changes", "lines": 4},
+        {"section": "Item Changes", "lines": 1},
+        {"section": "", "lines": 1},
+    ]
+
+
+def test_section_lines_keeps_the_sections_whose_heading_contains_a_name():
+    lines = parse_thread(THREAD)["lines"]
+    kept = section_lines(lines, ["skill CHANGES"])
+    assert {line["section"] for line in kept} == {"Skill Changes"} and len(kept) == 4
+
+
 def _client(calls: list[str]) -> PatchNotesClient:
     pages = {
         "/forum/view-forum/2212": INDEX_1,
@@ -172,3 +190,15 @@ def test_threads_stop_after_a_run_of_older_versions():
     client = PatchNotesClient(min_gap_s=0, transport=httpx.MockTransport(handler))
     threads = asyncio.run(client.threads(since="0.5.5")).body
     assert [t["title"] for t in threads] == ["0.5.5e Patch Notes"] and calls == ["/forum/view-forum/2212"]
+
+
+def test_patch_notes_tool_filters_by_section_and_search_and_always_gives_the_outline(monkeypatch):
+    from poe2_mcp import server
+    monkeypatch.setattr(server, "_patch_notes", _client([]))
+    out = asyncio.run(server.patch_notes(version="3932540", sections=["Skill Changes"], search=["ice shot"]))
+    assert [line["text"] for line in out["lines"]] == [
+        "Ice Shot: Ice Shards no longer have 25% more Freeze Buildup.", "Does not apply to Ice Shot."]
+    assert out["matched"] == 2 and out["total"] == 7
+    assert [s["section"] for s in out["outline"]][:2] == [
+        "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients", "Skill Changes"]
+    assert "ageSeconds" in out

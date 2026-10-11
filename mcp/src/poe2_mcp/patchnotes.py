@@ -176,6 +176,21 @@ def search_lines(lines: list[dict[str, str]], terms: list[str]) -> list[dict[str
     return [line for line in lines if any(t in line["text"].lower() for t in wanted)]
 
 
+def section_lines(lines: list[dict[str, str]], names: list[str]) -> list[dict[str, str]]:
+    """The lines whose section heading contains any of `names`, in any case, in their order. Pure."""
+    wanted = [n.lower() for n in names if n.strip()]
+    return [line for line in lines if any(n in line["section"].lower() for n in wanted)]
+
+
+def outline(lines: list[dict[str, str]]) -> list[dict[str, Any]]:
+    """Each section in the order it first appears, with how many lines it has: [{"section", "lines"}].
+    Pure. A content update's overview sits under the post's own title heading."""
+    counts: dict[str, int] = {}
+    for line in lines:
+        counts[line["section"]] = counts.get(line["section"], 0) + 1
+    return [{"section": name, "lines": n} for name, n in counts.items()]
+
+
 class PatchNotesClient:
     def __init__(self, min_gap_s: float = 1.0, transport: httpx.AsyncBaseTransport | None = None) -> None:
         self._cache: dict[str, CacheEntry] = {}
