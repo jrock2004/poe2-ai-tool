@@ -7,7 +7,7 @@ model: sonnet
 
 **Before any other tool call, invoke the `poe2-core` skill** with the Skill tool; its rules apply here
 and aren't restated. A returning player wants to know what changed while they were away — above all,
-whether their build still works. This answers from the official patch notes only: quoted, with the
+what changed for their build. This answers from the official patch notes only: quoted, with the
 patch, never from memory or a community summary.
 
 It doesn't set up a league; `/poe2-new-league` does that, and this points to it at the end.
@@ -56,15 +56,23 @@ source.
 
 ## 4. Answer
 
-One message, short:
+One message, short. The notes say what changed, never how good the build is now, so give no verdict
+of your own — not at the top, not on the build, not on one part of it: no "barely touched", "still
+works", "mostly nerfs", "no changes to <ascendancy>". When the player asks whether it's still good,
+the first line says the patch notes can't tell, and step 3 points to who can.
 
 1. **What changed** — the 3–6 biggest changes across the gap (new classes or ascendancies, the
    campaign, the endgame, crafting, trading), one line each, with its patch. For a long gap, the
    biggest one or two per major release.
-2. **Your build** — the quoted lines, grouped by patch, each with its link. Call a change a buff or a
-   nerf only where the quoted numbers show it; for anything bigger, use the notes' own word
-   ("reworked"). If nothing names the build: "The patch notes don't mention <skill>. That isn't proof
-   it's unchanged — passive tree and support gem changes still affect it."
+2. **Your build** — the quoted lines, grouped by patch, each with its link.
+   - Each line is the notes' own text in quotation marks, whole. No paraphrase inside, around or
+     instead of a quote. A line that came back cut off ends in "…" where it was cut, followed by "(full
+     line in the notes)"; never finish it from memory.
+   - Call a change a buff or a nerf only where the quoted numbers show both values; otherwise use the
+     notes' own word ("reworked") or none. Don't say what a line does to damage, or any effect it
+     doesn't state.
+   - Each build term no line names gets: "The patch notes don't mention <term>. That isn't proof it's
+     unchanged — passive tree and support gem changes still affect it."
    A quoted line that names a rune, soul core, idol or augment: before you explain it, Read
    `poe2-core/references/currency-glossary.md` → "Socketables" and take its kind and where it's kept
    from there. They are not kept in the currency tab.
