@@ -77,8 +77,11 @@ says what its outputs are for. Check its freshness stamp; if the patch has moved
 4. **No rates.** Never say "X div/hour" or rank by yield — nothing reports drop rates or run times.
    Say that plainly if asked, and offer what *is* known: what the outputs are worth and where
    they're heading.
-5. For the fragments the file marks as not researched (Crisis Fragments, Fates, Origin items, …),
-   give the price and direction only; say the mechanic isn't covered.
+5. How a mechanic works or what it needs (Atlas passives, an unlock, where it drops) when the farming
+   file doesn't say: search the whole patch-note history as `poe2-core/references/sources.md` →
+   "Game rules and mechanics" says, and quote what it finds with its patch. For what that doesn't
+   cover either — the fragments the file marks as not researched (Crisis Fragments, Fates, Origin
+   items, …) among them — give the price and direction only; say the mechanic isn't covered.
 
 **SSF characters:** market direction doesn't help — they can't sell what they farm. Recommend by what
 the build needs instead: the currencies and crafting materials its next upgrades call for (from

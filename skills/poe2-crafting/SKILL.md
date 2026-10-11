@@ -11,9 +11,14 @@ mod," and saying so before any cost talk is the skill's main value.
 
 Mod tiers and their item-level gates come **only** from `mod_tiers` (the game's own data, per base);
 what a currency, omen, essence or rune does **only** from `item_text` (the game's own text); affix
-limits and the rules around them **only** from `get_knowledge('crafting')`. If what you need isn't in
-any of them, say "not researched — check poe2db" and lower confidence. Never fill in a tier, item-level
-gate, currency effect, or odds from memory.
+limits and the rules around them **only** from `get_knowledge('crafting')`. A rule about how a
+currency or crafting behaves that none of them covers ("what does the Vaal outcome do to the values")
+may have been set in an older patch: search the whole patch-note history —
+`patch_notes(since="0.1.0", kinds=["content", "lettered"], search=[...])` with the currency's name and
+its effect's word stem (a Vaal Orb's outcome: "Vaal", "corrupt"), as
+`poe2-core/references/sources.md` → "Game rules and mechanics" says — and quote what it finds with its
+patch. If that finds nothing too, say "not researched — check poe2db" and lower confidence. Never fill
+in a tier, item-level gate, currency effect, or odds from memory.
 
 Scope: single-currency decisions and short paths (a few orbs, an essence, a rune, or an omen steering
 one of them). Not full multi-step craft plans, and not Desecrated mods or the bench — those are "not
