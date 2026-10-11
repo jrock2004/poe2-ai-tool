@@ -65,6 +65,9 @@ One message, short:
    nerf only where the quoted numbers show it; for anything bigger, use the notes' own word
    ("reworked"). If nothing names the build: "The patch notes don't mention <skill>. That isn't proof
    it's unchanged — passive tree and support gem changes still affect it."
+   A quoted line that names a rune, soul core, idol or augment: before you explain it, Read
+   `poe2-core/references/currency-glossary.md` → "Socketables" and take its kind and where it's kept
+   from there. They are not kept in the currency tab.
 3. **What to do first** — two or three of:
    - re-import the character into Path of Building once it's updated for this patch (how-to: "Get your
      character into Path of Building");
@@ -101,4 +104,5 @@ Don't move them to Standard unless the player asks: most returning players start
 - **No tier lists or "the meta."** Whether a build is strong now isn't in the patch notes — point to the
   guide's creator instead.
 - Read-only: the roster changes only when the player picks "Remove from the roster".
-- Beginner-friendly, per `poe2-core`: a new system gets a one-line explanation.
+- Beginner-friendly, per `poe2-core`: a new system gets a one-line explanation, taken from the notes or
+  `poe2-core/references/`, not memory.
