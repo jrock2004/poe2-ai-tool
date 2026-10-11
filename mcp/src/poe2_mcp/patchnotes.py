@@ -33,7 +33,9 @@ MAX_PAGES = 25  # 30 threads a page: well past a year of patches
 # this many older ones in a row do.
 _OLDER_RUN = 3
 
-_VERSION_RE = re.compile(r"\b(\d+)\.(\d+)\.(\d+)([a-z]?)\b")
+# A game version, its letter maybe after a dot in older titles ("0.3.1.d Patch Notes" is 0.3.1d).
+_VERSION_RE = re.compile(r"\b(\d+)\.(\d+)\.(\d+)(?:\.?([a-z]))?\b")
+_HOTFIX = ("hotfix", "hotifx")  # "0.1.0 Hotifx 9" is a real title
 _TITLE_SUFFIX = " - Forum - Path of Exile"
 _TITLE_PREFIX = "Early Access Patch Notes - "
 _HEADINGS = {"h1", "h2", "h3", "h4", "h5"}
@@ -47,7 +49,11 @@ def version_key(version: str) -> tuple[int, int, int, str]:
     m = _VERSION_RE.search(version)
     if not m:
         raise ValueError(f"not a game version: {version!r}")
-    return int(m[1]), int(m[2]), int(m[3]), m[4]
+    return int(m[1]), int(m[2]), int(m[3]), m[4] or ""
+
+
+def _version(m: re.Match[str]) -> str:
+    return f"{m[1]}.{m[2]}.{m[3]}{m[4] or ''}"
 
 
 def thread_kind(title: str) -> dict[str, Any]:
@@ -55,12 +61,12 @@ def thread_kind(title: str) -> dict[str, Any]:
 
     kind: "content" -- a content update's notes (x.y.z Patch Notes, or "Content Update x.y.z — ..."),
     "lettered" -- a lettered patch's notes (0.5.5b), "hotfix", or "other" (restarts, maintenance). version
-    is the first x.y.z[letter] in the title, or None ("Server Maintenance").
+    is the first x.y.z[letter] in the title ("0.3.1.d" read as "0.3.1d"), or None ("Server Maintenance").
     """
     m = _VERSION_RE.search(title)
-    version = m[0] if m else None
+    version = _version(m) if m else None
     low = title.lower()
-    if "hotfix" in low:
+    if any(word in low for word in _HOTFIX):
         kind = "hotfix"
     elif version and ("patch notes" in low or "content update" in low):
         kind = "lettered" if m[4] else "content"
@@ -231,6 +237,8 @@ class PatchNotesClient:
         older = 0
         for page in range(1, MAX_PAGES + 1):
             index, fetched = await self._index(page)
+            if not index["threads"]:  # past the last thread the forum serves empty pages that offer "Next"
+                break
             oldest = fetched if oldest is None or fetched.fetched_at < oldest.fetched_at else oldest
             for thread in index["threads"]:
                 if floor and thread["version"] and version_key(thread["version"])[:3] < floor:
@@ -242,7 +250,7 @@ class PatchNotesClient:
                 found.append(thread)
             if floor is None or not index["next"]:
                 break
-        return Fetched(body=found, fetched_at=oldest.fetched_at)
+        return Fetched(body=found, fetched_at=oldest.fetched_at if oldest else time.time())
 
     async def _find(self, ref: str) -> str:
         """A thread id for `ref`: a version ("0.5.5b" -> its Patch Notes thread), an exact title ("0.5.5
@@ -251,11 +259,15 @@ class PatchNotesClient:
         if ref.isdigit():
             return ref
         wanted = _clean(ref).lower()
-        is_version = _VERSION_RE.fullmatch(wanted) is not None
+        exact = _VERSION_RE.fullmatch(wanted)
+        is_version = exact is not None
+        wanted = _version(exact) if exact else wanted
         floor = version_key(wanted) if is_version else None
         older = 0
         for page in range(1, MAX_PAGES + 1):
             index, _ = await self._index(page)
+            if not index["threads"]:
+                break
             for thread in index["threads"]:
                 if is_version:
                     if thread["version"] == wanted and thread["kind"] in ("content", "lettered"):

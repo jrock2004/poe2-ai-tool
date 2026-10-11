@@ -33,6 +33,9 @@ THREAD = (FIXTURES / "thread_staff.html").read_text(encoding="utf-8")
     ("0.5.3 Restart", "0.5.3", "other"),
     ("0.5.4e Maintenance", "0.5.4e", "other"),
     ("Server Maintenance", None, "other"),
+    # Older titles: a dot before the letter, and a typo GGG never fixed.
+    ("0.3.1.d Patch Notes", "0.3.1d", "lettered"),
+    ("0.1.0 Hotifx 9", "0.1.0", "hotfix"),
 ])
 def test_thread_kind_reads_the_version_and_kind_from_the_title(title, version, kind):
     assert thread_kind(title) == {"version": version, "kind": kind}
@@ -241,3 +244,39 @@ def test_patch_notes_tool_lists_threads_without_reading_them_when_nothing_is_sea
     out = asyncio.run(server.patch_notes(since="0.5.0"))
     assert all("lines" not in t for t in out["threads"])
     assert not any("view-thread" in c for c in calls)
+
+
+def test_threads_stop_at_an_empty_page():
+    # Past its last thread the forum serves empty pages that still offer "Next".
+    empty = INDEX_2.replace(INDEX_2[INDEX_2.index("<tr>"):INDEX_2.index("</tbody>")], "")
+    empty = empty.replace('class="current">2</a>', 'class="current">2</a><a href="/forum/view-forum/2212/page/3">Next</a>')
+    pages = {"/forum/view-forum/2212": INDEX_1, "/forum/view-forum/2212/page/2": empty}
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return httpx.Response(200, text=pages.get(request.url.path, empty))
+
+    client = PatchNotesClient(min_gap_s=0, transport=httpx.MockTransport(handler))
+    assert len(asyncio.run(client.threads(since="0.1.0")).body) == 4
+    assert calls == ["/forum/view-forum/2212", "/forum/view-forum/2212/page/2"]
+
+
+def test_patch_notes_tool_keeps_only_the_kinds_asked_for(monkeypatch):
+    from poe2_mcp import server
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        page = {"/forum/view-forum/2212": INDEX_1, "/forum/view-forum/2212/page/2": INDEX_2}.get(request.url.path)
+        return httpx.Response(200, text=page or THREAD)
+
+    monkeypatch.setattr(server, "_patch_notes", PatchNotesClient(min_gap_s=0, transport=httpx.MockTransport(handler)))
+    listed = asyncio.run(server.patch_notes(since="0.5.0", kinds=["content"]))
+    assert [t["title"] for t in listed["threads"]] == [
+        "0.5.5 Patch Notes", "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients"]
+    searched = asyncio.run(server.patch_notes(since="0.5.0", kinds=["content", "lettered"], search=["quivers"]))
+    assert [t["kind"] for t in searched["threads"]] == ["lettered", "content", "lettered", "content"]
+    read = [c for c in calls if "view-thread" in c]
+    assert sorted(set(read)) == sorted({f"/forum/view-thread/{i}/filter-account-type/staff"
+                                        for i in ("4009785", "4000864", "3991222", "3932540")})

@@ -800,13 +800,16 @@ async def patch_notes(
     search: list[str] | None = None,
     since: str | None = None,
     sections: list[str] | None = None,
+    kinds: list[str] | None = None,
 ) -> dict[str, Any]:
     """Path of Exile 2's official patch notes, verbatim, from the pathofexile.com forum (GGG's posts only).
 
     No `version`: the list of patch-note threads, newest first -- the newest page, or with `since`
     ("0.4.0") every thread back to and including that version. Each: {title, version, kind, url,
     threadId, posted}; kind is "content" (a content update's notes, 0.5.0 or 0.5.5), "lettered" (0.5.5b),
-    "hotfix", or "other" (restarts, maintenance). With `search` or `sections` too, every listed thread is
+    "hotfix", or "other" (restarts, maintenance); `kinds` keeps only those kinds. Early Access launched
+    without a 0.1.0 notes thread, so since="0.1.0" reaches the oldest notes there are. With `search` or
+    `sections` too, every listed thread is
     read and filtered as below: each gets {lines, matched, total} -- matched 0 means it was read and
     nothing matched -- or `error` if it couldn't be read, and the top-level `matched` counts every line
     kept. One call covers a whole gap; a cold cache reads about a thread a second.
@@ -831,6 +834,8 @@ async def patch_notes(
     try:
         if version is None:
             listed = await _patch_notes.threads(since)
+            if kinds:
+                listed = Fetched(body=[t for t in listed.body if t["kind"] in kinds], fetched_at=listed.fetched_at)
             if not (search or sections):
                 return {"threads": listed.body, **freshness(listed)}
             threads, fetches = [], [listed]
