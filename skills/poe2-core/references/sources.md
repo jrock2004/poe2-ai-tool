@@ -19,7 +19,8 @@ PoE1 pages mix in under the same names. So:
 - **Silence isn't a "no."** Patch notes are a changelog, not a rulebook, and the knowledge files are
   built from them — a rule that never changed isn't in either. Never answer "can I…" or "does X work"
   from what they leave out, or from a rule they state only for something else (a Trial of Chaos rule
-  says nothing about the Sekhemas). Look the rule up; if no source here has it, say "not researched".
+  says nothing about the Sekhemas). Look the rule up ("Game rules and mechanics" below — the latest
+  notes are one patch of many); if no source here has it, say "not researched".
 
 ## By topic
 
@@ -39,6 +40,7 @@ PoE1 pages mix in under the same names. So:
 | Campaign permanent rewards (resistances, spirit, weapon-set points) | `campaign_rewards` — the campaign snapshot, generated from github.com — PathOfBuildingCommunity/PathOfBuilding-PoE2 (`dev`), `src/Data/QuestRewards.lua` at a pinned commit (`CONTRIBUTING.md` step 10) | github.com — repoe-fork/dat-export, `QuestStaticRewards` (values only, no names) | Quote the texts. A reward with `options` is a pick-one: the player got only one of them. Its `patch` is the game patch the values were checked against. |
 | Farming — what a mechanic drops | `get_knowledge('farming')` | poe2scout categories (via the tools) | No yields, drop rates, or "X per hour" from anywhere. |
 | Stash-tab layouts (which item is in which slot) | `get_stash_layout` | github.com — repoe-fork/dat-export (`develop`), `current/poe2/heuristics/csv` | Snapshot is generated; see `CONTRIBUTING.md`. Column names there are guesses — trust `_COLUMNS` in `stashlayout.py`, not the headers. No license; the data is GGG's. |
+| Game rules and mechanics not covered above ("can I…", "does X work with Y", how something behaves) | The knowledge file for its topic (`get_knowledge`), then the whole patch-note history: `patch_notes(since="0.1.0", kinds=["content", "lettered"], search=[<the mechanic's own words>])` — every content and lettered patch since Early Access launched | poe2db.tw — the mechanic's page | The newest line on a rule is the one in force; quote it with its patch, and the older ones only to show how it changed. A rule set at launch and never changed has no line anywhere — that's silence, not a "no". A cold history search takes a minute or so; say you're checking the patch history. |
 | Game / PoB UI steps | `references/how-to.md` | *not set* | |
 | Build guides | the player's link or PoB code, via `fetch_guide` | — | Follow its `route`. See "Build creators" for whose guides to trust. To help pick one (`poe2-build-picker`): a matching creator's build list. |
 | Build popularity (what people play) | the player, on `poe.ninja/poe2/builds` — give them the link | — | Never read it ourselves; see "Avoid". |

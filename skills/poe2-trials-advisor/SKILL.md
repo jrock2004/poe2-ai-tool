@@ -1,6 +1,6 @@
 ---
 name: poe2-trials-advisor
-description: Advise which relics, boons, afflictions, or rewards to pick in the Path of Exile 2 Trial of the Sekhemas or Trial of Chaos, based on the player's build — for one offer, or as a full take/avoid sheet before a run. Use when the player asks what to select, take, or avoid in a Trial, or pastes a screenshot of a Trial choice.
+description: Advise which relics, boons, afflictions, or rewards to pick in the Path of Exile 2 Trial of the Sekhemas or Trial of Chaos, based on the player's build — for one offer, or as a full take/avoid sheet before a run. Use when the player asks what to select, take, or avoid in a Trial, pastes a screenshot of a Trial choice, or asks how a Trial works ("how does Honour work", "can I leave a Sekhemas run", "does X matter in the Trial of Chaos").
 ---
 # poe2-trials-advisor
 
@@ -109,7 +109,9 @@ here can end a run.
 - **Ground every pick in `trial_pool`'s text, the knowledge file and the build**, not from memory of a
   past patch. If they don't cover something the player sees, say so and reason from the mechanics
   rather than inventing a specific effect. For a question about the rules ("can I leave", "do I keep
-  the loot") that neither covers, say it's not researched — never a "no" from the patch notes'
+  the loot", "does distance change Honour loss") that the knowledge file doesn't cover, search the
+  whole patch-note history as `sources.md` → "Game rules and mechanics" says, and quote what it finds
+  with its patch. Only if that finds nothing, say it's not researched — never a "no" from the notes'
   silence or from a rule stated only for the other trial (`sources.md` → "Silence isn't a no").
 - Keep the knowledge file current — it's part of the per-patch refresh (`CONTRIBUTING.md` step 2).
 - Plain language first for newer players (define "honour", "affliction", "max res") per `poe2-core`.
