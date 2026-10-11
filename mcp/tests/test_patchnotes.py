@@ -202,3 +202,42 @@ def test_patch_notes_tool_filters_by_section_and_search_and_always_gives_the_out
     assert [s["section"] for s in out["outline"]][:2] == [
         "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients", "Skill Changes"]
     assert "ageSeconds" in out
+
+
+def test_patch_notes_tool_searches_every_thread_since_a_version(monkeypatch):
+    # Every staff page serves the 0.5.0 fixture's lines; the 0.5.5 Hotfix 3 thread fails to fetch.
+    from poe2_mcp import server
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        path = request.url.path
+        if path == "/forum/view-forum/2212":
+            return httpx.Response(200, text=INDEX_1)
+        if path == "/forum/view-forum/2212/page/2":
+            return httpx.Response(200, text=INDEX_2)
+        if path == "/forum/view-thread/4001313/filter-account-type/staff":
+            return httpx.Response(503)
+        return httpx.Response(200, text=THREAD)
+
+    monkeypatch.setattr(server, "_patch_notes", PatchNotesClient(min_gap_s=0, transport=httpx.MockTransport(handler)))
+    out = asyncio.run(server.patch_notes(since="0.5.0", search=["quivers"]))
+    by_title = {t["title"]: t for t in out["threads"]}
+    assert list(by_title) == [
+        "0.5.5e Patch Notes", "0.5.5 Hotfix 3", "0.5.5 Patch Notes", "Server Maintenance",
+        "0.5.4e Patch Notes (restartless)", "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients"]
+    quiver = "The +2 to level of Projectile Skills modifier on Quivers now has a value of +1."
+    assert by_title["0.5.5 Patch Notes"]["lines"] == [{"section": "Item Changes", "text": quiver}]
+    assert by_title["0.5.5 Patch Notes"]["matched"] == 1 and by_title["0.5.5 Patch Notes"]["total"] == 7
+    assert "lines" not in by_title["0.5.5 Hotfix 3"] and "503" in by_title["0.5.5 Hotfix 3"]["error"]
+    assert out["matched"] == 5  # one line in each thread that was read
+    assert "ageSeconds" in out
+
+
+def test_patch_notes_tool_lists_threads_without_reading_them_when_nothing_is_searched(monkeypatch):
+    from poe2_mcp import server
+    calls: list[str] = []
+    monkeypatch.setattr(server, "_patch_notes", _client(calls))
+    out = asyncio.run(server.patch_notes(since="0.5.0"))
+    assert all("lines" not in t for t in out["threads"])
+    assert not any("view-thread" in c for c in calls)

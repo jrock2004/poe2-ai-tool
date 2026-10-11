@@ -806,7 +806,10 @@ async def patch_notes(
     No `version`: the list of patch-note threads, newest first -- the newest page, or with `since`
     ("0.4.0") every thread back to and including that version. Each: {title, version, kind, url,
     threadId, posted}; kind is "content" (a content update's notes, 0.5.0 or 0.5.5), "lettered" (0.5.5b),
-    "hotfix", or "other" (restarts, maintenance).
+    "hotfix", or "other" (restarts, maintenance). With `search` or `sections` too, every listed thread is
+    read and filtered as below: each gets {lines, matched, total} -- matched 0 means it was read and
+    nothing matched -- or `error` if it couldn't be read, and the top-level `matched` counts every line
+    kept. One call covers a whole gap; a cold cache reads about a thread a second.
 
     With `version` -- a version ("0.5.0", "0.5.5b": its Patch Notes thread), an exact thread title
     ("0.5.5 Hotfix 3"), or a thread id: that thread's {title, version, kind, url, threadId, posted,
@@ -821,16 +824,31 @@ async def patch_notes(
     Cached: the thread list for an hour, a thread's notes for a week. `ageSeconds` is our copy's age. A
     thread that can't be found or fetched gives `error`.
     """
+    def kept(lines: list[dict[str, str]]) -> list[dict[str, str]]:
+        lines = section_lines(lines, sections) if sections else lines
+        return search_lines(lines, search) if search else lines
+
     try:
         if version is None:
-            fetched = await _patch_notes.threads(since)
-            return {"threads": fetched.body, **freshness(fetched)}
+            listed = await _patch_notes.threads(since)
+            if not (search or sections):
+                return {"threads": listed.body, **freshness(listed)}
+            threads, fetches = [], [listed]
+            for entry in listed.body:
+                try:
+                    read = await _patch_notes.thread(entry["threadId"])
+                except (LookupError, RuntimeError, httpx.HTTPError) as e:
+                    threads.append({**entry, "error": str(e)})
+                    continue
+                fetches.append(read)
+                lines = kept(read.body["lines"])
+                threads.append({**entry, "lines": lines, "matched": len(lines), "total": len(read.body["lines"])})
+            return {"threads": threads, "matched": sum(t.get("matched", 0) for t in threads), **freshness(*fetches)}
         fetched = await _patch_notes.thread(version)
     except (LookupError, ValueError, RuntimeError, httpx.HTTPError) as e:
         return {"error": str(e)}
     thread = fetched.body
-    lines = section_lines(thread["lines"], sections) if sections else thread["lines"]
-    lines = search_lines(lines, search) if search else lines
+    lines = kept(thread["lines"])
     return {**{k: v for k, v in thread.items() if k != "lines"}, "outline": outline(thread["lines"]),
             "lines": lines, "matched": len(lines), "total": len(thread["lines"]), **freshness(fetched)}
 
