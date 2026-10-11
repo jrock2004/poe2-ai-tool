@@ -43,12 +43,17 @@ fails).
 
 - **The threads in the gap:** `patch_notes(since=<the patch they last played>)` — every thread from
   that patch to now. Each has a `kind`: content updates (x.y.0 and point releases alike, 0.5.0 and
-  0.5.5), lettered patches (0.5.5b), hotfixes.
-- **Content updates** — for the headlines, `patch_notes(version=<v>, sections=[<the thread's
-  title>])`: the `outline` lists its sections, and its title's section is the overview; read a section
-  in full with `sections` when a headline needs it. Never read a content update whole — 0.5.0 runs to
-  ~900 lines. Then `patch_notes(version=<v>, search=<the build's terms>)` for its build lines.
-- **Lettered patches and hotfixes:** `search` each for the build's terms only.
+  0.5.5), lettered patches (0.5.5b), hotfixes. The content update they last played is what they already
+  had: leave it out of both the headlines and the build lines. Its lettered patches and hotfixes stay
+  in — you can't tell how far into that league they played; say so in confidence.
+- **Headlines** — for each content update in the gap, `patch_notes(version=<v>, sections=[<the
+  thread's title>])`: the `outline` lists its sections, and its title's section is the overview; read a
+  section in full with `sections` when a headline needs it. Never read a content update whole — 0.5.0
+  runs to ~900 lines.
+- **Build lines** — one call for the whole gap: `patch_notes(since=<the patch they last played>,
+  search=<the build's terms>)`. Every thread comes back with its matching `lines`; `matched: 0` means
+  it was read and nothing named the build, and a thread with `error` wasn't read — name it, and lower
+  confidence. A cold read takes a minute or two, so tell the player you're reading the notes first.
 - **Quote, don't paraphrase,** every line you'll show about the build — its `text` exactly — and keep
   its patch and the thread's `url`.
 - **Renames and removals** are in the notes. Search for the old name too, and say so if a skill was
