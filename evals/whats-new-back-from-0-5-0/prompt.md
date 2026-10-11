@@ -1,5 +1,5 @@
 ---
-description: A short gap (0.5.0 to now) with a known build. Tests quoting the official notes and not over-claiming.
+description: 'A short gap (0.5.0 to now) with a known build. Tests quoting the official notes and not over-claiming. Run with --mocks off --allow-tools "mcp__plugin_poe2_poe2__*": patch_notes reads the live forum and has no mock.'
 max_turns: 60
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill]

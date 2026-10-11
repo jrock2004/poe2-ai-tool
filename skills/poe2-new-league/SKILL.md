@@ -33,9 +33,9 @@ Store the exact `league` value they choose, not the short name.
 Then find the **patch** the league launched with — `get_leagues` doesn't report it, so look it up:
 
 1. Find the patch notes for the content update that launched this league, from the sources in
-   `poe2-core/references/sources.md` → "Patch / hotfix notes". If the server fetch of the primary is
-   blocked, open it in the browser; if that's blocked too, use the fallback. The version is in the title, e.g. `0.6.0` — take
-   the launch patch, not a later hotfix.
+   `poe2-core/references/sources.md` → "Patch / hotfix notes": `patch_notes()` lists the newest
+   threads, and the launch thread's `kind` is "content" and its overview names the league. The version
+   is in the title, e.g. `0.6.0` — take the launch patch, not a later hotfix.
 2. Confirm it as a choice: **"<version> (from the patch notes)"** first, and "Other" for the player to
    type one. If nothing turned up, ask for it directly, still offering "skip".
 

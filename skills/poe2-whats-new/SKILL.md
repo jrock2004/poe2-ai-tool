@@ -38,21 +38,21 @@ uniques and keystones — about ten at most.
 
 ## 3. Read the patch notes
 
-From the official PoE2 patch notes (`poe2-core/references/sources.md` → "Patch / hotfix notes"). The
-forum lists threads newest first, 30 to a page; page back (`…/page/2`, `…/page/3`) until you reach the
-patch they last played.
+With `patch_notes` (`poe2-core/references/sources.md` → "Patch / hotfix notes" says what to do if it
+fails).
 
-- **Content updates** — threads titled `<version> Patch Notes` with no letter, x.y.0 and point
-  releases alike (0.4.0, 0.5.5): read each for its headline changes and every line naming one of the
-  build's terms.
-- **Lettered patches and hotfixes** ("0.5.5b Patch Notes", "0.5.5 Hotfix 3"): scan them for the
-  build's terms only.
-- **Quote, don't paraphrase,** every line you'll show about the build, and keep its patch and link.
+- **The threads in the gap:** `patch_notes(since=<the patch they last played>)` — every thread from
+  that patch to now. Each has a `kind`: content updates (x.y.0 and point releases alike, 0.5.0 and
+  0.5.5), lettered patches (0.5.5b), hotfixes.
+- **Content updates** — for the headlines, `patch_notes(version=<v>, sections=[<the thread's
+  title>])`: the `outline` lists its sections, and its title's section is the overview; read a section
+  in full with `sections` when a headline needs it. Never read a content update whole — 0.5.0 runs to
+  ~900 lines. Then `patch_notes(version=<v>, search=<the build's terms>)` for its build lines.
+- **Lettered patches and hotfixes:** `search` each for the build's terms only.
+- **Quote, don't paraphrase,** every line you'll show about the build — its `text` exactly — and keep
+  its patch and the thread's `url`.
 - **Renames and removals** are in the notes. Search for the old name too, and say so if a skill was
   renamed, merged, or removed.
-
-If the server fetch is blocked, open the page in the browser; if that's blocked too, use the fallback
-source.
 
 ## 4. Answer
 
@@ -67,11 +67,13 @@ the first line says the patch notes can't tell, and step 3 points to who can.
    instead.
 2. **Your build** — the quoted lines, grouped by patch, each with its link.
    - Each line is the notes' own text in quotation marks, whole. No paraphrase inside, around or
-     instead of a quote. A line that came back cut off ends in "…" where it was cut, followed by "(full
-     line in the notes)"; never finish it from memory.
-   - Call a change a buff or a nerf only where the quoted numbers show both values; otherwise use the
-     notes' own word ("reworked") or none. Don't say what a line does to damage, or any effect it
-     doesn't state.
+     instead of a quote. Only if a line came from the fallback cut off: end it in "…" where it was cut,
+     followed by "(full line in the notes)"; never finish it from memory.
+   - Call a change a buff or a nerf only where the text inside your quote shows both values — not a
+     value from the cut-off part, or from your own reading. Otherwise use the notes' own word
+     ("reworked") or none. Put the label straight after its quote; don't restate the change in your
+     own words, there or in a summary. Don't say what a line does to damage, or any effect it doesn't
+     state.
    - Each build term no line names gets: "The patch notes don't mention <term>. That isn't proof it's
      unchanged — passive tree and support gem changes still affect it."
    A quoted line that names a rune, soul core, idol or augment: before you explain it, Read

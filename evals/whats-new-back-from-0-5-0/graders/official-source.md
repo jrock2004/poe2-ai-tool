@@ -1,5 +1,5 @@
 ---
 type: tool_used
-tool: WebFetch
-input_match: 'pathofexile\.com'
+tool: mcp__plugin_poe2_poe2__patch_notes
+input_match: 'version'
 ---
