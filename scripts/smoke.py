@@ -43,7 +43,7 @@ TOOLS = {
     "get_currency_prices", "market_movers", "price_unique", "value_currency", "find_stat_filters",
     "build_trade_filter", "search_trade", "fetch_guide", "parse_pob_code", "summarize_tree",
     "get_stash_layout", "mod_tiers", "item_text", "trial_pool", "campaign_rewards", "build_vendor_regex",
-    "write_build_plan", "remove_build_plans",
+    "write_build_plan", "remove_build_plans", "patch_notes",
 }
 KNOWLEDGE = ("trials", "farming", "crafting")
 
@@ -253,12 +253,21 @@ async def live_checks(s: Smoke, league: str | None, trade: bool) -> None:
             raise Failed("no search link")
         return fresh(out, f"{out['matched']} matched")
 
+    async def notes() -> str:
+        threads = (await s.call("patch_notes"))["threads"]
+        notes = next((t for t in threads if t["kind"] in ("content", "lettered")), None)
+        if notes is None:
+            raise Failed("no patch notes thread on the newest page")
+        out = await s.call("patch_notes", version=notes["version"])
+        return fresh(out, f"{notes['version']}: {nonempty(out['total'], 'lines')}")
+
     await s.check("get_leagues", leagues)
     await s.check("get_currency_prices currency", currency_prices)
     await s.check("market_movers", movers)
     await s.check("price_unique", price)
     await s.check("value_currency", value)
     await s.check("find_stat_filters", stat_filters)
+    await s.check("patch_notes", notes)
     if trade:
         await s.check("search_trade", search)
 
