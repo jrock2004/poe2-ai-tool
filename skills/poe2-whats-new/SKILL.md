@@ -62,8 +62,9 @@ works", "mostly nerfs", "no changes to <ascendancy>". When the player asks wheth
 the first line says the patch notes can't tell, and step 3 points to who can.
 
 1. **What changed** — the 3–6 biggest changes across the gap (new classes or ascendancies, the
-   campaign, the endgame, crafting, trading), one line each, with its patch. For a long gap, the
-   biggest one or two per major release.
+   campaign, the endgame, crafting, trading), one line each, with its patch. A long gap — one that
+   spans more than one x.y.0 release (0.3.x to 0.5.x) — gets the biggest one or two per x.y.0 release
+   instead.
 2. **Your build** — the quoted lines, grouped by patch, each with its link.
    - Each line is the notes' own text in quotation marks, whole. No paraphrase inside, around or
      instead of a quote. A line that came back cut off ends in "…" where it was cut, followed by "(full
