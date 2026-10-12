@@ -57,6 +57,9 @@ fails).
   search=<the build's terms>)`. Every thread comes back with its matching `lines`; `matched: 0` means
   it was read and nothing named the build, and a thread with `error` wasn't read — name it, and lower
   confidence. A cold read takes a minute or two, so tell the player you're reading the notes first.
+- **The ascendancy's own changes** — a second call for the gap: `patch_notes(since=<the patch they
+  last played>, sections=[<the ascendancy>])`. Its changes sit under a heading with its name
+  ("Ascendancy Changes / Pathfinder") in lines that don't repeat it, so the search above misses them.
 - **Quote, don't paraphrase,** every line you'll show about the build — its `text` exactly — and keep
   its patch and the thread's `url`.
 - **Renames and removals** are in the notes. Search for the old name too, and say so if a skill was
