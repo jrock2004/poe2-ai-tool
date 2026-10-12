@@ -33,15 +33,17 @@ Store the exact `league` value they choose, not the short name.
 Then find the **patch** the league launched with — `get_leagues` doesn't report it, so look it up:
 
 1. Find the patch notes for the content update that launched this league, from the sources in
-   `poe2-core/references/sources.md` → "Patch / hotfix notes": `patch_notes()` lists the newest
-   threads, and the launch thread's `kind` is "content" and its overview names the league. The version
-   is in the title, e.g. `0.6.0` — take the launch patch, not a later hotfix.
+   `poe2-core/references/sources.md` → "Patch / hotfix notes": `patch_notes(kinds=["content"])` lists
+   content updates, newest first, with the version in the title, e.g. `0.6.0`. Confirm the newest one
+   is this league's with `patch_notes(version=<v>, sections=[<the league's name, without "HC">])`:
+   it returns the lines under headings naming the league, and the update's `outline` — every heading
+   with its line count. If no heading names the league, try the next content update down. Keep the
+   outline; step 3 reads by it.
 2. Confirm it as a choice: **"<version> (from the patch notes)"** first, and "Other" for the player to
    type one. If nothing turned up, ask for it directly, still offering "skip".
 
 Store it with `update_state` as `leagues["<league>"].patch` (see the shared model in `poe2-core`); it's what tree lookups fall
-back to when a guide doesn't say which patch it's for. Keep the patch notes you found — step 3 reads
-them, along with any hotfix notes posted since.
+back to when a guide doesn't say which patch it's for.
 
 ## 2. Make it the default league
 
@@ -55,14 +57,39 @@ Use the patch notes from step 1, plus any hotfix notes posted since. Each item f
 `CONTRIBUTING.md` → "Per-patch refresh" — its rules (quote patch notes verbatim, no odds or drop rates)
 apply here as written, and `poe2-core/references/sources.md` says where to look.
 
-- **Knowledge.** Call `get_knowledge` for each topic and read its `patch`/`refreshed`:
-  - `trials` (CONTRIBUTING step 2)
-  - `farming` (step 3)
-  - `crafting` (step 4)
+**Never read a content update whole** — 0.5.0 runs to ~900 lines. Read it two ways, only for what
+needs it:
 
-  For each, check whether the notes touch its area (the "Needed when" line of its step). If they do,
-  refresh the text, set the header's `patch` to this patch and `refreshed` to today, re-stamp the prose
-  stamp's date, patch, and sources, and call `save_knowledge` with the full text. If not, leave it alone.
+- **By heading:** `patch_notes(version=<patch>, sections=[<words>])`, picking words from the step 1
+  outline's own headings. A heading too long to need whole (Bug Fixes, Item Changes) is read by term
+  instead.
+- **By term:** one call for the lines under every other heading, and for every lettered patch and
+  hotfix since: `patch_notes(since=<patch>, search=[<terms>])`. It includes the launch thread itself.
+  `matched: 0` means a thread was read and nothing matched; a thread with `error` wasn't read — name
+  it and lower confidence. A cold read takes a minute or two, so tell the player you're reading the
+  notes first.
+
+- **Knowledge.** Call `get_knowledge` for each topic and read its `patch`/`refreshed`:
+  - `trials` (CONTRIBUTING step 2) — headings with "Trial" or "Sekhema"; terms "Trial", "Sekhema",
+    "Honour", "relic", "affliction", "boon"
+  - `farming` (step 3) — headings naming a mechanic (Breach, Delirium, Ritual, Expedition, Abyss),
+    "Endgame", "Atlas", "League"; terms "Tablet", "Breach", "Delirium", "Ritual", "Expedition",
+    "Abyss", "Splinter"
+  - `crafting` (step 4) — headings with "Crafting" or "Currency"; terms "Divine", "corrupt", "affix",
+    "modifier level", "Greater", "Perfect"
+
+  A topic's `patch` says how far its notes were read; `patch_notes(since=<patch>)` lists the threads
+  since launch, and hotfixes carry their base version ("0.5.5 Hotfix 3" is 0.5.5).
+  - Stamped with the newest listed version or later: current — read nothing for it.
+  - Stamped this patch or later, but older than the newest (0.5.5c when 0.5.5e is out): only its
+    terms, in a by-term call from the version after its stamp.
+  - Older than this patch: its headings, and its terms in the by-term call.
+
+  Gather the terms of every topic that reads from the same version into one call. Then check whether
+  the lines touch the topic's area (the "Needed when" line of its step). If they do, refresh the
+  text, set the header's `patch` to the newest version you read and `refreshed` to today, re-stamp
+  the prose stamp's date, patch, and sources, and call `save_knowledge` with the full text. If not,
+  leave it alone.
   If `save_knowledge` refuses because the shipped copy is already as new, that topic is current —
   nothing to do.
 
@@ -72,7 +99,7 @@ apply here as written, and `poe2-core/references/sources.md` says where to look.
   automatically.
 - **How-to steps.** They ship with plugin updates; the player can't refresh them. If the notes change
   the game UI they describe (menus, the export flow, hotkeys), tell the player those steps may be out
-  of date until an update.
+  of date until an update. The outline's "User Interface" heading is where they'd be.
 - **Stash-tab layouts.** Also shipped with updates. Call `get_stash_layout("currency")`; if its
   `patch` is older than this patch, tell the player stash screenshots may name a slot wrong until an
   update, so they should check any line that looks off.
