@@ -42,6 +42,7 @@ _HEADINGS = {"h1", "h2", "h3", "h4", "h5"}
 _BLOCKS = {"div", "p", "ul", "ol", "table", "tr", "td", "blockquote"}
 _SKIPPED = {"style", "script", "img", "input", "button"}
 _CONTENTS = "Table of Contents"
+_BOLD = {"strong", "b"}
 
 
 def version_key(version: str) -> tuple[int, int, int, str]:
@@ -109,10 +110,23 @@ def _clean(text: str) -> str:
     return " ".join(text.split())
 
 
-def _lines(node: Tag, section: str, out: list[dict[str, str]]) -> str:
+def _alone(child: Tag) -> bool:
+    """Whether nothing but whitespace stands between `child` and a line break or block on its right."""
+    sib = child.next_sibling
+    while isinstance(sib, NavigableString) and not sib.strip():
+        sib = sib.next_sibling
+    return sib is None or (isinstance(sib, Tag) and (sib.name == "br" or sib.name in _HEADINGS | _BLOCKS))
+
+
+def _lines(node: Tag, section: str, out: list[dict[str, str]], post: dict[str, str]) -> str:
     """Walk a post's HTML into lines: a list item, a heading's section, or text between line breaks and
     blocks. Returns the section in force after `node`. The table of contents is the list under its
-    heading; after it the section before it resumes."""
+    heading; after it the section before it resumes.
+
+    A line of bold text alone is a sub-heading. Under the post's title heading, or before any heading,
+    it starts a section of its own (point releases mark their sections this way); under any other
+    heading it nests: "Ascendancy Changes / Deadeye". `post` holds the post's "title" (its first
+    heading) and the "heading" in force, and is updated as the walk goes."""
     buffer: list[str] = []
     before_contents = section
 
@@ -136,6 +150,8 @@ def _lines(node: Tag, section: str, out: list[dict[str, str]]) -> str:
             heading = _clean(child.get_text())
             if heading == _CONTENTS:
                 before_contents = section
+            else:
+                post["heading"] = heading
             section = heading
         elif child.name == "li":
             flush()
@@ -144,13 +160,17 @@ def _lines(node: Tag, section: str, out: list[dict[str, str]]) -> str:
             if own and section != _CONTENTS:
                 out.append({"section": section, "text": own})
             for sub in nested:
-                section = _lines(sub, section, out)
+                section = _lines(sub, section, out, post)
         elif child.name in ("ul", "ol") and section == _CONTENTS:
             flush()
             section = before_contents
         elif child.name in _BLOCKS:
             flush()
-            section = _lines(child, section, out)
+            section = _lines(child, section, out, post)
+        elif child.name in _BOLD and not "".join(buffer).strip() and _alone(child):
+            sub = _clean(child.get_text()).rstrip(":")
+            heading = post["heading"]
+            section = sub if heading in ("", post["title"]) else f"{heading} / {sub}"
         else:  # inline: <a>, <strong>, <span> -- part of the line around it
             buffer.append(child.get_text())
     flush()
@@ -161,6 +181,7 @@ def parse_thread(html: str) -> dict[str, Any]:
     """A thread page (the staff-only view): {"title", "posted", "lines": [{"section", "text"}]}. Pure.
 
     Every post on the page, in order, line by line; a post's text before its first heading has section "".
+    A bold line alone is a sub-heading (see `_lines`).
     The table of contents and the post's own <style> are left out. Text is GGG's, with runs of
     whitespace collapsed to one space.
     """
@@ -171,7 +192,8 @@ def parse_thread(html: str) -> dict[str, Any]:
              if c.find("div", class_="content") is None]
     lines: list[dict[str, str]] = []
     for post in posts:
-        _lines(post, "", lines)
+        first = post.find(list(_HEADINGS))
+        _lines(post, "", lines, {"title": _clean(first.get_text()) if first else "", "heading": ""})
     date = soup.select_one("table.forumPostListTable .post_date")
     return {"title": title, "posted": _posted(date.get_text()) if date else None, "lines": lines}
 
@@ -190,7 +212,7 @@ def section_lines(lines: list[dict[str, str]], names: list[str]) -> list[dict[st
 
 def outline(lines: list[dict[str, str]]) -> list[dict[str, Any]]:
     """Each section in the order it first appears, with how many lines it has: [{"section", "lines"}].
-    Pure. A content update's overview sits under the post's own title heading."""
+    Pure."""
     counts: dict[str, int] = {}
     for line in lines:
         counts[line["section"]] = counts.get(line["section"], 0) + 1

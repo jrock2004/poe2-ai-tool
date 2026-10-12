@@ -20,6 +20,7 @@ FIXTURES = Path(__file__).parent / "patchnotes"
 INDEX_1 = (FIXTURES / "index_page1.html").read_text(encoding="utf-8")
 INDEX_2 = (FIXTURES / "index_page2.html").read_text(encoding="utf-8")
 THREAD = (FIXTURES / "thread_staff.html").read_text(encoding="utf-8")
+POINT_RELEASE = (FIXTURES / "thread_point_release.html").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("title, version, kind", [
@@ -104,9 +105,27 @@ def test_outline_lists_each_section_in_order_with_its_line_count():
     assert outline(parse_thread(THREAD)["lines"]) == [
         {"section": "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients", "lines": 1},
         {"section": "Skill Changes", "lines": 4},
+        {"section": "Ascendancy Changes", "lines": 1},
+        {"section": "Ascendancy Changes / Pathfinder", "lines": 2},
         {"section": "Item Changes", "lines": 1},
         {"section": "", "lines": 1},
     ]
+
+
+def test_parse_thread_reads_a_bold_line_under_the_post_title_as_its_own_section():
+    # Point releases mark their sections with a bold line, not a heading, under the post's title.
+    assert outline(parse_thread(POINT_RELEASE)["lines"]) == [
+        {"section": "0.5.4 Patch Notes", "lines": 1},
+        {"section": "Runes of Aldur Changes", "lines": 1},
+        {"section": "Bug Fixes", "lines": 1},
+    ]
+
+
+def test_section_lines_finds_a_bold_sub_heading_by_its_own_name_or_its_heading():
+    lines = parse_thread(THREAD)["lines"]
+    toxicity = "The Overwhelming Toxicity Notable Passive Skill now grants 50% less Poison Duration (previously 35%)."
+    assert [line["text"] for line in section_lines(lines, ["pathfinder"])] == [toxicity, "Return to top"]
+    assert toxicity in [line["text"] for line in section_lines(lines, ["Ascendancy"])]
 
 
 def test_section_lines_keeps_the_sections_whose_heading_contains_a_name():
@@ -201,7 +220,7 @@ def test_patch_notes_tool_filters_by_section_and_search_and_always_gives_the_out
     out = asyncio.run(server.patch_notes(version="3932540", sections=["Skill Changes"], search=["ice shot"]))
     assert [line["text"] for line in out["lines"]] == [
         "Ice Shot: Ice Shards no longer have 25% more Freeze Buildup.", "Does not apply to Ice Shot."]
-    assert out["matched"] == 2 and out["total"] == 7
+    assert out["matched"] == 2 and out["total"] == 10
     assert [s["section"] for s in out["outline"]][:2] == [
         "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients", "Skill Changes"]
     assert "ageSeconds" in out
@@ -231,7 +250,7 @@ def test_patch_notes_tool_searches_every_thread_since_a_version(monkeypatch):
         "0.5.4e Patch Notes (restartless)", "Content Update 0.5.0 — Path of Exile 2: Return of the Ancients"]
     quiver = "The +2 to level of Projectile Skills modifier on Quivers now has a value of +1."
     assert by_title["0.5.5 Patch Notes"]["lines"] == [{"section": "Item Changes", "text": quiver}]
-    assert by_title["0.5.5 Patch Notes"]["matched"] == 1 and by_title["0.5.5 Patch Notes"]["total"] == 7
+    assert by_title["0.5.5 Patch Notes"]["matched"] == 1 and by_title["0.5.5 Patch Notes"]["total"] == 10
     assert "lines" not in by_title["0.5.5 Hotfix 3"] and "503" in by_title["0.5.5 Hotfix 3"]["error"]
     assert out["matched"] == 5  # one line in each thread that was read
     assert "ageSeconds" in out

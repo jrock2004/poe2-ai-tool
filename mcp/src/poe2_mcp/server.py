@@ -818,7 +818,11 @@ async def patch_notes(
     ("0.5.5 Hotfix 3"), or a thread id: that thread's {title, version, kind, url, threadId, posted,
     outline: [{section, lines}], lines: [{section, text}], matched, total}. Each line is one list item or
     paragraph of GGG's text, whitespace collapsed, under the heading it sits in. `outline` is every
-    heading in order with its line count; a content update's overview is under the post's own title.
+    heading in order with its line count. A bold line on its own is a heading too: under another
+    heading it nests ("Ascendancy Changes / Deadeye"), and point releases (0.5.4) mark every section
+    that way. The overview, when there is one, is the first section, under the post's title -- an
+    x.y.0 update says more under its league's heading ("The Runes of Aldur League"), and 0.5.5 starts
+    straight at it.
     `sections` (words, any case) keeps the lines under headings containing any of them; `search` (terms,
     any case) keeps the lines containing any of them; given both, a line must pass both. `matched` counts
     the lines kept, `total` every line. A content update can run to ~900 lines -- too many for one answer
