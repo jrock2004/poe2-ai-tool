@@ -46,10 +46,13 @@ fails).
   0.5.5), lettered patches (0.5.5b), hotfixes. The content update they last played is what they already
   had: leave it out of both the headlines and the build lines. Its lettered patches and hotfixes stay
   in — you can't tell how far into that league they played; say so in confidence.
-- **Headlines** — for each content update in the gap, `patch_notes(version=<v>, sections=[<the
-  thread's title>])`: the `outline` lists its sections, and its title's section is the overview; read a
-  section in full with `sections` when a headline needs it. Never read a content update whole — 0.5.0
-  runs to ~900 lines.
+- **Headlines** — for each content update in the gap, `patch_notes(version=<v>, sections=["League"])`:
+  the lines under its league's heading ("The Runes of Aldur League"), where an x.y.0 update says what
+  it adds, and its `outline` — every heading with its line count. The outline's first heading is the
+  post's title; if it has lines, they're the overview: read them with `sections=[<that heading, as the
+  outline spells it>]` (the thread title can differ — "—" for "--"). A point release (0.5.4) has no
+  league heading; its overview and its headings say what it changed. Read any other section with
+  `sections` when a headline needs it. Never read a content update whole — 0.5.0 runs to ~900 lines.
 - **Build lines** — one call for the whole gap: `patch_notes(since=<the patch they last played>,
   search=<the build's terms>)`. Every thread comes back with its matching `lines`; `matched: 0` means
   it was read and nothing named the build, and a thread with `error` wasn't read — name it, and lower
