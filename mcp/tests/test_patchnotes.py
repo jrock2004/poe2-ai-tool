@@ -37,6 +37,16 @@ POINT_RELEASE = (FIXTURES / "thread_point_release.html").read_text(encoding="utf
     # Older titles: a dot before the letter, and a typo GGG never fixed.
     ("0.3.1.d Patch Notes", "0.3.1d", "lettered"),
     ("0.1.0 Hotifx 9", "0.1.0", "hotfix"),
+    # 1.0 may be titled with two parts; it reads as x.y.0 so it equals the three-part spelling.
+    ("1.0 Patch Notes", "1.0.0", "content"),
+    ("1.0.0 Patch Notes", "1.0.0", "content"),
+    ("1.0a Patch Notes", "1.0.0a", "lettered"),
+    ("1.0 Hotfix 2", "1.0.0", "hotfix"),
+    ("Content Update 1.1 — Path of Exile 2", "1.1.0", "content"),
+    # Numbers that aren't versions.
+    ("Server Maintenance 12.11.2026", None, "other"),
+    ("Server Maintenance 2026.12.11", None, "other"),
+    ("Patch Notes: Double Loot Weekend 2.5x", None, "other"),
 ])
 def test_thread_kind_reads_the_version_and_kind_from_the_title(title, version, kind):
     assert thread_kind(title) == {"version": version, "kind": kind}
@@ -44,6 +54,35 @@ def test_thread_kind_reads_the_version_and_kind_from_the_title(title, version, k
 
 def test_version_key_orders_a_letter_after_its_base_version():
     assert version_key("0.4.0") < version_key("0.4.0l") < version_key("0.5.0") < version_key("0.5.10")
+
+
+def test_version_key_reads_a_two_part_version_as_its_x_y_0():
+    assert version_key("1.0") == version_key("1.0.0") == (1, 0, 0, "")
+    assert version_key("0.5.5z") < version_key("1.0") < version_key("1.0a") < version_key("1.0.1")
+
+
+def test_version_key_refuses_what_is_not_a_version():
+    with pytest.raises(ValueError):
+        version_key("2.5x")
+
+
+@pytest.mark.parametrize("forum", ["Early Access Patch Notes", "Patch Notes", "Path of Exile 2 Patch Notes"])
+def test_parse_thread_drops_the_forum_name_from_the_title_whatever_it_is(forum):
+    page = POINT_RELEASE.replace("<title>Early Access Patch Notes - 0.5.4 Patch Notes",
+                                 f"<title>{forum} - 1.0 Restart")
+    title = parse_thread(page)["title"]
+    assert title == "1.0 Restart"
+    assert thread_kind(title) == {"version": "1.0.0", "kind": "other"}
+
+
+def test_parse_thread_keeps_a_dash_inside_the_thread_title():
+    page = POINT_RELEASE.replace("0.5.4 Patch Notes - Forum", "1.0 - Hotfix 2 - Forum")
+    assert parse_thread(page)["title"] == "1.0 - Hotfix 2"
+
+
+def test_parse_thread_keeps_a_title_with_no_forum_name_whole():
+    page = POINT_RELEASE.replace("<title>Early Access Patch Notes - ", "<title>")
+    assert parse_thread(page)["title"] == "0.5.4 Patch Notes"
 
 
 def test_parse_index_reads_each_thread_and_whether_there_is_a_next_page():

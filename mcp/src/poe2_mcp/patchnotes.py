@@ -33,11 +33,13 @@ MAX_PAGES = 25  # 30 threads a page: well past a year of patches
 # this many older ones in a row do.
 _OLDER_RUN = 3
 
-# A game version, its letter maybe after a dot in older titles ("0.3.1.d Patch Notes" is 0.3.1d).
-_VERSION_RE = re.compile(r"\b(\d+)\.(\d+)\.(\d+)(?:\.?([a-z]))?\b")
+# A game version, its letter maybe after a dot in older titles ("0.3.1.d Patch Notes" is 0.3.1d). The
+# third part may be missing ("1.0 Patch Notes" is 1.0.0). Parts are one or two digits and the version
+# can't sit inside a longer dotted number, so a date (12.11.2026) isn't one; "x" is a multiplier (2.5x),
+# not a patch letter.
+_VERSION_RE = re.compile(r"(?<![\d.])(\d{1,2})\.(\d{1,2})(?:\.(\d{1,2}))?(?:\.?([a-wyz]))?(?!\w|\.\d)")
 _HOTFIX = ("hotfix", "hotifx")  # "0.1.0 Hotifx 9" is a real title
 _TITLE_SUFFIX = " - Forum - Path of Exile"
-_TITLE_PREFIX = "Early Access Patch Notes - "
 _HEADINGS = {"h1", "h2", "h3", "h4", "h5"}
 _BLOCKS = {"div", "p", "ul", "ol", "table", "tr", "td", "blockquote"}
 _SKIPPED = {"style", "script", "img", "input", "button"}
@@ -46,15 +48,16 @@ _BOLD = {"strong", "b"}
 
 
 def version_key(version: str) -> tuple[int, int, int, str]:
-    """Sort key for a game version: "0.5.5e" -> (0, 5, 5, "e"). A letter sorts after its base version."""
+    """Sort key for a game version: "0.5.5e" -> (0, 5, 5, "e"). A letter sorts after its base version;
+    "1.0" is 1.0.0."""
     m = _VERSION_RE.search(version)
     if not m:
         raise ValueError(f"not a game version: {version!r}")
-    return int(m[1]), int(m[2]), int(m[3]), m[4] or ""
+    return int(m[1]), int(m[2]), int(m[3] or 0), m[4] or ""
 
 
 def _version(m: re.Match[str]) -> str:
-    return f"{m[1]}.{m[2]}.{m[3]}{m[4] or ''}"
+    return f"{m[1]}.{m[2]}.{m[3] or 0}{m[4] or ''}"
 
 
 def thread_kind(title: str) -> dict[str, Any]:
@@ -62,7 +65,8 @@ def thread_kind(title: str) -> dict[str, Any]:
 
     kind: "content" -- a content update's notes (x.y.z Patch Notes, or "Content Update x.y.z — ..."),
     "lettered" -- a lettered patch's notes (0.5.5b), "hotfix", or "other" (restarts, maintenance). version
-    is the first x.y.z[letter] in the title ("0.3.1.d" read as "0.3.1d"), or None ("Server Maintenance").
+    is the first x.y.z[letter] in the title ("0.3.1.d" read as "0.3.1d", "1.0a" as "1.0.0a"), or None
+    ("Server Maintenance").
     """
     m = _VERSION_RE.search(title)
     version = _version(m) if m else None
@@ -187,7 +191,9 @@ def parse_thread(html: str) -> dict[str, Any]:
     """
     soup = BeautifulSoup(html, "html.parser")
     raw_title = soup.title.get_text() if soup.title else ""
-    title = _clean(raw_title).removesuffix(_TITLE_SUFFIX).removeprefix(_TITLE_PREFIX)
+    # "<forum name> - <thread title> - Forum - Path of Exile". The forum name has been "Early Access Patch
+    # Notes" and may change at 1.0, so drop whatever comes before the first " - ".
+    title = _clean(raw_title).removesuffix(_TITLE_SUFFIX).split(" - ", 1)[-1]
     posts = [c for c in soup.select("table.forumPostListTable div.content")
              if c.find("div", class_="content") is None]
     lines: list[dict[str, str]] = []
